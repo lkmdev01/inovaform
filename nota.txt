@@ -1,0 +1,95 @@
+4. CRM/Leads
+
+Página de detalhe do lead mais rica
+Histórico com mais tipos de evento
+Responsável pelo lead
+Prioridade
+Próximo follow-up
+Segmentação mais forte
+Busca por resposta específica
+Notas colaborativas melhores
+Mudança em massa
+Pipeline visual
+5. Integrações
+
+Webhook por funil
+Email automático
+WhatsApp
+Google Sheets
+CRM externo
+Meta Pixel / GTM / GA4
+API pública
+Isso costuma ser um dos maiores diferenciais reais de produto.
+
+6. Automação
+
+Ações após envio
+Regras “se responder X, fazer Y”
+Notificação interna
+Encaminhamento por resposta
+Score automático de lead
+Tag automática por condição
+Hoje a base de regra existe para exibição, mas automação de negócio ainda não.
+
+7. Analytics
+
+Visual de conversão por etapa melhor
+Funil analítico mais forte
+Origem do tráfego
+UTM tracking
+Taxa por componente
+Tempo médio por etapa
+Abandono por etapa
+Comparativo entre funis
+8. Qualidade do builder
+
+Mais refinamento de UX
+Melhor experiência mobile no builder
+Undo/redo mais amplo
+Snap/reorder mais polido
+Mais componentes avançados
+Biblioteca de blocos salvos
+Copiar/colar bloco entre etapas/funis
+9. Operação
+
+Scheduler/cron garantido em produção
+Monitoramento real
+Alertas externos
+Backup/restauração
+Política de retenção
+Limpeza automática robusta de mídia
+Auditoria de ações administrativas
+10. Segurança e conformidade
+
+Rate limit mais específico no público
+Hardening de upload
+Revisão final de permissões por rota/ação
+Logs de segurança
+Consentimento/LGPD
+Política de privacidade por funil
+Termos/cookies quando necessário
+11. Experiência do usuário final
+
+Onboarding do usuário dono do SaaS
+Tour inicial
+Estado vazio melhor
+Templates guiados por objetivo
+Assistente de criação melhor
+Página final mais orientada a conversão
+12. QA final
+
+Rodada manual completa
+Teste mobile real
+Teste cross-browser
+Teste com volume de leads
+Teste de produção/deploy
+Prioridade recomendada
+
+Billing + planos + limites
+Salvar funil como template
+Integrações básicas: webhook, email, Google Sheets
+CRM de leads mais profundo
+Analytics e tracking
+Domínio customizado e publicação
+Operação/monitoramento
+Polimento final do builder
