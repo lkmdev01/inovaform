@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use App\Http\Controllers\FunnelController;
 use App\Http\Requests\UpdateFunnelRequest;
@@ -1193,6 +1193,8 @@ test('funnel owner can save long content text and carousel image urls', function
                                     'type' => 'carousel',
                                     'label' => '',
                                     'required' => false,
+                                    'carousel_autoplay' => true,
+                                    'carousel_autoplay_seconds' => 7,
                                     'option_items' => [
                                         [
                                             'id' => 'carousel-item-1',
@@ -1237,6 +1239,8 @@ test('funnel owner can save long content text and carousel image urls', function
     expect($updatedStage->meta['builder']['blocks'][0]['placeholder'])->toBe($richText);
     expect($updatedStage->meta['builder']['blocks'][1]['option_items'][0]['value'])->toBe($carouselImageUrl);
     expect($updatedStage->meta['builder']['blocks'][1]['option_items'][0]['image_url'])->toBe($carouselImageUrl);
+    expect($updatedStage->meta['builder']['blocks'][1]['carousel_autoplay'])->toBeTrue();
+    expect($updatedStage->meta['builder']['blocks'][1]['carousel_autoplay_seconds'])->toBe(7);
 });
 
 test('funnel owner receives a controlled error when builder save fails unexpectedly', function () {
@@ -1831,6 +1835,7 @@ test('shared user can access builder page', function () {
             ->component('funnels/Builder')
             ->where('funnel.id', $funnel->id)
             ->where('permissions.canEdit', false)
+            ->where('permissions.canManageLeads', false)
         );
 });
 
@@ -1852,6 +1857,7 @@ test('shared viewer can access flow page in read only mode', function () {
             ->component('funnels/Flow')
             ->where('funnel.id', $funnel->id)
             ->where('permissions.canEdit', false)
+            ->where('permissions.canManageLeads', false)
         );
 });
 
@@ -1872,7 +1878,10 @@ test('shared viewer can access design page in read only mode', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->component('funnels/Design')
             ->where('funnel.id', $funnel->id)
+            ->where('designSettings.colorTheme', 'inovaform')
+            ->where('customDomainStatus.status', 'not_configured')
             ->where('permissions.canEdit', false)
+            ->where('permissions.canManageLeads', false)
         );
 });
 
@@ -1909,6 +1918,7 @@ test('funnel owner can update design settings', function () {
             'showLogo' => false,
             'showProgress' => false,
             'allowBack' => false,
+            'colorTheme' => 'carbon',
             'accentColor' => '#112233',
             'pageColor' => '#010203',
             'cardColor' => '#040506',
@@ -1943,7 +1953,8 @@ test('funnel owner can update design settings', function () {
 
     $this->actingAs($owner)
         ->patch(route('funnels.design.update', $funnel), $payload)
-        ->assertRedirect(route('funnels.design', $funnel));
+        ->assertRedirect(route('funnels.design', $funnel))
+        ->assertSessionHas('status', 'funnel-published');
 
     $funnel->refresh();
 
@@ -1963,6 +1974,42 @@ test('funnel owner can update design settings', function () {
     expect(data_get($funnel->design_settings, 'tokens.components.fieldBackground'))->toBe('#121a24');
     expect(data_get($funnel->design_settings, 'tokens.components.primaryButtonBackground'))->toBe('#123456');
     expect($funnel->custom_domain)->toBe('quiz.exemplo.com');
+
+    $payload['is_active'] = false;
+
+    $this->actingAs($owner)
+        ->patch(route('funnels.design.update', $funnel), $payload)
+        ->assertRedirect(route('funnels.design', $funnel))
+        ->assertSessionHas('status', 'funnel-unpublished');
+
+    expect($funnel->fresh()->is_active)->toBeFalse();
+});
+
+test('legacy custom design colors are identified without changing stored settings', function () {
+    $owner = User::factory()->create();
+    $funnel = Funnel::factory()->for($owner)->create([
+        'design_settings' => [
+            'accentColor' => '#123456',
+            'pageColor' => '#050d22',
+            'cardColor' => '#0b1a3a',
+            'headingColor' => '#f8fbff',
+            'textColor' => '#a8bfeb',
+            'buttonColor' => '#12356f',
+            'buttonTextColor' => '#e8f2ff',
+        ],
+    ]);
+
+    $this->actingAs($owner)
+        ->get(route('funnels.design', $funnel))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('designSettings.colorTheme', 'custom')
+            ->where('designSettings.accentColor', '#123456')
+        );
+
+    expect($funnel->fresh()->design_settings)
+        ->not->toHaveKey('colorTheme')
+        ->and($funnel->fresh()->design_settings['accentColor'])->toBe('#123456');
 });
 
 test('funnel owner updating design settings removes orphaned managed design media from r2', function () {

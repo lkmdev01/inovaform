@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -18,7 +19,7 @@ class UpdateFunnelRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -108,6 +109,7 @@ class UpdateFunnelRequest extends FormRequest
             'stages.*.meta.builder.blocks.*.carousel_layout' => ['nullable', Rule::in(['image_text', 'image_only', 'text_only'])],
             'stages.*.meta.builder.blocks.*.carousel_pagination' => ['nullable', 'boolean'],
             'stages.*.meta.builder.blocks.*.carousel_autoplay' => ['nullable', 'boolean'],
+            'stages.*.meta.builder.blocks.*.carousel_autoplay_seconds' => ['nullable', 'integer', 'min:1', 'max:60'],
             'stages.*.meta.builder.blocks.*.carousel_border_type' => ['nullable', Rule::in(['none', 'subtle', 'strong'])],
             'stages.*.meta.builder.blocks.*.image_ratio' => ['nullable', Rule::in(['auto', '16:9', '4:3', '1:1'])],
             'stages.*.meta.builder.blocks.*.image_fit' => ['nullable', Rule::in(['cover', 'contain'])],

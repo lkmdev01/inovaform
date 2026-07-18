@@ -8,12 +8,11 @@ use App\Models\Funnel;
 use App\Models\FunnelStage;
 use App\Models\FunnelSubmission;
 use App\Support\FunnelDesignTokens;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
-use Inertia\Response;
 use Laravel\Fortify\Features;
 use Symfony\Component\HttpFoundation\Response as BaseResponse;
 
@@ -37,7 +36,7 @@ class PublicFunnelController extends Controller
     {
         $funnel = $this->findPublicFunnelBySlug($slug);
 
-        if (!$funnel instanceof Funnel) {
+        if (! $funnel instanceof Funnel) {
             return $this->renderUnavailable($request, null, 404, 'Funil nao encontrado', 'O funil solicitado nao existe ou nao esta mais disponivel.');
         }
 
@@ -55,7 +54,7 @@ class PublicFunnelController extends Controller
 
         $funnel = $this->findPublicFunnelByCustomDomain($currentHost);
 
-        if (!$funnel instanceof Funnel) {
+        if (! $funnel instanceof Funnel) {
             return $this->renderUnavailable($request, null, 404, 'Dominio nao encontrado', 'Nenhum funil foi publicado para este dominio.');
         }
 
@@ -67,7 +66,7 @@ class PublicFunnelController extends Controller
         $design = $this->resolveDesignSettings($funnel->design_settings);
         $expiresAt = trim((string) ($design['expiresAt'] ?? ''));
 
-        if (!$funnel->is_active) {
+        if (! $funnel->is_active) {
             return $this->renderUnavailable(
                 $request,
                 $funnel,
@@ -186,6 +185,21 @@ class PublicFunnelController extends Controller
                                     : null,
                                 'price_link' => ($block['type'] ?? null) === 'price'
                                     ? (string) ($block['price_link'] ?? '')
+                                    : null,
+                                'carousel_layout' => ($block['type'] ?? null) === 'carousel'
+                                    ? (string) ($block['carousel_layout'] ?? 'image_text')
+                                    : null,
+                                'carousel_pagination' => ($block['type'] ?? null) === 'carousel'
+                                    ? (bool) ($block['carousel_pagination'] ?? true)
+                                    : null,
+                                'carousel_autoplay' => ($block['type'] ?? null) === 'carousel'
+                                    ? (bool) ($block['carousel_autoplay'] ?? false)
+                                    : null,
+                                'carousel_autoplay_seconds' => ($block['type'] ?? null) === 'carousel'
+                                    ? max(1, min(60, (int) ($block['carousel_autoplay_seconds'] ?? 3)))
+                                    : null,
+                                'carousel_border_type' => ($block['type'] ?? null) === 'carousel'
+                                    ? (string) ($block['carousel_border_type'] ?? 'none')
                                     : null,
                                 'video_ratio' => ($block['type'] ?? null) === 'video'
                                     ? (string) ($block['video_ratio'] ?? '16:9')
@@ -400,11 +414,11 @@ class PublicFunnelController extends Controller
             $contentParts = [];
 
             if ($title !== '') {
-                $contentParts[] = '<h1>' . e($title) . '</h1>';
+                $contentParts[] = '<h1>'.e($title).'</h1>';
             }
 
             if ($subtitle !== '') {
-                $contentParts[] = '<p>' . e($subtitle) . '</p>';
+                $contentParts[] = '<p>'.e($subtitle).'</p>';
             }
 
             array_unshift($blocks, [
@@ -461,8 +475,8 @@ class PublicFunnelController extends Controller
         ]);
 
         $validated = $request->validated();
-        $answersByStage = collect($validated['answers'] ?? []);
-        $stageMap = $funnel->stages->keyBy('id');
+        $answersByStage = collect($validated['answers'] ?? [])
+            ->keyBy(static fn (array $stageAnswer): int => (int) ($stageAnswer['stage_id'] ?? 0));
         $storedAnswers = [];
         $answersByBlockId = [];
         $score = 0.0;
@@ -472,13 +486,9 @@ class PublicFunnelController extends Controller
         $leadEmail = null;
         $leadPhone = null;
 
-        foreach ($answersByStage as $stageAnswer) {
-            $stageId = (int) ($stageAnswer['stage_id'] ?? 0);
-            $stage = $stageMap->get($stageId);
-
-            if (!$stage instanceof FunnelStage) {
-                continue;
-            }
+        foreach ($funnel->stages as $stage) {
+            $stageId = $stage->id;
+            $stageAnswer = $answersByStage->get($stageId, ['blocks' => []]);
 
             $meta = is_array($stage->meta) ? $stage->meta : [];
             $builder = is_array($meta['builder'] ?? null) ? $meta['builder'] : [];
@@ -495,11 +505,11 @@ class PublicFunnelController extends Controller
                     continue;
                 }
 
-                if (!$this->isAnswerableBlock($blockType)) {
+                if (! $this->isAnswerableBlock($blockType)) {
                     continue;
                 }
 
-                if (!$this->isBlockVisibleForSubmission($block, $answersByBlockId)) {
+                if (! $this->isBlockVisibleForSubmission($block, $answersByBlockId)) {
                     continue;
                 }
 
@@ -510,9 +520,11 @@ class PublicFunnelController extends Controller
                     : (bool) ($block['required'] ?? false);
 
                 if ($isRequired && $this->isEmptyValue($value)) {
+                    $blockLabel = trim((string) ($block['label'] ?? '')) ?: 'obrigatório';
+
                     return back()
                         ->withErrors([
-                            'answers' => "Preencha o campo obrigatorio: {$block['label']}.",
+                            'answers' => "Preencha o campo obrigatório: {$blockLabel}.",
                         ])
                         ->withInput();
                 }
@@ -521,8 +533,16 @@ class PublicFunnelController extends Controller
                     continue;
                 }
 
-                if (($block['type'] ?? null) === 'email' && is_string($value) && filter_var($value, FILTER_VALIDATE_EMAIL)) {
-                    $leadEmail = $value;
+                if ($blockType === 'email' && ! $this->isValidEmailAnswer($value)) {
+                    return back()
+                        ->withErrors([
+                            'answers' => 'Informe um endereço de e-mail válido.',
+                        ])
+                        ->withInput();
+                }
+
+                if ($blockType === 'email' && is_string($value)) {
+                    $leadEmail = trim($value);
                 }
 
                 if (($block['type'] ?? null) === 'phone' && is_string($value) && $value !== '') {
@@ -608,12 +628,24 @@ class PublicFunnelController extends Controller
         ]);
     }
 
+    private function isValidEmailAnswer(mixed $value): bool
+    {
+        if (! is_string($value)) {
+            return false;
+        }
+
+        $email = trim($value);
+
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false
+            && preg_match('/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i', $email) === 1;
+    }
+
     /**
      * @param  array<string, mixed>  $block
      */
     private function scoreForAnswer(array $block, mixed $value): float
     {
-        if (!$this->isOptionsComponentType((string) ($block['type'] ?? ''))) {
+        if (! $this->isOptionsComponentType((string) ($block['type'] ?? ''))) {
             return 0.0;
         }
 
@@ -633,7 +665,6 @@ class PublicFunnelController extends Controller
     }
 
     /**
-     * @param  mixed  $rules
      * @return array<int, array{id:string, source_block_id:string, operator:string, value:string}>
      */
     private function normalizeDisplayRules(mixed $rules): array
@@ -652,12 +683,12 @@ class PublicFunnelController extends Controller
                         ];
                     }
 
-                if (preg_match('/^([^!=:]+)\s*(=|!=)\s*(.+)$/', $trimmed, $comparisonMatch) === 1) {
-                    return [
-                        'id' => (string) str()->uuid(),
-                        'source_block_id' => trim((string) $comparisonMatch[1]),
-                        'operator' => $comparisonMatch[2] === '!=' ? 'not_equals' : 'equals',
-                        'value' => trim((string) $comparisonMatch[3]),
+                    if (preg_match('/^([^!=:]+)\s*(=|!=)\s*(.+)$/', $trimmed, $comparisonMatch) === 1) {
+                        return [
+                            'id' => (string) str()->uuid(),
+                            'source_block_id' => trim((string) $comparisonMatch[1]),
+                            'operator' => $comparisonMatch[2] === '!=' ? 'not_equals' : 'equals',
+                            'value' => trim((string) $comparisonMatch[3]),
                         ];
                     }
 
@@ -693,8 +724,6 @@ class PublicFunnelController extends Controller
     }
 
     /**
-     * @param  mixed  $groups
-     * @param  mixed  $legacyRules
      * @return array<int, array{id:string, mode:string, rules:array<int, array{id:string, source_block_id:string, operator:string, value:string}>}>
      */
     private function normalizeDisplayRuleGroups(mixed $groups, mixed $legacyRules, string $fallbackMode): array
@@ -785,7 +814,7 @@ class PublicFunnelController extends Controller
                 $allMatched = true;
 
                 foreach (($group['rules'] ?? []) as $rule) {
-                    if (!$this->evaluateSubmissionDisplayRule($rule, $answersByBlockId)) {
+                    if (! $this->evaluateSubmissionDisplayRule($rule, $answersByBlockId)) {
                         $allMatched = false;
                         break;
                     }
@@ -812,7 +841,7 @@ class PublicFunnelController extends Controller
                     }
                 }
 
-                if (!$matched) {
+                if (! $matched) {
                     return false;
                 }
 
@@ -820,7 +849,7 @@ class PublicFunnelController extends Controller
             }
 
             foreach (($group['rules'] ?? []) as $rule) {
-                if (!$this->evaluateSubmissionDisplayRule($rule, $answersByBlockId)) {
+                if (! $this->evaluateSubmissionDisplayRule($rule, $answersByBlockId)) {
                     return false;
                 }
             }
@@ -844,9 +873,9 @@ class PublicFunnelController extends Controller
         $value = $answersByBlockId[$blockId] ?? null;
 
         if (($rule['operator'] ?? '') === 'filled' || ($rule['operator'] ?? '') === 'empty') {
-            $filled = !$this->isEmptyValue($value);
+            $filled = ! $this->isEmptyValue($value);
 
-            return ($rule['operator'] ?? '') === 'filled' ? $filled : !$filled;
+            return ($rule['operator'] ?? '') === 'filled' ? $filled : ! $filled;
         }
 
         $expectedValues = collect(explode('|', trim((string) ($rule['value'] ?? ''))))
@@ -871,7 +900,7 @@ class PublicFunnelController extends Controller
         return match ((string) ($rule['operator'] ?? '')) {
             'contains_any' => $anyMatch,
             'contains_all' => $allMatch,
-            'not_equals' => !$anyMatch,
+            'not_equals' => ! $anyMatch,
             'equals' => $anyMatch,
             default => false,
         };
@@ -941,14 +970,14 @@ class PublicFunnelController extends Controller
 
     private function isFunnelCurrentlyAvailable(Funnel $funnel): bool
     {
-        if (!$funnel->is_active) {
+        if (! $funnel->is_active) {
             return false;
         }
 
         $design = $this->resolveDesignSettings($funnel->design_settings);
         $expiresAt = trim((string) ($design['expiresAt'] ?? ''));
 
-        return !($expiresAt !== '' && now()->greaterThan($expiresAt));
+        return ! ($expiresAt !== '' && now()->greaterThan($expiresAt));
     }
 
     private function renderUnavailable(Request $request, ?Funnel $funnel, int $status, string $title, string $description): BaseResponse
@@ -1020,5 +1049,4 @@ class PublicFunnelController extends Controller
 
         return $resolved;
     }
-
 }

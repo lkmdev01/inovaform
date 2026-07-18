@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateFunnelDesignRequest extends FormRequest
@@ -17,7 +18,7 @@ class UpdateFunnelDesignRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -25,7 +26,7 @@ class UpdateFunnelDesignRequest extends FormRequest
 
         return [
             'is_active' => ['sometimes', 'boolean'],
-            'custom_domain' => ['nullable', 'string', 'max:255', 'regex:/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$/i', 'unique:funnels,custom_domain,' . $funnelId],
+            'custom_domain' => ['nullable', 'string', 'max:255', 'regex:/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$/i', 'unique:funnels,custom_domain,'.$funnelId],
             'design_settings' => ['required', 'array'],
             'design_settings.alignment' => ['required', 'string', 'in:left,center'],
             'design_settings.width' => ['required', 'string', 'in:small,medium,large'],
@@ -35,6 +36,7 @@ class UpdateFunnelDesignRequest extends FormRequest
             'design_settings.showLogo' => ['required', 'boolean'],
             'design_settings.showProgress' => ['required', 'boolean'],
             'design_settings.allowBack' => ['required', 'boolean'],
+            'design_settings.colorTheme' => ['sometimes', 'string', 'in:inovaform,ocean,emerald,aurora,solar,snow,ruby,carbon,sand,lavender,custom'],
             'design_settings.accentColor' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design_settings.pageColor' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'design_settings.cardColor' => ['required', 'string', 'regex:/^#[0-9a-fA-F]{6}$/'],

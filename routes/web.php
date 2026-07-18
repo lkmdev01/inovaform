@@ -1,11 +1,12 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FormBuilderController;
 use App\Http\Controllers\FunnelController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\PublicFunnelController;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', [PublicFunnelController::class, 'home'])->name('home');
 Route::get('media/{path}', [FunnelController::class, 'showMedia'])
@@ -15,6 +16,11 @@ Route::get('media/{path}', [FunnelController::class, 'showMedia'])
 Route::get('f/{slug}', [PublicFunnelController::class, 'show'])->name('funnels.public.show');
 Route::post('f/{slug}/submit', [PublicFunnelController::class, 'submit'])->name('funnels.public.submit');
 Route::post('submit', [PublicFunnelController::class, 'submitForDomain'])->name('funnels.public.domain.submit');
+
+Route::middleware('guest')->group(function () {
+    Route::get('auth/google/redirect', [GoogleAuthController::class, 'redirect'])->name('auth.google.redirect');
+    Route::get('auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -34,6 +40,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('funnels/{funnel}/builder', [FunnelController::class, 'builder'])->name('funnels.builder');
     Route::get('funnels/{funnel}/flow', [FunnelController::class, 'flow'])->name('funnels.flow');
     Route::get('funnels/{funnel}/design', [FunnelController::class, 'design'])->name('funnels.design');
+    Route::get('funnels/{funnel}/settings', [FunnelController::class, 'settings'])->name('funnels.settings');
+    Route::patch('funnels/{funnel}/settings', [FunnelController::class, 'updateSettings'])->name('funnels.settings.update');
     Route::get('funnels/{funnel}/leads', [FunnelController::class, 'leads'])->name('funnels.leads');
     Route::get('leads', [LeadController::class, 'index'])->name('leads.index');
     Route::patch('leads/{lead}', [LeadController::class, 'update'])->name('leads.update');

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
-    $databasePath = database_path('browser-testing-' . uniqid('', true) . '.sqlite');
+    $databasePath = database_path('browser-testing-'.uniqid('', true).'.sqlite');
 
     touch($databasePath);
 
@@ -630,6 +630,173 @@ test('builder keeps testimonials, faq, carousel and metrics previews aligned wit
     $page->assertNoJavaScriptErrors();
 });
 
+test('builder accepts spaces while editing content components and persists the complete text', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create([
+        'name' => 'Builder Content Spaces',
+    ]);
+
+    $stage = $funnel->stages()->create([
+        'name' => 'Etapa 1',
+        'stage_order' => 1,
+        'meta' => [
+            'builder' => [
+                'title' => '',
+                'subtitle' => '',
+                'button_text' => '',
+                'blocks' => [
+                    [
+                        'id' => 'testimonials-spaces-block',
+                        'type' => 'testimonials',
+                        'label' => '',
+                        'required' => false,
+                        'option_items' => [[
+                            'id' => 'testimonial-spaces-item',
+                            'label' => '',
+                            'subtitle' => '',
+                            'description' => '',
+                            'rating' => 5,
+                        ]],
+                    ],
+                    [
+                        'id' => 'faq-spaces-block',
+                        'type' => 'faq',
+                        'label' => '',
+                        'required' => false,
+                        'option_items' => [[
+                            'id' => 'faq-spaces-item',
+                            'label' => '',
+                            'description' => '',
+                        ]],
+                    ],
+                    [
+                        'id' => 'carousel-spaces-block',
+                        'type' => 'carousel',
+                        'label' => '',
+                        'required' => false,
+                        'carousel_layout' => 'text_only',
+                        'option_items' => [[
+                            'id' => 'carousel-spaces-item',
+                            'label' => '',
+                            'value' => '',
+                            'description' => '',
+                        ]],
+                    ],
+                    [
+                        'id' => 'metrics-spaces-block',
+                        'type' => 'metrics',
+                        'label' => '',
+                        'required' => false,
+                        'option_items' => [[
+                            'id' => 'metric-spaces-item',
+                            'label' => '',
+                            'value' => '',
+                            'description' => '',
+                        ]],
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $funnel->stages()->create([
+        'name' => 'Etapa 2',
+        'stage_order' => 2,
+        'meta' => createEmptyStagePayload(),
+    ]);
+
+    $page = loginThroughBrowser($user)
+        ->click('Abrir Builder')
+        ->click('[data-testid="preview-block-testimonials-spaces-block"]')
+        ->type('[data-testid^="builder-testimonial-name-"]', 'Maria Silva')
+        ->type('[data-testid^="builder-testimonial-description-"]', 'Atendimento muito atencioso')
+        ->assertValue('[data-testid^="builder-testimonial-name-"]', 'Maria Silva')
+        ->assertValue('[data-testid^="builder-testimonial-description-"]', 'Atendimento muito atencioso')
+        ->click('[data-testid="preview-block-faq-spaces-block"]')
+        ->type('[data-testid^="option-item-label-"]', 'Como funciona agora')
+        ->type('[data-testid^="builder-faq-answer-"]', 'Voce recebe uma resposta completa')
+        ->assertValue('[data-testid^="option-item-label-"]', 'Como funciona agora')
+        ->assertValue('[data-testid^="builder-faq-answer-"]', 'Voce recebe uma resposta completa')
+        ->click('[data-testid="preview-block-carousel-spaces-block"]')
+        ->type('[data-testid^="builder-carousel-description-"]', 'Uma historia com espacos')
+        ->assertValue('[data-testid^="builder-carousel-description-"]', 'Uma historia com espacos')
+        ->click('[data-testid="preview-block-metrics-spaces-block"]')
+        ->type('[data-testid^="builder-metric-label-"]', 'Taxa de conversao')
+        ->type('[data-testid^="builder-metric-value-"]', '50 por cento')
+        ->type('[data-testid^="builder-metric-description-"]', 'Resultado medio mensal')
+        ->assertValue('[data-testid^="builder-metric-label-"]', 'Taxa de conversao')
+        ->assertValue('[data-testid^="builder-metric-value-"]', '50 por cento')
+        ->assertValue('[data-testid^="builder-metric-description-"]', 'Resultado medio mensal')
+        ->wait(3)
+        ->assertSee('Salvo')
+        ->assertNoJavaScriptErrors();
+
+    $savedBlocks = collect(data_get($stage->fresh()->meta, 'builder.blocks', []))->keyBy('type');
+
+    expect(data_get($savedBlocks, 'testimonials.option_items.0.label'))->toBe('Maria Silva')
+        ->and(data_get($savedBlocks, 'testimonials.option_items.0.description'))->toBe('Atendimento muito atencioso')
+        ->and(data_get($savedBlocks, 'faq.option_items.0.label'))->toBe('Como funciona agora')
+        ->and(data_get($savedBlocks, 'faq.option_items.0.description'))->toBe('Voce recebe uma resposta completa')
+        ->and(data_get($savedBlocks, 'carousel.option_items.0.description'))->toBe('Uma historia com espacos')
+        ->and(data_get($savedBlocks, 'metrics.option_items.0.label'))->toBe('Taxa de conversao')
+        ->and(data_get($savedBlocks, 'metrics.option_items.0.value'))->toBe('50 por cento')
+        ->and(data_get($savedBlocks, 'metrics.option_items.0.description'))->toBe('Resultado medio mensal');
+});
+
+test('builder previews carousel autoplay with its configured speed', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create([
+        'name' => 'Builder Carousel Autoplay',
+    ]);
+
+    $funnel->stages()->create([
+        'name' => 'Etapa 1',
+        'stage_order' => 1,
+        'meta' => [
+            'builder' => [
+                'title' => '',
+                'subtitle' => '',
+                'button_text' => '',
+                'blocks' => [[
+                    'id' => 'carousel-autoplay-block',
+                    'type' => 'carousel',
+                    'label' => '',
+                    'required' => false,
+                    'carousel_layout' => 'text_only',
+                    'carousel_pagination' => true,
+                    'carousel_autoplay' => false,
+                    'carousel_autoplay_seconds' => 3,
+                    'option_items' => [
+                        ['id' => 'carousel-autoplay-1', 'label' => '', 'value' => '', 'description' => 'Primeiro item', 'points' => 0, 'destination' => ''],
+                        ['id' => 'carousel-autoplay-2', 'label' => '', 'value' => '', 'description' => 'Segundo item', 'points' => 0, 'destination' => ''],
+                    ],
+                ]],
+            ],
+        ],
+    ]);
+
+    $funnel->stages()->create([
+        'name' => 'Etapa 2',
+        'stage_order' => 2,
+        'meta' => createEmptyStagePayload(),
+    ]);
+
+    $page = loginThroughBrowser($user)
+        ->click('Abrir Builder')
+        ->click('[data-testid="preview-block-carousel-autoplay-block"]')
+        ->click('[data-testid="builder-carousel-autoplay"]')
+        ->fill('[data-testid="builder-carousel-autoplay-seconds"]', '1')
+        ->assertValue('[data-testid="builder-carousel-autoplay-seconds"]', '1');
+
+    $initialItem = $page->script("() => document.querySelector('[data-testid=\"builder-carousel-current-carousel-autoplay-block\"]')?.textContent?.trim() ?? ''");
+
+    $page->wait(1.2)->assertNoJavaScriptErrors();
+
+    $nextItem = $page->script("() => document.querySelector('[data-testid=\"builder-carousel-current-carousel-autoplay-block\"]')?.textContent?.trim() ?? ''");
+
+    expect($nextItem)->not->toBe($initialItem);
+});
+
 test('builder warns when notification variations are filled but title and description do not use tokens', function () {
     $user = User::factory()->create();
     $funnel = Funnel::factory()->for($user)->create([
@@ -1017,7 +1184,7 @@ test('builder creates edits previews and persists arguments and before after blo
         'Fluxo automatizado',
     ]);
 
-    $page->click('[data-testid="preview-block-' . $savedBlocks['arguments']['id'] . '"]')
+    $page->click('[data-testid="preview-block-'.$savedBlocks['arguments']['id'].'"]')
         ->fill('[data-testid="arguments-option-0"]', 'Diagnostico personalizado')
         ->click('[data-testid="builder-save-button"]')
         ->wait(1)
@@ -1459,6 +1626,8 @@ test('builder retries stale csrf uploads and stores the returned image url', fun
                         return new Response('', { status: 419 });
                     }
 
+                    await new Promise((resolve) => window.setTimeout(resolve, 400));
+
                     return new Response(
                         JSON.stringify({
                             url: 'https://cdn.example.com/funnels/retry-image.png',
@@ -1477,7 +1646,7 @@ test('builder retries stale csrf uploads and stores the returned image url', fun
         }
     JS);
 
-    $uploadedUrl = $page->script(<<<'JS'
+    $uploadResult = $page->script(<<<'JS'
         async () => {
             const fileInput = document.querySelector('[data-testid="builder-image-file-input"]');
 
@@ -1499,13 +1668,26 @@ test('builder retries stale csrf uploads and stores the returned image url', fun
 
             fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 
+            let loadingStatusWasVisible = false;
+            let emptyMessageWasVisibleWhileUploading = false;
+
             for (let attempt = 0; attempt < 40; attempt += 1) {
                 await new Promise((resolve) => window.setTimeout(resolve, 100));
 
+                const preview = document.querySelector('[data-testid="preview-block-block-image-upload"]');
                 const src = document.querySelector('img[alt="Preview da imagem"]')?.getAttribute('src') ?? '';
 
+                if (preview?.textContent?.includes('Carregando imagem')) {
+                    loadingStatusWasVisible = true;
+                    emptyMessageWasVisibleWhileUploading ||= preview?.textContent?.includes('Imagem nao configurada') ?? false;
+                }
+
                 if (src === 'https://cdn.example.com/funnels/retry-image.png') {
-                    return src;
+                    return {
+                        src,
+                        loadingStatusWasVisible,
+                        emptyMessageWasVisibleWhileUploading,
+                    };
                 }
             }
 
@@ -1513,7 +1695,11 @@ test('builder retries stale csrf uploads and stores the returned image url', fun
         }
     JS);
 
-    expect($uploadedUrl)->toBe('https://cdn.example.com/funnels/retry-image.png');
+    expect($uploadResult)->toBe([
+        'src' => 'https://cdn.example.com/funnels/retry-image.png',
+        'loadingStatusWasVisible' => true,
+        'emptyMessageWasVisibleWhileUploading' => false,
+    ]);
     expect($page->script('() => window.__builderImageUploadCalls?.() ?? 0'))->toBe(2);
 
     $page->assertNoJavaScriptErrors();
@@ -2229,4 +2415,42 @@ test('builder saves structured conditional display rules without free text input
 
     expect(data_get($stage->fresh()->meta, 'builder.blocks.1.display_rule_groups.0.rules.0.source_block_id'))->toBe('source-block');
     expect(data_get($stage->fresh()->meta, 'builder.blocks.1.display_rule_groups.0.rules.0.operator'))->toBe('filled');
+});
+
+test('funnel toolbar opens the public result and the new funnel settings page', function () {
+    config()->set('inovaform.publication.custom_domain_diagnostics_enabled', false);
+
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create([
+        'name' => 'Configurações Browser',
+        'slug' => 'configuracoes-browser',
+    ]);
+    $funnel->stages()->create([
+        'name' => 'Etapa 1',
+        'stage_order' => 1,
+        'meta' => createEmptyStagePayload(),
+    ]);
+
+    $page = loginThroughBrowser($user)
+        ->click('Abrir Builder')
+        ->assertVisible('[data-testid="funnel-settings-button"]')
+        ->assertVisible('[data-testid="funnel-preview-button"]');
+
+    expect($page->script("() => document.querySelector('[data-testid=\"funnel-preview-button\"]')?.getAttribute('href')"))->toBe('/f/configuracoes-browser')
+        ->and($page->script("() => document.querySelector('[data-testid=\"funnel-preview-button\"]')?.getAttribute('target')"))->toBe('_blank');
+
+    $page->click('[data-testid="funnel-settings-button"]')
+        ->wait(0.5)
+        ->assertSee('Configurações do funil')
+        ->click('[data-testid="settings-tab-seo"]')
+        ->assertVisible('[data-testid="settings-seo-panel"]')
+        ->click('[data-testid="settings-tab-domain"]')
+        ->assertVisible('[data-testid="settings-domain-panel"]')
+        ->click('[data-testid="settings-tab-connections"]')
+        ->assertVisible('[data-testid="settings-connections-panel"]')
+        ->click('Design')
+        ->assertDontSee('PUBLICACAO')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('() => window.location.pathname'))->toBe(route('funnels.design', $funnel, absolute: false));
 });

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
-    $databasePath = database_path('browser-testing-' . uniqid('', true) . '.sqlite');
+    $databasePath = database_path('browser-testing-'.uniqid('', true).'.sqlite');
 
     touch($databasePath);
 
@@ -76,7 +76,7 @@ test('public funnel reveals delayed block after configured seconds', function ()
         ],
     ]);
 
-    $page = visit("/f/{$funnel->slug}")
+    visit("/f/{$funnel->slug}")
         ->assertSee('Conteudo inicial');
 
     expect($page->script("() => document.body.textContent.includes('Aparece com atraso')"))->toBeFalse();
@@ -136,8 +136,8 @@ test('public funnel ignores blank open link buttons instead of opening whitespac
         ->wait(0.3)
         ->assertNoJavaScriptErrors();
 
-    expect($page->script("() => window.__openedUrl"))->toBeNull();
-    expect($page->script("() => window.__openedTarget"))->toBeNull();
+    expect($page->script('() => window.__openedUrl'))->toBeNull();
+    expect($page->script('() => window.__openedTarget'))->toBeNull();
 });
 
 test('public funnel loading starts navigation only after the block becomes visible', function () {
@@ -903,6 +903,61 @@ test('owner can publish from builder and submit the public funnel flow', functio
     expect($submission?->lead_email)->toBe('maria@example.com');
 });
 
+test('public block button prevents advancing with required fields empty or an invalid email', function () {
+    $owner = User::factory()->create();
+    $funnel = Funnel::factory()->for($owner)->create([
+        'name' => 'Funil com validacao publica',
+        'slug' => 'funil-com-validacao-publica',
+        'is_active' => true,
+    ]);
+
+    $funnel->stages()->createMany([
+        [
+            'name' => 'Etapa 1',
+            'stage_order' => 1,
+            'meta' => [
+                'builder' => [
+                    'title' => 'Seus dados',
+                    'subtitle' => '',
+                    'button_text' => '',
+                    'blocks' => [
+                        ['id' => 'required-name', 'type' => 'text', 'label' => 'Nome', 'placeholder' => 'Nome obrigatorio', 'required' => true],
+                        ['id' => 'required-email', 'type' => 'email', 'label' => 'Email', 'placeholder' => 'Email obrigatorio', 'required' => true],
+                        ['id' => 'next-button', 'type' => 'button', 'label' => 'Proximo', 'required' => false, 'button_action' => 'next_stage', 'button_target_stage_order' => 'next'],
+                    ],
+                ],
+            ],
+        ],
+        [
+            'name' => 'Etapa 2',
+            'stage_order' => 2,
+            'meta' => [
+                'builder' => [
+                    'title' => 'Etapa confirmada',
+                    'subtitle' => '',
+                    'button_text' => '',
+                    'blocks' => [],
+                ],
+            ],
+        ],
+    ]);
+
+    $page = visit("/f/{$funnel->slug}")
+        ->click('[data-testid="public-block-button-next-button"]')
+        ->assertSee('Seus dados')
+        ->assertSee('Campo obrigatório')
+        ->assertDontSee('Etapa confirmada')
+        ->fill('input[placeholder="Nome obrigatorio"]', 'Maria')
+        ->fill('input[placeholder="Email obrigatorio"]', 'email-invalido')
+        ->click('[data-testid="public-block-button-next-button"]')
+        ->assertSee('E-mail inválido')
+        ->assertDontSee('Etapa confirmada')
+        ->fill('input[placeholder="Email obrigatorio"]', 'maria@example.com')
+        ->click('[data-testid="public-block-button-next-button"]')
+        ->assertSee('Etapa confirmada')
+        ->assertNoJavaScriptErrors();
+});
+
 test('public funnel renders configured completion page after submit', function () {
     $owner = User::factory()->create();
     $funnel = Funnel::factory()->for($owner)->create([
@@ -979,8 +1034,8 @@ test('public funnel renders configured completion page after submit', function (
     $page->click('[data-testid="public-completion-primary-button"]')
         ->wait(0.2);
 
-    expect($page->script("() => window.__openedUrl"))->toBe('https://example.com');
-    expect($page->script("() => window.__openedTarget"))->toBe('_blank');
+    expect($page->script('() => window.__openedUrl'))->toBe('https://example.com');
+    expect($page->script('() => window.__openedTarget'))->toBe('_blank');
 });
 
 test('public funnel faq can toggle answers open and closed', function () {
@@ -1138,8 +1193,8 @@ test('public funnel price redirect opens the configured link in a new tab', func
     $page->wait(0.2)
         ->assertNoJavaScriptErrors();
 
-    expect($page->script("() => window.__openedUrl"))->toBe('https://example.com/checkout');
-    expect($page->script("() => window.__openedTarget"))->toBe('_blank');
+    expect($page->script('() => window.__openedUrl'))->toBe('https://example.com/checkout');
+    expect($page->script('() => window.__openedTarget'))->toBe('_blank');
 });
 
 test('public funnel testimonials render configured items in grid layout', function () {
@@ -1241,6 +1296,47 @@ test('public funnel carousel pagination changes the visible item', function () {
         ->click('[data-testid="carousel-dot-carousel-block-1"]')
         ->wait(0.5)
         ->assertSee('Descricao 2')
+        ->assertNoJavaScriptErrors();
+});
+
+test('public funnel carousel autoplay respects its configured speed', function () {
+    $owner = User::factory()->create();
+    $funnel = Funnel::factory()->for($owner)->create([
+        'name' => 'Funil Carousel Autoplay',
+        'slug' => 'funil-carousel-autoplay',
+        'is_active' => true,
+    ]);
+
+    $funnel->stages()->create([
+        'name' => 'Etapa 1',
+        'stage_order' => 1,
+        'meta' => [
+            'builder' => [
+                'title' => '',
+                'subtitle' => '',
+                'button_text' => '',
+                'blocks' => [[
+                    'id' => 'carousel-autoplay-block',
+                    'type' => 'carousel',
+                    'label' => '',
+                    'required' => false,
+                    'carousel_layout' => 'text_only',
+                    'carousel_pagination' => true,
+                    'carousel_autoplay' => true,
+                    'carousel_autoplay_seconds' => 1,
+                    'option_items' => [
+                        ['id' => 'slide-1', 'label' => '', 'description' => 'Autoplay item 1', 'points' => 0, 'value' => '', 'destination' => ''],
+                        ['id' => 'slide-2', 'label' => '', 'description' => 'Autoplay item 2', 'points' => 0, 'value' => '', 'destination' => ''],
+                    ],
+                ]],
+            ],
+        ],
+    ]);
+
+    visit("/f/{$funnel->slug}")
+        ->assertSee('Autoplay item 1')
+        ->wait(1.2)
+        ->assertSee('Autoplay item 2')
         ->assertNoJavaScriptErrors();
 });
 
@@ -1379,10 +1475,19 @@ test('public funnel applies semantic design tokens to core components', function
         'is_active' => true,
         'design_settings' => [
             'tokens' => [
-                'colors' => ['primary' => '#112233', 'text' => '#ddeeff'],
+                'colors' => [
+                    'primary' => '#112233',
+                    'heading' => '#aabbcc',
+                    'text' => '#ddeeff',
+                    'textMuted' => '#778899',
+                ],
                 'surfaces' => ['page' => '#010203', 'card' => '#040506', 'muted' => '#101820'],
                 'borders' => ['default' => '#334455', 'strong' => '#556677', 'focus' => '#778899'],
-                'states' => ['danger' => '#cc3344'],
+                'states' => [
+                    'success' => '#118844',
+                    'warning' => '#cc8800',
+                    'danger' => '#cc3344',
+                ],
                 'components' => [
                     'fieldBackground' => '#121a24',
                     'fieldText' => '#f1f2f3',
@@ -1401,6 +1506,76 @@ test('public funnel applies semantic design tokens to core components', function
                 'blocks' => [
                     ['id' => 'token-field', 'type' => 'text', 'label' => 'Nome', 'placeholder' => 'Seu nome', 'required' => false],
                     ['id' => 'token-button', 'type' => 'button', 'label' => 'Continuar', 'required' => false, 'button_color_style' => 'theme'],
+                    [
+                        'id' => 'token-loading',
+                        'type' => 'loading',
+                        'label' => 'Carregando',
+                        'placeholder' => 'Aguarde',
+                        'required' => false,
+                        'loading_duration_seconds' => 30,
+                    ],
+                    [
+                        'id' => 'token-testimonials',
+                        'type' => 'testimonials',
+                        'label' => '',
+                        'required' => false,
+                        'option_items' => [[
+                            'id' => 'token-testimonial',
+                            'label' => 'Cliente',
+                            'subtitle' => '@cliente',
+                            'description' => 'Excelente',
+                            'rating' => 5,
+                        ]],
+                    ],
+                    [
+                        'id' => 'token-faq',
+                        'type' => 'faq',
+                        'label' => '',
+                        'required' => false,
+                        'option_items' => [[
+                            'id' => 'token-question',
+                            'label' => 'Como funciona?',
+                            'description' => 'Assim funciona.',
+                        ]],
+                    ],
+                    [
+                        'id' => 'token-metrics',
+                        'type' => 'metrics',
+                        'label' => '',
+                        'required' => false,
+                        'option_items' => [[
+                            'id' => 'token-metric',
+                            'label' => 'Conversao',
+                            'value' => '50%',
+                            'description' => 'Resultado',
+                        ]],
+                    ],
+                    ['id' => 'token-before-after', 'type' => 'before_after', 'label' => '', 'required' => false, 'options' => ['Antes', 'Depois']],
+                    ['id' => 'token-arguments', 'type' => 'arguments', 'label' => '', 'required' => false, 'options' => ['Argumento principal']],
+                    [
+                        'id' => 'token-price',
+                        'type' => 'price',
+                        'label' => '',
+                        'required' => false,
+                        'price_style' => 'theme',
+                        'price_title' => 'Plano',
+                        'price_value' => 'R$ 99',
+                        'price_badge_text' => 'Destaque',
+                    ],
+                    [
+                        'id' => 'token-carousel',
+                        'type' => 'carousel',
+                        'label' => '',
+                        'required' => false,
+                        'carousel_layout' => 'text_only',
+                        'carousel_border_type' => 'subtle',
+                        'option_items' => [[
+                            'id' => 'token-slide',
+                            'label' => '',
+                            'value' => '',
+                            'description' => 'Slide tematico',
+                        ]],
+                    ],
                 ],
             ],
         ],
@@ -1415,6 +1590,14 @@ test('public funnel applies semantic design tokens to core components', function
     expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-funnel-card\"]')).backgroundColor"))->toBe('rgb(4, 5, 6)');
     expect($page->script("() => getComputedStyle(document.querySelector('input[placeholder=\"Seu nome\"]')).backgroundColor"))->toBe('rgb(18, 26, 36)');
     expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-block-button-token-button\"]')).backgroundColor"))->toBe('rgb(35, 69, 103)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-loading-token-loading\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-testimonial-token-testimonials-token-testimonial\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-metric-token-metrics-token-metric\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid^=\"public-before-after-token-before-after-\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-argument-token-arguments-0\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-price-token-price\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-carousel-token-carousel\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
+    expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-faq-token-faq-token-question\"] p')).color"))->toBe('rgb(170, 187, 204)');
 });
 
 test('public funnel converts youtube shorts links to embed urls', function () {

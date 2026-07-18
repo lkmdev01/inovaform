@@ -6,35 +6,39 @@ use App\Http\Requests\ImportFunnelRequest;
 use App\Http\Requests\ShareFunnelRequest;
 use App\Http\Requests\StoreFunnelRequest;
 use App\Http\Requests\StoreFunnelTemplateRequest;
-use App\Http\Requests\UploadFunnelMediaRequest;
 use App\Http\Requests\UpdateFunnelDesignRequest;
 use App\Http\Requests\UpdateFunnelRequest;
+use App\Http\Requests\UpdateFunnelSettingsRequest;
+use App\Http\Requests\UploadFunnelMediaRequest;
 use App\Models\Funnel;
 use App\Models\FunnelStage;
 use App\Models\FunnelSubmission;
 use App\Models\FunnelTemplate;
 use App\Models\User;
-use App\Support\ManagedMedia;
+use App\Support\CustomDomainDiagnostics;
 use App\Support\FunnelDesignTokens;
+use App\Support\ManagedMedia;
 use App\Support\OperationalTelemetry;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Throwable;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class FunnelController extends Controller
 {
-    public function __construct(private ManagedMedia $managedMedia)
-    {
-    }
+    public function __construct(
+        private ManagedMedia $managedMedia,
+        private CustomDomainDiagnostics $customDomainDiagnostics,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -115,7 +119,7 @@ class FunnelController extends Controller
 
         return response()->streamDownload(function () use ($payload): void {
             echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        }, Str::slug($funnel->name) . '.json', [
+        }, Str::slug($funnel->name).'.json', [
             'Content-Type' => 'application/json; charset=UTF-8',
         ]);
     }
@@ -125,7 +129,7 @@ class FunnelController extends Controller
         $validated = $request->validated();
         $raw = $request->file('file')?->get();
 
-        if (!is_string($raw) || trim($raw) === '') {
+        if (! is_string($raw) || trim($raw) === '') {
             throw ValidationException::withMessages([
                 'file' => 'Nao foi possivel ler o arquivo JSON enviado.',
             ]);
@@ -160,6 +164,7 @@ class FunnelController extends Controller
     {
         abort_unless($funnel->canEdit($request->user()), 403);
 
+        $previousReferenceKeys = $this->managedMedia->referencedKeysForFunnel($funnel);
         $validated = $request->validated();
         $name = trim((string) $validated['name']);
         $category = trim((string) ($validated['category'] ?? ''));
@@ -259,6 +264,10 @@ class FunnelController extends Controller
         return Inertia::render('funnels/Design', [
             'funnel' => $funnel,
             'designSettings' => $this->resolveDesignSettings($funnel->design_settings),
+            'customDomainStatus' => $this->customDomainDiagnostics->diagnose(
+                $funnel->custom_domain,
+                $request->boolean('refresh_domain'),
+            ),
             'permissions' => [
                 'canEdit' => $funnel->canEdit($request->user()),
                 'canShare' => $funnel->canShare($request->user()),
@@ -268,18 +277,85 @@ class FunnelController extends Controller
         ]);
     }
 
+    public function settings(Request $request, Funnel $funnel): Response
+    {
+        abort_unless($funnel->canView($request->user()), 403);
+
+        return Inertia::render('funnels/Settings', [
+            'funnel' => $funnel->only(['id', 'name', 'slug', 'is_active', 'custom_domain']),
+            'settings' => $this->resolveDesignSettings($funnel->design_settings),
+            'customDomainStatus' => $this->customDomainDiagnostics->diagnose(
+                $funnel->custom_domain,
+                $request->boolean('refresh_domain'),
+            ),
+            'permissions' => [
+                'canEdit' => $funnel->canEdit($request->user()),
+                'canShare' => $funnel->canShare($request->user()),
+                'canManageLeads' => $funnel->canManageLeads($request->user()),
+                'role' => $funnel->isOwnedBy($request->user()) ? 'owner' : ($funnel->sharedRoleFor($request->user()) ?? 'viewer'),
+            ],
+        ]);
+    }
+
+    public function updateSettings(UpdateFunnelSettingsRequest $request, Funnel $funnel): RedirectResponse
+    {
+        abort_unless($funnel->canEdit($request->user()), 403);
+
+        $previousReferenceKeys = $this->managedMedia->referencedKeysForFunnel($funnel);
+        $validated = $request->validated();
+        $wasActive = (bool) $funnel->is_active;
+        $settings = is_array($funnel->design_settings) ? $funnel->design_settings : [];
+
+        foreach ([
+            'logo_url' => 'logoUrl',
+            'favicon_url' => 'faviconUrl',
+            'seo_title' => 'seoTitle',
+            'seo_description' => 'seoDescription',
+            'seo_image_url' => 'seoImageUrl',
+            'expires_at' => 'expiresAt',
+            'unavailable_title' => 'unavailableTitle',
+            'unavailable_description' => 'unavailableDescription',
+        ] as $requestKey => $settingsKey) {
+            $settings[$settingsKey] = $validated[$requestKey] ?? null;
+        }
+
+        if (is_array($settings['tokens']['brand'] ?? null)) {
+            $settings['tokens']['brand']['logoUrl'] = (string) ($validated['logo_url'] ?? '');
+        }
+
+        $funnel->update([
+            'custom_domain' => $this->sanitizeCustomDomain($validated['custom_domain'] ?? null),
+            'design_settings' => $settings,
+            'is_active' => (bool) $validated['is_active'],
+        ]);
+        $funnel->refresh();
+        $this->pruneRemovedManagedMedia($funnel->id, $previousReferenceKeys, 'settings_update', $funnel);
+
+        $status = match (true) {
+            ! $wasActive && $funnel->is_active => 'funnel-published',
+            $wasActive && ! $funnel->is_active => 'funnel-unpublished',
+            default => 'funnel-settings-saved',
+        };
+
+        return redirect()
+            ->route('funnels.settings', $funnel)
+            ->with('status', $status);
+    }
+
     public function updateDesign(UpdateFunnelDesignRequest $request, Funnel $funnel): RedirectResponse
     {
         abort_unless($funnel->canEdit($request->user()), 403);
 
         $previousReferenceKeys = $this->managedMedia->referencedKeysForFunnel($funnel);
         $validated = $request->validated();
+        $wasActive = (bool) $funnel->is_active;
+        $nextActive = (bool) ($validated['is_active'] ?? $wasActive);
         $existingSettings = is_array($funnel->design_settings) ? $funnel->design_settings : [];
         $submittedSettings = $validated['design_settings'];
         $submittedTokens = is_array($submittedSettings['tokens'] ?? null) ? $submittedSettings['tokens'] : [];
         $submittedComponents = is_array($submittedTokens['components'] ?? null) ? $submittedTokens['components'] : [];
 
-        if (!array_key_exists('primaryButtonBackground', $submittedComponents)) {
+        if (! array_key_exists('primaryButtonBackground', $submittedComponents)) {
             $submittedComponents['primaryButtonBackground'] = $submittedSettings['buttonColor'];
             $submittedTokens['components'] = $submittedComponents;
             $submittedSettings['tokens'] = $submittedTokens;
@@ -294,14 +370,20 @@ class FunnelController extends Controller
         $funnel->update([
             'design_settings' => $designSettings,
             'custom_domain' => $this->sanitizeCustomDomain($validated['custom_domain'] ?? null),
-            'is_active' => (bool) ($validated['is_active'] ?? $funnel->is_active),
+            'is_active' => $nextActive,
         ]);
         $funnel->refresh();
         $this->pruneRemovedManagedMedia($funnel->id, $previousReferenceKeys, 'design_update', $funnel);
 
+        $status = match (true) {
+            ! $wasActive && $nextActive => 'funnel-published',
+            $wasActive && ! $nextActive => 'funnel-unpublished',
+            default => 'design-saved',
+        };
+
         return redirect()
             ->route('funnels.design', $funnel)
-            ->with('status', isset($validated['is_active']) && (bool) $validated['is_active'] ? 'funnel-published' : 'design-saved');
+            ->with('status', $status);
     }
 
     public function leads(Request $request, Funnel $funnel): Response
@@ -383,7 +465,7 @@ class FunnelController extends Controller
                                     return (string) $answer->block_label;
                                 }
 
-                                return (string) $answer->block_label . ': ' . $values->implode(', ');
+                                return (string) $answer->block_label.': '.$values->implode(', ');
                             })
                             ->implode(' | ');
                     });
@@ -734,13 +816,13 @@ class FunnelController extends Controller
      */
     private function sanitizeStageMeta(?array $meta, ?FunnelStage $stage = null): ?array
     {
-        if (!is_array($meta)) {
+        if (! is_array($meta)) {
             return null;
         }
 
         $builder = is_array($meta['builder'] ?? null) ? $meta['builder'] : null;
 
-        if ($builder === null || !is_array($builder['blocks'] ?? null)) {
+        if ($builder === null || ! is_array($builder['blocks'] ?? null)) {
             return $meta;
         }
 
@@ -777,9 +859,8 @@ class FunnelController extends Controller
         ?array $existingMeta,
         int $funnelId,
         ?int $stageId,
-    ): ?array
-    {
-        if (!is_array($submittedMeta) || !is_array($existingMeta)) {
+    ): ?array {
+        if (! is_array($submittedMeta) || ! is_array($existingMeta)) {
             return $submittedMeta;
         }
 
@@ -847,7 +928,7 @@ class FunnelController extends Controller
             ->values()
             ->map(function (array $stage, int $index): array {
                 return [
-                    'name' => trim((string) ($stage['name'] ?? 'Etapa ' . ($index + 1))),
+                    'name' => trim((string) ($stage['name'] ?? 'Etapa '.($index + 1))),
                     'stage_order' => $index + 1,
                     'conversion_rate' => isset($stage['conversion_rate']) ? (float) $stage['conversion_rate'] : null,
                     'expected_volume' => isset($stage['expected_volume']) ? (int) $stage['expected_volume'] : null,
@@ -910,12 +991,11 @@ class FunnelController extends Controller
     }
 
     /**
-     * @param  mixed  $decoded
      * @return array<string, mixed>
      */
     private function normalizeImportedFunnelBlueprint(mixed $decoded): array
     {
-        if (!is_array($decoded)) {
+        if (! is_array($decoded)) {
             throw ValidationException::withMessages([
                 'file' => 'O arquivo JSON esta invalido.',
             ]);
@@ -1015,9 +1095,9 @@ class FunnelController extends Controller
     }
 
     /**
-     * @return \Illuminate\Database\Eloquent\Collection<int, User>
+     * @return Collection<int, User>
      */
-    private function assignableUsersForFunnel(Funnel $funnel): \Illuminate\Database\Eloquent\Collection
+    private function assignableUsersForFunnel(Funnel $funnel): Collection
     {
         $funnel->loadMissing(['user:id,name', 'sharedUsers:id,name']);
 
@@ -1031,7 +1111,7 @@ class FunnelController extends Controller
             ->filter(static fn (User $user): bool => $user->pivot?->role === Funnel::SHARE_ROLE_EDITOR)
             ->each(static fn (User $user) => $users->push($user));
 
-        return new \Illuminate\Database\Eloquent\Collection(
+        return new Collection(
             $users->unique('id')->sortBy('name')->values()->all(),
         );
     }
@@ -1102,8 +1182,49 @@ class FunnelController extends Controller
         $merged['unavailableDescription'] = trim((string) ($merged['unavailableDescription'] ?? '')) ?: 'Este funil nao esta disponivel no momento.';
         $merged['expiresAt'] = ($expiresAt = trim((string) ($merged['expiresAt'] ?? ''))) !== '' ? $expiresAt : null;
         $merged['tokens'] = FunnelDesignTokens::resolve($merged);
+        $merged['colorTheme'] = $this->resolveColorTheme($merged);
 
         return $merged;
+    }
+
+    /**
+     * @param  array<string, mixed>  $settings
+     */
+    private function resolveColorTheme(array $settings): string
+    {
+        $colorTheme = trim((string) ($settings['colorTheme'] ?? ''));
+        $allowedThemes = ['inovaform', 'ocean', 'emerald', 'aurora', 'solar', 'snow', 'ruby', 'carbon', 'sand', 'lavender', 'custom'];
+
+        if (in_array($colorTheme, $allowedThemes, true)) {
+            return $colorTheme;
+        }
+
+        $defaultPalette = [
+            'accentColor' => '#3d8bff',
+            'pageColor' => '#050d22',
+            'cardColor' => '#0b1a3a',
+            'headingColor' => '#f8fbff',
+            'textColor' => '#a8bfeb',
+            'buttonColor' => '#12356f',
+            'buttonTextColor' => '#e8f2ff',
+            'tokens.colors.textMuted' => '#7894c5',
+            'tokens.surfaces.muted' => '#102348',
+            'tokens.borders.default' => '#2f538f',
+            'tokens.borders.strong' => '#3d8bff',
+            'tokens.borders.focus' => '#3d8bff',
+            'tokens.states.success' => '#22c55e',
+            'tokens.states.warning' => '#f59e0b',
+            'tokens.states.danger' => '#f43f5e',
+            'tokens.components.fieldBackground' => '#0b274f',
+        ];
+
+        foreach ($defaultPalette as $path => $expectedValue) {
+            if (strtolower((string) data_get($settings, $path)) !== $expectedValue) {
+                return 'custom';
+            }
+        }
+
+        return 'inovaform';
     }
 
     /**
@@ -1165,7 +1286,7 @@ class FunnelController extends Controller
 
     private function publicMediaUrl(string $path): string
     {
-        return '/media/' . ltrim($path, '/');
+        return '/media/'.ltrim($path, '/');
     }
 
     private function normalizePublicMediaPath(string $path): ?string

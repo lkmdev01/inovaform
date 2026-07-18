@@ -59,7 +59,7 @@ function makePublicFunnel(User $owner): Funnel
                         ['id' => 'audio_block', 'type' => 'audio', 'label' => 'Audio', 'required' => false, 'audio_sender' => 'Joao Silva', 'audio_src' => '/storage/funnels/audio.mp3', 'audio_model' => 'whatsapp', 'audio_theme' => 'light'],
                     ],
                 ],
-                ],
+            ],
         ],
         [
             'name' => 'Etapa 2',
@@ -868,6 +868,50 @@ test('public submission stores lead and answers', function () {
     Queue::assertPushed(ProcessFunnelSubmissionJob::class, 1);
 });
 
+test('public submission rejects omitted required stages and invalid email answers', function () {
+    Queue::fake();
+
+    $owner = User::factory()->create();
+    $funnel = makePublicFunnel($owner);
+    $stages = $funnel->stages()->orderBy('stage_order')->get();
+
+    $this->from(route('funnels.public.show', $funnel->slug))
+        ->post(route('funnels.public.submit', $funnel->slug), [
+            'answers' => [[
+                'stage_id' => $stages[1]->id,
+                'blocks' => [
+                    ['block_id' => 'challenge_block', 'value' => 'Leads'],
+                ],
+            ]],
+        ])
+        ->assertRedirect(route('funnels.public.show', $funnel->slug))
+        ->assertSessionHasErrors('answers');
+
+    $this->from(route('funnels.public.show', $funnel->slug))
+        ->post(route('funnels.public.submit', $funnel->slug), [
+            'answers' => [
+                [
+                    'stage_id' => $stages[0]->id,
+                    'blocks' => [
+                        ['block_id' => 'name_block', 'value' => 'Maria'],
+                        ['block_id' => 'email_block', 'value' => 'email-invalido'],
+                    ],
+                ],
+                [
+                    'stage_id' => $stages[1]->id,
+                    'blocks' => [
+                        ['block_id' => 'challenge_block', 'value' => 'Leads'],
+                    ],
+                ],
+            ],
+        ])
+        ->assertRedirect(route('funnels.public.show', $funnel->slug))
+        ->assertSessionHasErrors('answers');
+
+    expect(FunnelSubmission::query()->where('funnel_id', $funnel->id)->exists())->toBeFalse();
+    Queue::assertNothingPushed();
+});
+
 test('public submission requires options blocks when options selection is required', function () {
     Queue::fake();
 
@@ -1096,16 +1140,22 @@ test('custom domain submit stores lead using host based route', function () {
     $stages = $funnel->stages()->orderBy('stage_order')->get();
 
     $this->post('http://submit.cliente.com/submit', [
-            'answers' => [
-                [
-                    'stage_id' => $stages[0]->id,
-                    'blocks' => [
-                        ['block_id' => 'name_block', 'value' => 'Cliente Dominio'],
-                        ['block_id' => 'email_block', 'value' => 'cliente@dominio.com'],
-                    ],
+        'answers' => [
+            [
+                'stage_id' => $stages[0]->id,
+                'blocks' => [
+                    ['block_id' => 'name_block', 'value' => 'Cliente Dominio'],
+                    ['block_id' => 'email_block', 'value' => 'cliente@dominio.com'],
                 ],
             ],
-        ])
+            [
+                'stage_id' => $stages[1]->id,
+                'blocks' => [
+                    ['block_id' => 'challenge_block', 'value' => 'Leads'],
+                ],
+            ],
+        ],
+    ])
         ->assertRedirect();
 
     $submission = FunnelSubmission::query()->where('funnel_id', $funnel->id)->latest('id')->first();

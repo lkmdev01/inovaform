@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import { Head, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref, watch  } from 'vue';
-import type {CSSProperties} from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import type { CSSProperties } from 'vue';
 import { sanitizeStoredAssetUrl } from '@/lib/media';
 
 type DisplayRule = {
     id: string;
     source_block_id: string;
-    operator: 'filled' | 'empty' | 'equals' | 'not_equals' | 'contains_any' | 'contains_all';
+    operator:
+        | 'filled'
+        | 'empty'
+        | 'equals'
+        | 'not_equals'
+        | 'contains_any'
+        | 'contains_all';
     value: string;
 };
 
@@ -51,7 +57,8 @@ type StageBlock = {
     display_rule_mode?: 'all' | 'any' | null;
     display_rules?: DisplayRule[] | null;
     display_rule_groups?: DisplayRuleGroup[] | null;
-    options_style?: 'simple' | 'highlight' | 'relief' | 'contrast' | 'cards' | null;
+    options_style?:
+        'simple' | 'highlight' | 'relief' | 'contrast' | 'cards' | null;
     options_layout?: 'grid_2' | 'grid_1' | null;
     options_orientation?: 'vertical' | 'horizontal' | null;
     options_image_ratio?: '1:1' | '4:3' | '16:9' | null;
@@ -76,6 +83,7 @@ type StageBlock = {
     carousel_layout?: 'image_text' | 'image_only' | 'text_only' | null;
     carousel_pagination?: boolean;
     carousel_autoplay?: boolean;
+    carousel_autoplay_seconds?: number;
     carousel_border_type?: 'none' | 'subtle' | 'strong' | null;
     image_ratio?: 'auto' | '16:9' | '4:3' | '1:1' | null;
     image_fit?: 'cover' | 'contain' | null;
@@ -109,7 +117,15 @@ type StageBlock = {
     notification_title?: string | null;
     notification_description?: string | null;
     notification_avatar_url?: string | null;
-    notification_position?: 'default' | 'top_left' | 'top_center' | 'top_right' | 'bottom_left' | 'bottom_center' | 'bottom_right' | null;
+    notification_position?:
+        | 'default'
+        | 'top_left'
+        | 'top_center'
+        | 'top_right'
+        | 'bottom_left'
+        | 'bottom_center'
+        | 'bottom_right'
+        | null;
     notification_duration_seconds?: number | null;
     notification_interval_seconds?: number | null;
     notification_style?: 'white' | 'dark' | 'blue' | null;
@@ -152,13 +168,29 @@ type PublicStage = {
 };
 
 type DesignTokens = {
-    colors: { primary: string; onPrimary: string; heading: string; text: string; textMuted: string };
+    colors: {
+        primary: string;
+        onPrimary: string;
+        heading: string;
+        text: string;
+        textMuted: string;
+    };
     typography: { family: 'modern' | 'clean' | 'serif' };
     brand: { logoUrl: string; showLogo: boolean };
     surfaces: { page: string; card: string; muted: string };
     borders: { default: string; strong: string; focus: string };
-    states: { success: string; warning: string; danger: string; disabledOpacity: number };
-    components: { fieldBackground: string; fieldText: string; primaryButtonBackground: string; primaryButtonText: string };
+    states: {
+        success: string;
+        warning: string;
+        danger: string;
+        disabledOpacity: number;
+    };
+    components: {
+        fieldBackground: string;
+        fieldText: string;
+        primaryButtonBackground: string;
+        primaryButtonText: string;
+    };
 };
 
 type PublicFunnel = {
@@ -218,7 +250,16 @@ const props = defineProps<{
     funnel: PublicFunnel;
 }>();
 
-const page = usePage<{ flash?: { status?: string; completion_lead?: { name?: string | null; email?: string | null; phone?: string | null } } }>();
+const page = usePage<{
+    flash?: {
+        status?: string;
+        completion_lead?: {
+            name?: string | null;
+            email?: string | null;
+            phone?: string | null;
+        };
+    };
+}>();
 const stageIndex = ref(0);
 const answers = ref<Record<string, string | string[]>>({});
 const heightUnits = ref<Record<string, 'cm' | 'in'>>({});
@@ -226,7 +267,11 @@ const weightUnits = ref<Record<string, 'kg' | 'lb'>>({});
 const fieldErrors = ref<Record<string, string>>({});
 const isSubmitting = ref(false);
 const isCompleted = ref(page.props.flash?.status === 'funnel-submitted');
-const submittedLeadPreview = ref<{ name: string; email: string; phone: string }>({
+const submittedLeadPreview = ref<{
+    name: string;
+    email: string;
+    phone: string;
+}>({
     name: '',
     email: '',
     phone: '',
@@ -241,10 +286,16 @@ const audioDurations = ref<Record<string, number>>({});
 const audioCurrentTimes = ref<Record<string, number>>({});
 const activeAudioKey = ref<string | null>(null);
 let timerFrame: number | null = null;
-let loadingAutoNavigateTimeouts: Record<string, ReturnType<typeof setTimeout>> = {};
+let loadingAutoNavigateTimeouts: Record<
+    string,
+    ReturnType<typeof setTimeout>
+> = {};
 const triggeredLoadingActions = ref<Record<string, boolean>>({});
 let completionPageRedirectTimeout: ReturnType<typeof setTimeout> | null = null;
-const audioWaveHeights = [7, 10, 13, 16, 14, 12, 10, 8, 7, 9, 12, 15, 13, 10, 8, 7, 8, 10, 13, 16, 14, 12, 10, 8, 7];
+const audioWaveHeights = [
+    7, 10, 13, 16, 14, 12, 10, 8, 7, 9, 12, 15, 13, 10, 8, 7, 8, 10, 13, 16, 14,
+    12, 10, 8, 7,
+];
 const defaultDesign = {
     alignment: 'center',
     width: 'small',
@@ -271,18 +322,36 @@ const defaultDesign = {
     unavailableDescription: 'Este funil nao esta disponivel no momento.',
     expiresAt: null,
     tokens: {
-        colors: { primary: '#3d8bff', onPrimary: '#e8f2ff', heading: '#f8fbff', text: '#a8bfeb', textMuted: '#7894c5' },
+        colors: {
+            primary: '#3d8bff',
+            onPrimary: '#e8f2ff',
+            heading: '#f8fbff',
+            text: '#a8bfeb',
+            textMuted: '#7894c5',
+        },
         typography: { family: 'modern' },
         brand: { logoUrl: '', showLogo: true },
         surfaces: { page: '#050d22', card: '#0b1a3a', muted: '#102348' },
         borders: { default: '#2f538f', strong: '#3d8bff', focus: '#3d8bff' },
-        states: { success: '#22c55e', warning: '#f59e0b', danger: '#f43f5e', disabledOpacity: 0.55 },
-        components: { fieldBackground: '#0b274f', fieldText: '#f8fbff', primaryButtonBackground: 'linear-gradient(135deg, #2563eb, #06b6d4)', primaryButtonText: '#e8f2ff' },
+        states: {
+            success: '#22c55e',
+            warning: '#f59e0b',
+            danger: '#f43f5e',
+            disabledOpacity: 0.55,
+        },
+        components: {
+            fieldBackground: '#0b274f',
+            fieldText: '#f8fbff',
+            primaryButtonBackground:
+                'linear-gradient(135deg, #2563eb, #06b6d4)',
+            primaryButtonText: '#e8f2ff',
+        },
     },
     completion_page: {
         enabled: false,
         title: 'Resposta enviada',
-        description: 'Obrigado. Recebemos suas respostas e em breve entraremos em contato.',
+        description:
+            'Obrigado. Recebemos suas respostas e em breve entraremos em contato.',
         image_url: '',
         primary_button_text: 'Voltar ao inicio',
         primary_button_url: '/',
@@ -295,17 +364,41 @@ const defaultDesign = {
     },
 } as const;
 
-const design = computed(() => ({ ...defaultDesign, ...(props.funnel.design ?? {}) }));
+const design = computed(() => ({
+    ...defaultDesign,
+    ...(props.funnel.design ?? {}),
+}));
 const designTokens = computed<DesignTokens>(() => ({
     ...defaultDesign.tokens,
     ...(design.value.tokens ?? {}),
-    colors: { ...defaultDesign.tokens.colors, ...(design.value.tokens?.colors ?? {}) },
-    typography: { ...defaultDesign.tokens.typography, ...(design.value.tokens?.typography ?? {}) },
-    brand: { ...defaultDesign.tokens.brand, ...(design.value.tokens?.brand ?? {}) },
-    surfaces: { ...defaultDesign.tokens.surfaces, ...(design.value.tokens?.surfaces ?? {}) },
-    borders: { ...defaultDesign.tokens.borders, ...(design.value.tokens?.borders ?? {}) },
-    states: { ...defaultDesign.tokens.states, ...(design.value.tokens?.states ?? {}) },
-    components: { ...defaultDesign.tokens.components, ...(design.value.tokens?.components ?? {}) },
+    colors: {
+        ...defaultDesign.tokens.colors,
+        ...(design.value.tokens?.colors ?? {}),
+    },
+    typography: {
+        ...defaultDesign.tokens.typography,
+        ...(design.value.tokens?.typography ?? {}),
+    },
+    brand: {
+        ...defaultDesign.tokens.brand,
+        ...(design.value.tokens?.brand ?? {}),
+    },
+    surfaces: {
+        ...defaultDesign.tokens.surfaces,
+        ...(design.value.tokens?.surfaces ?? {}),
+    },
+    borders: {
+        ...defaultDesign.tokens.borders,
+        ...(design.value.tokens?.borders ?? {}),
+    },
+    states: {
+        ...defaultDesign.tokens.states,
+        ...(design.value.tokens?.states ?? {}),
+    },
+    components: {
+        ...defaultDesign.tokens.components,
+        ...(design.value.tokens?.components ?? {}),
+    },
 }));
 const funnelThemeStyle = computed(() => ({
     '--funnel-primary': designTokens.value.colors.primary,
@@ -322,7 +415,9 @@ const funnelThemeStyle = computed(() => ({
     '--funnel-success': designTokens.value.states.success,
     '--funnel-warning': designTokens.value.states.warning,
     '--funnel-danger': designTokens.value.states.danger,
-    '--funnel-disabled-opacity': String(designTokens.value.states.disabledOpacity),
+    '--funnel-disabled-opacity': String(
+        designTokens.value.states.disabledOpacity,
+    ),
     '--funnel-field-bg': designTokens.value.components.fieldBackground,
     '--funnel-field-text': designTokens.value.components.fieldText,
     '--funnel-button-bg': designTokens.value.components.primaryButtonBackground,
@@ -330,36 +425,85 @@ const funnelThemeStyle = computed(() => ({
     backgroundColor: designTokens.value.surfaces.page,
     color: designTokens.value.colors.text,
 }));
-const logoAssetUrl = computed(() => sanitizeStoredAssetUrl(designTokens.value.brand.logoUrl) ?? '');
-const faviconAssetUrl = computed(() => sanitizeStoredAssetUrl(design.value.faviconUrl) ?? '');
-const seoImageAssetUrl = computed(() => sanitizeStoredAssetUrl(design.value.seoImageUrl) ?? '');
+const logoAssetUrl = computed(
+    () => sanitizeStoredAssetUrl(designTokens.value.brand.logoUrl) ?? '',
+);
+const faviconAssetUrl = computed(
+    () => sanitizeStoredAssetUrl(design.value.faviconUrl) ?? '',
+);
+const seoImageAssetUrl = computed(
+    () => sanitizeStoredAssetUrl(design.value.seoImageUrl) ?? '',
+);
 const completionPage = computed(() => ({
     ...defaultDesign.completion_page,
-    ...(((design.value.completion_page ?? {}) && typeof design.value.completion_page === 'object') ? design.value.completion_page : {}),
+    ...((design.value.completion_page ?? {}) &&
+    typeof design.value.completion_page === 'object'
+        ? design.value.completion_page
+        : {}),
 }));
-const pageTitle = computed(() => safeTrim(design.value.seoTitle) || props.funnel.name);
-const pageDescription = computed(() => safeTrim(design.value.seoDescription) || safeTrim(props.funnel.description));
-const currentStage = computed(() => props.funnel.stages[stageIndex.value] ?? null);
-const isLastStage = computed(() => stageIndex.value >= props.funnel.stages.length - 1);
-const stageElapsedSeconds = computed(() => Math.floor(stageElapsedMilliseconds.value / 1000));
-const visibleCurrentStageBlocks = computed(() => currentStage.value ? visibleStageBlocks(currentStage.value) : []);
-const currentStageShowLogo = computed(() => currentStage.value?.header.show_logo ?? designTokens.value.brand.showLogo);
-const currentStageShowProgress = computed(() => currentStage.value?.header.show_progress ?? design.value.showProgress);
-const currentStageAllowBack = computed(() => currentStage.value?.header.allow_back ?? design.value.allowBack);
+const pageTitle = computed(
+    () => safeTrim(design.value.seoTitle) || props.funnel.name,
+);
+const pageDescription = computed(
+    () =>
+        safeTrim(design.value.seoDescription) ||
+        safeTrim(props.funnel.description),
+);
+const currentStage = computed(
+    () => props.funnel.stages[stageIndex.value] ?? null,
+);
+const isLastStage = computed(
+    () => stageIndex.value >= props.funnel.stages.length - 1,
+);
+const stageElapsedSeconds = computed(() =>
+    Math.floor(stageElapsedMilliseconds.value / 1000),
+);
+const visibleCurrentStageBlocks = computed(() =>
+    currentStage.value ? visibleStageBlocks(currentStage.value) : [],
+);
+const currentStageShowLogo = computed(
+    () =>
+        currentStage.value?.header.show_logo ??
+        designTokens.value.brand.showLogo,
+);
+const currentStageShowProgress = computed(
+    () => currentStage.value?.header.show_progress ?? design.value.showProgress,
+);
+const currentStageAllowBack = computed(
+    () => currentStage.value?.header.allow_back ?? design.value.allowBack,
+);
 const containerWidthClass = computed(() => {
-    return design.value.width === 'small' ? 'max-w-xl' : design.value.width === 'medium' ? 'max-w-3xl' : 'max-w-4xl';
+    return design.value.width === 'small'
+        ? 'max-w-xl'
+        : design.value.width === 'medium'
+          ? 'max-w-3xl'
+          : 'max-w-4xl';
 });
 const fieldLabelClass = computed(() => {
-    return design.value.elementSize === 'large' ? 'mb-2 block text-base text-[#cfe1ff]' : 'mb-1.5 block text-sm text-[#cfe1ff]';
+    return design.value.elementSize === 'large'
+        ? 'mb-2 block text-base text-[#cfe1ff]'
+        : 'mb-1.5 block text-sm text-[#cfe1ff]';
 });
 const spacingClass = computed(() => {
-    return design.value.spacing === 'compact' ? 'space-y-3' : design.value.spacing === 'large' ? 'space-y-6' : 'space-y-4';
+    return design.value.spacing === 'compact'
+        ? 'space-y-3'
+        : design.value.spacing === 'large'
+          ? 'space-y-6'
+          : 'space-y-4';
 });
 const radiusClass = computed(() => {
-    return design.value.radius === 'small' ? 'rounded-xl' : design.value.radius === 'large' ? 'rounded-3xl' : 'rounded-2xl';
+    return design.value.radius === 'small'
+        ? 'rounded-xl'
+        : design.value.radius === 'large'
+          ? 'rounded-3xl'
+          : 'rounded-2xl';
 });
 const fontClass = computed(() => {
-    return designTokens.value.typography.family === 'serif' ? 'font-serif' : designTokens.value.typography.family === 'clean' ? 'font-sans' : 'font-["Sora"]';
+    return designTokens.value.typography.family === 'serif'
+        ? 'font-serif'
+        : designTokens.value.typography.family === 'clean'
+          ? 'font-sans'
+          : 'font-["Sora"]';
 });
 
 function safeTrim(value: unknown): string {
@@ -375,7 +519,10 @@ function safeTrim(value: unknown): string {
 }
 
 function publicThemeButtonStyle(block: StageBlock): Record<string, string> {
-    if (block.button_color_style === 'dark' || block.button_color_style === 'light') {
+    if (
+        block.button_color_style === 'dark' ||
+        block.button_color_style === 'light'
+    ) {
         return {};
     }
 
@@ -405,11 +552,26 @@ function findFirstAnswerByType(type: string): string {
 }
 
 const completionPageTokenValues = computed(() => ({
-    nome: safeTrim(submittedLeadPreview.value.name) || safeTrim(page.props.flash?.completion_lead?.name) || findFirstAnswerByType('text'),
-    name: safeTrim(submittedLeadPreview.value.name) || safeTrim(page.props.flash?.completion_lead?.name) || findFirstAnswerByType('text'),
-    email: safeTrim(submittedLeadPreview.value.email) || safeTrim(page.props.flash?.completion_lead?.email) || findFirstAnswerByType('email'),
-    telefone: safeTrim(submittedLeadPreview.value.phone) || safeTrim(page.props.flash?.completion_lead?.phone) || findFirstAnswerByType('phone'),
-    phone: safeTrim(submittedLeadPreview.value.phone) || safeTrim(page.props.flash?.completion_lead?.phone) || findFirstAnswerByType('phone'),
+    nome:
+        safeTrim(submittedLeadPreview.value.name) ||
+        safeTrim(page.props.flash?.completion_lead?.name) ||
+        findFirstAnswerByType('text'),
+    name:
+        safeTrim(submittedLeadPreview.value.name) ||
+        safeTrim(page.props.flash?.completion_lead?.name) ||
+        findFirstAnswerByType('text'),
+    email:
+        safeTrim(submittedLeadPreview.value.email) ||
+        safeTrim(page.props.flash?.completion_lead?.email) ||
+        findFirstAnswerByType('email'),
+    telefone:
+        safeTrim(submittedLeadPreview.value.phone) ||
+        safeTrim(page.props.flash?.completion_lead?.phone) ||
+        findFirstAnswerByType('phone'),
+    phone:
+        safeTrim(submittedLeadPreview.value.phone) ||
+        safeTrim(page.props.flash?.completion_lead?.phone) ||
+        findFirstAnswerByType('phone'),
 }));
 
 function replaceCompletionTokens(template: string): string {
@@ -422,25 +584,42 @@ function replaceCompletionTokens(template: string): string {
 }
 
 const completionPageTitle = computed(() => {
-    const configured = replaceCompletionTokens(safeTrim(completionPage.value.title));
+    const configured = replaceCompletionTokens(
+        safeTrim(completionPage.value.title),
+    );
 
     return configured.length > 0 ? configured : 'Resposta enviada';
 });
 
 const completionPageDescription = computed(() => {
-    const configured = replaceCompletionTokens(safeTrim(completionPage.value.description));
+    const configured = replaceCompletionTokens(
+        safeTrim(completionPage.value.description),
+    );
 
-    return configured.length > 0 ? configured : 'Obrigado. Recebemos suas respostas e em breve entraremos em contato.';
+    return configured.length > 0
+        ? configured
+        : 'Obrigado. Recebemos suas respostas e em breve entraremos em contato.';
 });
 
-const completionPageImageUrl = computed(() => sanitizeStoredAssetUrl(safeTrim(completionPage.value.image_url)) ?? '');
-const usesCustomCompletionPage = computed(() => completionPage.value.enabled === true);
+const completionPageImageUrl = computed(
+    () =>
+        sanitizeStoredAssetUrl(safeTrim(completionPage.value.image_url)) ?? '',
+);
+const usesCustomCompletionPage = computed(
+    () => completionPage.value.enabled === true,
+);
 
-function shouldRenderCompletionButton(text: string | undefined, url: string | undefined): boolean {
+function shouldRenderCompletionButton(
+    text: string | undefined,
+    url: string | undefined,
+): boolean {
     return safeTrim(text).length > 0 && safeTrim(url).length > 0;
 }
 
-function openCompletionPageLink(url: string | undefined, openNewTab = false): void {
+function openCompletionPageLink(
+    url: string | undefined,
+    openNewTab = false,
+): void {
     const targetUrl = safeTrim(url);
 
     if (targetUrl.length === 0) {
@@ -473,13 +652,26 @@ function publicLabelClass(block: StageBlock): string {
 }
 
 function publicBlockWrapperStyle(block: StageBlock): CSSProperties {
-    const width = Math.max(25, Math.min(100, Number(block.width_percent ?? 100)));
+    const width = Math.max(
+        25,
+        Math.min(100, Number(block.width_percent ?? 100)),
+    );
     const horizontal = block.align_horizontal ?? 'start';
 
     return {
         width: `${width}%`,
-        marginLeft: horizontal === 'end' ? 'auto' : horizontal === 'center' ? 'auto' : '0',
-        marginRight: horizontal === 'start' ? 'auto' : horizontal === 'center' ? 'auto' : '0',
+        marginLeft:
+            horizontal === 'end'
+                ? 'auto'
+                : horizontal === 'center'
+                  ? 'auto'
+                  : '0',
+        marginRight:
+            horizontal === 'start'
+                ? 'auto'
+                : horizontal === 'center'
+                  ? 'auto'
+                  : '0',
     };
 }
 
@@ -518,10 +710,16 @@ function evaluateDisplayRule(rule: DisplayRule): boolean {
 
     const rawValue = answerValueForRule(blockId);
     const actualValues = Array.isArray(rawValue)
-        ? rawValue.map((value) => safeTrim(value)).filter((value) => value.length > 0)
+        ? rawValue
+              .map((value) => safeTrim(value))
+              .filter((value) => value.length > 0)
         : [safeTrim(rawValue)].filter((value) => value.length > 0);
-    const anyMatch = expectedValues.some((value) => actualValues.includes(value));
-    const allMatch = expectedValues.every((value) => actualValues.includes(value));
+    const anyMatch = expectedValues.some((value) =>
+        actualValues.includes(value),
+    );
+    const allMatch = expectedValues.every((value) =>
+        actualValues.includes(value),
+    );
 
     if (rule.operator === 'contains_any') {
         return anyMatch;
@@ -536,18 +734,22 @@ function evaluateDisplayRule(rule: DisplayRule): boolean {
 
 function normalizedDisplayRuleGroups(block: StageBlock): DisplayRuleGroup[] {
     if ((block.display_rule_groups ?? []).length > 0) {
-        return (block.display_rule_groups ?? []).filter((group) => (group.rules?.length ?? 0) > 0);
+        return (block.display_rule_groups ?? []).filter(
+            (group) => (group.rules?.length ?? 0) > 0,
+        );
     }
 
     if ((block.display_rules ?? []).length === 0) {
         return [];
     }
 
-    return [{
-        id: `${block.id}-legacy-group`,
-        mode: block.display_rule_mode ?? 'all',
-        rules: block.display_rules ?? [],
-    }];
+    return [
+        {
+            id: `${block.id}-legacy-group`,
+            mode: block.display_rule_mode ?? 'all',
+            rules: block.display_rules ?? [],
+        },
+    ];
 }
 
 function isBlockVisible(block: StageBlock): boolean {
@@ -564,12 +766,16 @@ function isBlockVisible(block: StageBlock): boolean {
     }
 
     return (block.display_rule_mode ?? 'all') === 'any'
-        ? groups.some((group) => (group.mode ?? 'all') === 'any'
-            ? group.rules.some((rule) => evaluateDisplayRule(rule))
-            : group.rules.every((rule) => evaluateDisplayRule(rule)))
-        : groups.every((group) => (group.mode ?? 'all') === 'any'
-            ? group.rules.some((rule) => evaluateDisplayRule(rule))
-            : group.rules.every((rule) => evaluateDisplayRule(rule)));
+        ? groups.some((group) =>
+              (group.mode ?? 'all') === 'any'
+                  ? group.rules.some((rule) => evaluateDisplayRule(rule))
+                  : group.rules.every((rule) => evaluateDisplayRule(rule)),
+          )
+        : groups.every((group) =>
+              (group.mode ?? 'all') === 'any'
+                  ? group.rules.some((rule) => evaluateDisplayRule(rule))
+                  : group.rules.every((rule) => evaluateDisplayRule(rule)),
+          );
 }
 
 function visibleStageBlocks(stage: PublicStage): StageBlock[] {
@@ -633,12 +839,16 @@ async function toggleAudioPlayback(key: string): Promise<void> {
 
 function onAudioLoadedMetadata(key: string, event: Event): void {
     const element = event.target as HTMLAudioElement;
-    audioDurations.value[key] = Number.isFinite(element.duration) ? element.duration : 0;
+    audioDurations.value[key] = Number.isFinite(element.duration)
+        ? element.duration
+        : 0;
 }
 
 function onAudioTimeUpdate(key: string, event: Event): void {
     const element = event.target as HTMLAudioElement;
-    audioCurrentTimes.value[key] = Number.isFinite(element.currentTime) ? element.currentTime : 0;
+    audioCurrentTimes.value[key] = Number.isFinite(element.currentTime)
+        ? element.currentTime
+        : 0;
 }
 
 function onAudioPlay(key: string): void {
@@ -667,7 +877,10 @@ function audioProgressRatio(key: string): number {
         return 0;
     }
 
-    return Math.min(1, Math.max(0, (audioCurrentTimes.value[key] ?? 0) / duration));
+    return Math.min(
+        1,
+        Math.max(0, (audioCurrentTimes.value[key] ?? 0) / duration),
+    );
 }
 
 function formatAudioTime(totalSeconds: number): string {
@@ -703,7 +916,10 @@ function seekAudio(key: string, event: MouseEvent): void {
     }
 
     const rect = target.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const ratio = Math.min(
+        1,
+        Math.max(0, (event.clientX - rect.left) / rect.width),
+    );
     const duration = audioDurations.value[key] ?? element.duration ?? 0;
 
     if (!Number.isFinite(duration) || duration <= 0) {
@@ -808,30 +1024,30 @@ function imageAspectClass(block: StageBlock): string {
     return block.image_ratio === '16:9'
         ? 'aspect-video'
         : block.image_ratio === '4:3'
-            ? 'aspect-[4/3]'
-            : block.image_ratio === '1:1'
-                ? 'aspect-square'
-                : '';
+          ? 'aspect-[4/3]'
+          : block.image_ratio === '1:1'
+            ? 'aspect-square'
+            : '';
 }
 
 function imageRadiusClass(block: StageBlock): string {
     return block.image_radius === 'none'
         ? 'rounded-none'
         : block.image_radius === 'small'
-            ? 'rounded-md'
-            : block.image_radius === 'large'
-                ? 'rounded-2xl'
-                : block.image_radius === 'full'
-                    ? 'rounded-[999px]'
-                    : 'rounded-xl';
+          ? 'rounded-md'
+          : block.image_radius === 'large'
+            ? 'rounded-2xl'
+            : block.image_radius === 'full'
+              ? 'rounded-[999px]'
+              : 'rounded-xl';
 }
 
 function imageFrameClass(block: StageBlock): string {
     return block.image_frame === 'strong'
         ? 'border-[#2f538f] bg-[#0b274f] p-2.5'
         : block.image_frame === 'none'
-            ? 'border-transparent bg-transparent p-0'
-            : 'border-[#2f538f] bg-[#0b274f] p-2';
+          ? 'border-transparent bg-transparent p-0'
+          : 'border-[#2f538f] bg-[#0b274f] p-2';
 }
 
 function imageFitClass(block: StageBlock): string {
@@ -842,12 +1058,23 @@ function answerKey(stageId: number, blockId: string): string {
     return `${stageId}:${blockId}`;
 }
 
-function getAnswer(stageId: number, blockId: string): string | string[] | undefined {
+function getAnswer(
+    stageId: number,
+    blockId: string,
+): string | string[] | undefined {
     return answers.value[answerKey(stageId, blockId)];
 }
 
 function setTextAnswer(stageId: number, blockId: string, value: string): void {
-    answers.value[answerKey(stageId, blockId)] = value;
+    const key = answerKey(stageId, blockId);
+
+    answers.value[key] = value;
+
+    if (fieldErrors.value[key]) {
+        const remainingErrors = { ...fieldErrors.value };
+        delete remainingErrors[key];
+        fieldErrors.value = remainingErrors;
+    }
 }
 
 function heightUnitKey(stageId: number, blockId: string): string {
@@ -858,7 +1085,11 @@ function getHeightUnit(stageId: number, blockId: string): 'cm' | 'in' {
     return heightUnits.value[heightUnitKey(stageId, blockId)] ?? 'cm';
 }
 
-function setHeightUnit(stageId: number, blockId: string, unit: 'cm' | 'in'): void {
+function setHeightUnit(
+    stageId: number,
+    blockId: string,
+    unit: 'cm' | 'in',
+): void {
     heightUnits.value[heightUnitKey(stageId, blockId)] = unit;
 }
 
@@ -884,9 +1115,14 @@ function getHeightDisplayValue(stageId: number, blockId: string): number {
     return baseCm;
 }
 
-function setHeightFromRuler(stageId: number, blockId: string, value: number): void {
+function setHeightFromRuler(
+    stageId: number,
+    blockId: string,
+    value: number,
+): void {
     const unit = getHeightUnit(stageId, blockId);
-    const normalizedCm = unit === 'in' ? Math.round(value * 2.54) : Math.round(value);
+    const normalizedCm =
+        unit === 'in' ? Math.round(value * 2.54) : Math.round(value);
     setTextAnswer(stageId, blockId, String(normalizedCm));
 }
 
@@ -898,7 +1134,11 @@ function getWeightUnit(stageId: number, blockId: string): 'kg' | 'lb' {
     return weightUnits.value[weightUnitKey(stageId, blockId)] ?? 'kg';
 }
 
-function setWeightUnit(stageId: number, blockId: string, unit: 'kg' | 'lb'): void {
+function setWeightUnit(
+    stageId: number,
+    blockId: string,
+    unit: 'kg' | 'lb',
+): void {
     weightUnits.value[weightUnitKey(stageId, blockId)] = unit;
 }
 
@@ -924,9 +1164,14 @@ function getWeightDisplayValue(stageId: number, blockId: string): number {
     return baseKg;
 }
 
-function setWeightFromRuler(stageId: number, blockId: string, value: number): void {
+function setWeightFromRuler(
+    stageId: number,
+    blockId: string,
+    value: number,
+): void {
     const unit = getWeightUnit(stageId, blockId);
-    const normalizedKg = unit === 'lb' ? Math.round(value / 2.20462) : Math.round(value);
+    const normalizedKg =
+        unit === 'lb' ? Math.round(value / 2.20462) : Math.round(value);
     setTextAnswer(stageId, blockId, String(normalizedKg));
 }
 
@@ -1003,7 +1248,10 @@ function normalizeNumberValue(value: string): number {
     return Number.parseInt(digitsOnly, 10) / 100;
 }
 
-function maskNumberByType(value: string, mask: StageBlock['number_mask']): string {
+function maskNumberByType(
+    value: string,
+    mask: StageBlock['number_mask'],
+): string {
     if (mask === 'real') {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
@@ -1052,7 +1300,10 @@ function maskEmail(value: string): string {
     }
 
     const local = sanitized.slice(0, atIndex).replace(/[^a-z0-9._%+-]/g, '');
-    const domain = sanitized.slice(atIndex + 1).replace(/@/g, '').replace(/[^a-z0-9.-]/g, '');
+    const domain = sanitized
+        .slice(atIndex + 1)
+        .replace(/@/g, '')
+        .replace(/[^a-z0-9.-]/g, '');
 
     return `${local}@${domain}`;
 }
@@ -1063,7 +1314,11 @@ function isValidEmail(value: string): boolean {
     return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(normalized);
 }
 
-function setMaskedTextAnswer(stageId: number, block: StageBlock, value: string): void {
+function setMaskedTextAnswer(
+    stageId: number,
+    block: StageBlock,
+    value: string,
+): void {
     if (block.type === 'email') {
         setTextAnswer(stageId, block.id, maskEmail(value));
 
@@ -1071,7 +1326,11 @@ function setMaskedTextAnswer(stageId: number, block: StageBlock, value: string):
     }
 
     if (block.type === 'phone') {
-        setTextAnswer(stageId, block.id, maskPhone(value, block.phone_mask ?? 'br'));
+        setTextAnswer(
+            stageId,
+            block.id,
+            maskPhone(value, block.phone_mask ?? 'br'),
+        );
 
         return;
     }
@@ -1083,7 +1342,11 @@ function setMaskedTextAnswer(stageId: number, block: StageBlock, value: string):
     }
 
     if (block.type === 'number') {
-        setTextAnswer(stageId, block.id, maskNumberByType(value, block.number_mask ?? 'decimal'));
+        setTextAnswer(
+            stageId,
+            block.id,
+            maskNumberByType(value, block.number_mask ?? 'decimal'),
+        );
 
         return;
     }
@@ -1096,7 +1359,11 @@ function handleBlockButtonClick(block: StageBlock): void {
 
     if (block.button_action === 'open_link' && targetUrl.length > 0) {
         const target = block.button_open_new_tab ? '_blank' : '_self';
-        window.open(targetUrl, target, block.button_open_new_tab ? 'noopener,noreferrer' : undefined);
+        window.open(
+            targetUrl,
+            target,
+            block.button_open_new_tab ? 'noopener,noreferrer' : undefined,
+        );
 
         return;
     }
@@ -1192,7 +1459,9 @@ function toEmbedVideoUrl(url: string | null): string | null {
             }
 
             if (parsed.pathname.startsWith('/shorts/')) {
-                const shortsId = parsed.pathname.split('/').filter((segment) => segment.length > 0)[1];
+                const shortsId = parsed.pathname
+                    .split('/')
+                    .filter((segment) => segment.length > 0)[1];
 
                 if (shortsId) {
                     return `https://www.youtube.com/embed/${shortsId}`;
@@ -1215,7 +1484,9 @@ function toEmbedVideoUrl(url: string | null): string | null {
         }
 
         if (parsed.hostname.includes('vimeo.com')) {
-            const segments = parsed.pathname.split('/').filter((segment) => segment.length > 0);
+            const segments = parsed.pathname
+                .split('/')
+                .filter((segment) => segment.length > 0);
             const videoId = segments[segments.length - 1];
 
             if (videoId && /^\d+$/.test(videoId)) {
@@ -1229,7 +1500,11 @@ function toEmbedVideoUrl(url: string | null): string | null {
     }
 }
 
-function setSingleChoice(stageId: number, blockId: string, value: string): void {
+function setSingleChoice(
+    stageId: number,
+    blockId: string,
+    value: string,
+): void {
     answers.value[answerKey(stageId, blockId)] = value;
 }
 
@@ -1237,16 +1512,26 @@ function normalizeStageTarget(target: string | null | undefined): string {
     return safeTrim(target).toLowerCase();
 }
 
-function resolveStageTargetIndex(target: string | null | undefined): number | null {
+function resolveStageTargetIndex(
+    target: string | null | undefined,
+): number | null {
     const normalizedTarget = normalizeStageTarget(target);
 
-    if (normalizedTarget.length === 0 || normalizedTarget === 'next' || normalizedTarget === 'next_stage' || normalizedTarget === 'proxima etapa' || normalizedTarget === 'próxima etapa') {
+    if (
+        normalizedTarget.length === 0 ||
+        normalizedTarget === 'next' ||
+        normalizedTarget === 'next_stage' ||
+        normalizedTarget === 'proxima etapa' ||
+        normalizedTarget === 'próxima etapa'
+    ) {
         return isLastStage.value ? null : stageIndex.value + 1;
     }
 
     if (/^\d+$/.test(normalizedTarget)) {
         const targetOrder = Number(normalizedTarget);
-        const matchedStageIndex = props.funnel.stages.findIndex((_, index) => index + 1 === targetOrder);
+        const matchedStageIndex = props.funnel.stages.findIndex(
+            (_, index) => index + 1 === targetOrder,
+        );
 
         return matchedStageIndex >= 0 ? matchedStageIndex : null;
     }
@@ -1255,37 +1540,50 @@ function resolveStageTargetIndex(target: string | null | undefined): number | nu
 
     if (stageOrderMatch) {
         const targetOrder = Number(stageOrderMatch[1]);
-        const matchedStageIndex = props.funnel.stages.findIndex((_, index) => index + 1 === targetOrder);
+        const matchedStageIndex = props.funnel.stages.findIndex(
+            (_, index) => index + 1 === targetOrder,
+        );
 
         return matchedStageIndex >= 0 ? matchedStageIndex : null;
     }
 
-    const matchedByTitleIndex = props.funnel.stages.findIndex((stage) => normalizeStageTarget(stage.title) === normalizedTarget);
+    const matchedByTitleIndex = props.funnel.stages.findIndex(
+        (stage) => normalizeStageTarget(stage.title) === normalizedTarget,
+    );
 
     if (matchedByTitleIndex >= 0) {
         return matchedByTitleIndex;
     }
 
-    const matchedByNameIndex = props.funnel.stages.findIndex((stage) => normalizeStageTarget(stage.name) === normalizedTarget);
+    const matchedByNameIndex = props.funnel.stages.findIndex(
+        (stage) => normalizeStageTarget(stage.name) === normalizedTarget,
+    );
 
     return matchedByNameIndex >= 0 ? matchedByNameIndex : null;
 }
 
 function stageHasAllRequiredAnswers(stage: PublicStage): boolean {
     for (const block of visibleStageBlocks(stage)) {
-        const isRequired = isOptionsComponentType(block.type) ? (block.options_required_selection ?? block.required) : block.required;
+        const isRequired = isOptionsComponentType(block.type)
+            ? (block.options_required_selection ?? block.required)
+            : block.required;
 
-        if (!isRequired || !isAnswerableBlock(block.type)) {
+        if (!isAnswerableBlock(block.type)) {
             continue;
         }
 
         const value = getAnswer(stage.id, block.id);
 
-        if (!isFilled(value)) {
+        if (isRequired && !isFilled(value)) {
             return false;
         }
 
-        if (block.type === 'email' && typeof value === 'string' && !isValidEmail(value)) {
+        if (
+            block.type === 'email' &&
+            typeof value === 'string' &&
+            isFilled(value) &&
+            !isValidEmail(value)
+        ) {
             return false;
         }
     }
@@ -1294,6 +1592,10 @@ function stageHasAllRequiredAnswers(stage: PublicStage): boolean {
 }
 
 function navigateToStageTarget(target: string | null | undefined): void {
+    if (!currentStage.value || !validateStage(currentStage.value)) {
+        return;
+    }
+
     const targetIndex = resolveStageTargetIndex(target);
 
     if (targetIndex !== null && targetIndex !== stageIndex.value) {
@@ -1312,7 +1614,12 @@ function navigateToStageTarget(target: string | null | undefined): void {
     goNext();
 }
 
-function handleOptionSelection(stageId: number, block: StageBlock, optionLabel: string, destination?: string): void {
+function handleOptionSelection(
+    stageId: number,
+    block: StageBlock,
+    optionLabel: string,
+    destination?: string,
+): void {
     const stage = props.funnel.stages.find((entry) => entry.id === stageId);
 
     if (!stage) {
@@ -1351,10 +1658,15 @@ function hasOptionsIntroContent(block: StageBlock): boolean {
         return false;
     }
 
-    return safeTrim(block.options_intro_title).length > 0 || safeTrim(block.options_intro_description).length > 0;
+    return (
+        safeTrim(block.options_intro_title).length > 0 ||
+        safeTrim(block.options_intro_description).length > 0
+    );
 }
 
-function normalizeDetailValue(value: StageBlock['options_detail']): 'checkout' | 'arrow' | 'points' | 'value' | 'none' {
+function normalizeDetailValue(
+    value: StageBlock['options_detail'],
+): 'checkout' | 'arrow' | 'points' | 'value' | 'none' {
     if (value === 'none') {
         return 'none';
     }
@@ -1378,12 +1690,22 @@ function normalizeDetailValue(value: StageBlock['options_detail']): 'checkout' |
     return 'checkout';
 }
 
-function optionsDisplayItems(block: StageBlock): Array<{ label: string; points: number; value: string; destination: string; image_url: string }> {
+function optionsDisplayItems(block: StageBlock): Array<{
+    label: string;
+    points: number;
+    value: string;
+    destination: string;
+    image_url: string;
+}> {
     if (Array.isArray(block.option_items) && block.option_items.length > 0) {
         return block.option_items.map((item, index) => ({
             label: item.label,
-            points: Number.isFinite(Number(item.points)) ? Number(item.points) : index + 1,
-            value: (item.value ?? '').trim() || String.fromCharCode(65 + (index % 26)),
+            points: Number.isFinite(Number(item.points))
+                ? Number(item.points)
+                : index + 1,
+            value:
+                (item.value ?? '').trim() ||
+                String.fromCharCode(65 + (index % 26)),
             destination: safeTrim(item.destination) || 'next_stage',
             image_url: safeTrim(item.image_url),
         }));
@@ -1398,20 +1720,32 @@ function optionsDisplayItems(block: StageBlock): Array<{ label: string; points: 
     }));
 }
 
-function optionsShouldRenderImage(block: StageBlock, item: { image_url: string }): boolean {
-    return (block.options_disposition ?? 'image_text') !== 'text' && item.image_url.length > 0;
+function optionsShouldRenderImage(
+    block: StageBlock,
+    item: { image_url: string },
+): boolean {
+    return (
+        (block.options_disposition ?? 'image_text') !== 'text' &&
+        item.image_url.length > 0
+    );
 }
 
 function optionsMediaOrderClass(block: StageBlock): string {
-    return (block.options_disposition ?? 'image_text') === 'text_image' ? 'order-2' : 'order-1';
+    return (block.options_disposition ?? 'image_text') === 'text_image'
+        ? 'order-2'
+        : 'order-1';
 }
 
 function optionsLabelOrderClass(block: StageBlock): string {
-    return (block.options_disposition ?? 'image_text') === 'text_image' ? 'order-1' : 'order-2';
+    return (block.options_disposition ?? 'image_text') === 'text_image'
+        ? 'order-1'
+        : 'order-2';
 }
 
 function optionsBodyClass(block: StageBlock): string {
-    return block.options_layout === 'grid_1' ? 'flex items-center gap-3' : 'flex items-center gap-2';
+    return block.options_layout === 'grid_1'
+        ? 'flex items-center gap-3'
+        : 'flex items-center gap-2';
 }
 
 function optionsImageRatioClass(block: StageBlock): string {
@@ -1436,7 +1770,9 @@ function optionsImageWrapClass(block: StageBlock): string {
 }
 
 function optionsDetailWrapClass(block: StageBlock): string {
-    return block.options_detail_position === 'end' ? 'order-3 ml-auto' : 'order-1';
+    return block.options_detail_position === 'end'
+        ? 'order-3 ml-auto'
+        : 'order-1';
 }
 
 function optionsListClass(block: StageBlock): string {
@@ -1499,7 +1835,9 @@ function optionsCardShadowClass(block: StageBlock): string {
     return '';
 }
 
-function normalizeOptionsStyle(style?: StageBlock['options_style']): 'simple' | 'highlight' | 'relief' | 'contrast' {
+function normalizeOptionsStyle(
+    style?: StageBlock['options_style'],
+): 'simple' | 'highlight' | 'relief' | 'contrast' {
     if (style === 'highlight' || style === 'relief' || style === 'contrast') {
         return style;
     }
@@ -1537,7 +1875,11 @@ function optionsCardMinWidthClass(block: StageBlock): string {
     return block.options_layout === 'grid_2' ? '' : 'min-w-0';
 }
 
-function optionsDetailLabel(block: StageBlock, item: { points: number; value: string }, index: number): string {
+function optionsDetailLabel(
+    block: StageBlock,
+    item: { points: number; value: string },
+    index: number,
+): string {
     const detail = normalizeDetailValue(block.options_detail);
 
     if (detail === 'checkout' || detail === 'none') {
@@ -1605,22 +1947,29 @@ function contentTextAlignClass(block: StageBlock): string {
     return 'text-left';
 }
 
-function testimonialItems(block: StageBlock): Array<{ id: string; label: string; subtitle: string; description: string; rating: number }> {
-    const baseItems = Array.isArray(block.option_items) && block.option_items.length > 0
-        ? block.option_items
-        : (block.options ?? []).map((value, index) => {
-            const segments = String(value).split('|');
-            return {
-                id: `${block.id}-testimonial-${index}`,
-                label: (segments[0] ?? '').trim(),
-                subtitle: (segments[1] ?? '').trim(),
-                rating: Number((segments[2] ?? '5').trim()),
-                description: segments.slice(3).join('|').trim(),
-                points: Number((segments[2] ?? '5').trim()),
-                value: (segments[1] ?? '').trim(),
-                destination: segments.slice(3).join('|').trim(),
-            };
-        });
+function testimonialItems(block: StageBlock): Array<{
+    id: string;
+    label: string;
+    subtitle: string;
+    description: string;
+    rating: number;
+}> {
+    const baseItems =
+        Array.isArray(block.option_items) && block.option_items.length > 0
+            ? block.option_items
+            : (block.options ?? []).map((value, index) => {
+                  const segments = String(value).split('|');
+                  return {
+                      id: `${block.id}-testimonial-${index}`,
+                      label: (segments[0] ?? '').trim(),
+                      subtitle: (segments[1] ?? '').trim(),
+                      rating: Number((segments[2] ?? '5').trim()),
+                      description: segments.slice(3).join('|').trim(),
+                      points: Number((segments[2] ?? '5').trim()),
+                      value: (segments[1] ?? '').trim(),
+                      destination: segments.slice(3).join('|').trim(),
+                  };
+              });
 
     return baseItems.map((item) => {
         const handle = (item.subtitle ?? item.value ?? '').trim();
@@ -1631,13 +1980,24 @@ function testimonialItems(block: StageBlock): Array<{ id: string; label: string;
             label: item.label?.trim() ?? '',
             subtitle: handle,
             description,
-            rating: Math.max(1, Math.min(5, Math.round(Number.isFinite(parsedRating) ? parsedRating : 5))),
+            rating: Math.max(
+                1,
+                Math.min(
+                    5,
+                    Math.round(
+                        Number.isFinite(parsedRating) ? parsedRating : 5,
+                    ),
+                ),
+            ),
         };
     });
 }
 
 function ratingStars(rating: number): number[] {
-    const safeRating = Math.max(1, Math.min(5, Math.round(Number.isFinite(rating) ? rating : 5)));
+    const safeRating = Math.max(
+        1,
+        Math.min(5, Math.round(Number.isFinite(rating) ? rating : 5)),
+    );
 
     return Array.from({ length: safeRating }, (_, index) => index);
 }
@@ -1654,7 +2014,9 @@ function testimonialListClass(block: StageBlock): string {
     return 'space-y-3';
 }
 
-function carouselItems(block: StageBlock): Array<{ id: string; image: string; description: string }> {
+function carouselItems(
+    block: StageBlock,
+): Array<{ id: string; image: string; description: string }> {
     if (!Array.isArray(block.option_items)) {
         return [];
     }
@@ -1676,6 +2038,66 @@ function carouselShowsDescription(block: StageBlock): boolean {
     return (block.carousel_layout ?? 'image_text') !== 'image_only';
 }
 
+function carouselContainerStyle(block: StageBlock): CSSProperties {
+    if (block.carousel_border_type === 'strong') {
+        return {
+            backgroundColor: designTokens.value.surfaces.muted,
+            borderColor: designTokens.value.borders.strong,
+        };
+    }
+
+    if (block.carousel_border_type === 'subtle') {
+        return {
+            backgroundColor: designTokens.value.surfaces.muted,
+            borderColor: designTokens.value.borders.default,
+        };
+    }
+
+    return {
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+    };
+}
+
+function priceCardStyle(block: StageBlock): CSSProperties {
+    const style: CSSProperties = {
+        cursor:
+            (block.price_mode ?? 'illustrative') === 'redirect'
+                ? 'pointer'
+                : 'default',
+    };
+
+    if ((block.price_style ?? 'theme') === 'theme') {
+        style.backgroundColor = designTokens.value.surfaces.muted;
+        style.borderColor = designTokens.value.borders.strong;
+        style.color = designTokens.value.colors.heading;
+    }
+
+    return style;
+}
+
+function priceValuePanelStyle(block: StageBlock): CSSProperties {
+    if ((block.price_style ?? 'theme') !== 'theme') {
+        return {};
+    }
+
+    return { backgroundColor: designTokens.value.surfaces.card };
+}
+
+function priceMutedTextColor(block: StageBlock): string {
+    return (block.price_style ?? 'theme') === 'theme'
+        ? designTokens.value.colors.textMuted
+        : '#5f6875';
+}
+
+function levelBarStyle(block: StageBlock): CSSProperties {
+    if ((block.level_color ?? 'theme') !== 'theme') {
+        return {};
+    }
+
+    return { backgroundColor: designTokens.value.colors.primary };
+}
+
 function carouselKey(stageId: number, blockId: string): string {
     return `${stageId}:${blockId}`;
 }
@@ -1688,13 +2110,31 @@ function currentCarouselIndex(stageId: number, block: StageBlock): number {
     }
 
     if (block.carousel_autoplay) {
-        return Math.floor(stageElapsedMilliseconds.value / 3000) % items.length;
+        const autoplayMilliseconds =
+            Math.max(
+                1,
+                Math.min(60, Number(block.carousel_autoplay_seconds ?? 3)),
+            ) * 1000;
+
+        return (
+            Math.floor(stageElapsedMilliseconds.value / autoplayMilliseconds) %
+            items.length
+        );
     }
 
-    return Math.max(0, Math.min(items.length - 1, manualCarouselIndices.value[carouselKey(stageId, block.id)] ?? 0));
+    return Math.max(
+        0,
+        Math.min(
+            items.length - 1,
+            manualCarouselIndices.value[carouselKey(stageId, block.id)] ?? 0,
+        ),
+    );
 }
 
-function currentCarouselItem(stageId: number, block: StageBlock): { id: string; image: string; description: string } | null {
+function currentCarouselItem(
+    stageId: number,
+    block: StageBlock,
+): { id: string; image: string; description: string } | null {
     const items = carouselItems(block);
 
     if (items.length === 0) {
@@ -1704,17 +2144,26 @@ function currentCarouselItem(stageId: number, block: StageBlock): { id: string; 
     return items[currentCarouselIndex(stageId, block)] ?? items[0] ?? null;
 }
 
-function setCarouselIndex(stageId: number, block: StageBlock, index: number): void {
+function setCarouselIndex(
+    stageId: number,
+    block: StageBlock,
+    index: number,
+): void {
     const items = carouselItems(block);
 
     if (items.length === 0) {
         return;
     }
 
-    manualCarouselIndices.value[carouselKey(stageId, block.id)] = Math.max(0, Math.min(items.length - 1, index));
+    manualCarouselIndices.value[carouselKey(stageId, block.id)] = Math.max(
+        0,
+        Math.min(items.length - 1, index),
+    );
 }
 
-function faqItems(block: StageBlock): Array<{ id: string; label: string; description: string }> {
+function faqItems(
+    block: StageBlock,
+): Array<{ id: string; label: string; description: string }> {
     if (Array.isArray(block.option_items) && block.option_items.length > 0) {
         return block.option_items.map((item, index) => ({
             id: item.id ?? `${block.id}-faq-${index}`,
@@ -1730,16 +2179,27 @@ function faqItems(block: StageBlock): Array<{ id: string; label: string; descrip
     }));
 }
 
-function metricItems(block: StageBlock): Array<{ id: string; label: string; value: string; description: string }> {
+function metricItems(
+    block: StageBlock,
+): Array<{ id: string; label: string; value: string; description: string }> {
     if (Array.isArray(block.option_items) && block.option_items.length > 0) {
         return block.option_items
             .map((item, index) => ({
                 id: item.id ?? `${block.id}-metric-${index}`,
                 label: item.label?.trim() ?? '',
                 value: (item.value ?? '').trim(),
-                description: (item.description ?? item.destination ?? '').trim(),
+                description: (
+                    item.description ??
+                    item.destination ??
+                    ''
+                ).trim(),
             }))
-            .filter((item) => item.label.length > 0 || item.value.length > 0 || item.description.length > 0);
+            .filter(
+                (item) =>
+                    item.label.length > 0 ||
+                    item.value.length > 0 ||
+                    item.description.length > 0,
+            );
     }
 
     return (block.options ?? [])
@@ -1749,7 +2209,12 @@ function metricItems(block: StageBlock): Array<{ id: string; label: string; valu
             value: '',
             description: '',
         }))
-        .filter((item) => item.label.length > 0 || item.value.length > 0 || item.description.length > 0);
+        .filter(
+            (item) =>
+                item.label.length > 0 ||
+                item.value.length > 0 ||
+                item.description.length > 0,
+        );
 }
 
 function argumentItems(block: StageBlock): string[] {
@@ -1758,7 +2223,9 @@ function argumentItems(block: StageBlock): string[] {
         .filter((item) => item.length > 0);
 }
 
-function beforeAfterItems(block: StageBlock): Array<{ label: string; value: string }> {
+function beforeAfterItems(
+    block: StageBlock,
+): Array<{ label: string; value: string }> {
     return [
         { label: 'Antes', value: safeTrim(block.options?.[0]) },
         { label: 'Depois', value: safeTrim(block.options?.[1]) },
@@ -1769,16 +2236,31 @@ function faqItemKey(stageId: number, blockId: string, index: number): string {
     return `${stageId}:${blockId}:faq:${index}`;
 }
 
-function isFaqItemOpen(stageId: number, block: StageBlock, index: number): boolean {
-    return openFaqItems.value[faqItemKey(stageId, block.id, index)] ?? ((block.faq_first_active ?? true) && index === 0);
+function isFaqItemOpen(
+    stageId: number,
+    block: StageBlock,
+    index: number,
+): boolean {
+    return (
+        openFaqItems.value[faqItemKey(stageId, block.id, index)] ??
+        ((block.faq_first_active ?? true) && index === 0)
+    );
 }
 
-function toggleFaqItem(stageId: number, block: StageBlock, index: number): void {
+function toggleFaqItem(
+    stageId: number,
+    block: StageBlock,
+    index: number,
+): void {
     const key = faqItemKey(stageId, block.id, index);
     openFaqItems.value[key] = !isFaqItemOpen(stageId, block, index);
 }
 
-function faqDetailLabel(block: StageBlock, index: number, isOpen = false): string {
+function faqDetailLabel(
+    block: StageBlock,
+    index: number,
+    isOpen = false,
+): string {
     const detail = block.faq_detail ?? 'arrow';
 
     if (detail === 'none') {
@@ -1821,7 +2303,9 @@ function attentionToneClass(block: StageBlock): string {
 }
 
 function attentionHighlightClass(block: StageBlock): string {
-    return block.attention_emphasis ? 'ring-1 ring-[#ef9a9a]/70 shadow-[0_0_0_2px_rgba(198,40,40,0.15)]' : '';
+    return block.attention_emphasis
+        ? 'ring-1 ring-[#ef9a9a]/70 shadow-[0_0_0_2px_rgba(198,40,40,0.15)]'
+        : '';
 }
 
 function notificationToneClass(block: StageBlock): string {
@@ -1912,15 +2396,24 @@ function notificationDescriptionClass(block: StageBlock): string {
     return 'text-base';
 }
 
-function activeNotificationVariation(block: StageBlock): { value1: string; value2: string; value3: string; value4: string } {
+function activeNotificationVariation(block: StageBlock): {
+    value1: string;
+    value2: string;
+    value3: string;
+    value4: string;
+} {
     const variations = block.notification_variations ?? [];
 
     if (variations.length === 0) {
         return { value1: '', value2: '', value3: '', value4: '' };
     }
 
-    const cycleMilliseconds = notificationMotionMetrics(block).cycleMilliseconds;
-    const currentIndex = Math.floor(stageElapsedMilliseconds.value / Math.max(1, cycleMilliseconds)) % variations.length;
+    const cycleMilliseconds =
+        notificationMotionMetrics(block).cycleMilliseconds;
+    const currentIndex =
+        Math.floor(
+            stageElapsedMilliseconds.value / Math.max(1, cycleMilliseconds),
+        ) % variations.length;
     const activeVariation = variations[currentIndex] ?? variations[0];
 
     return {
@@ -1936,17 +2429,33 @@ function notificationTitleText(block: StageBlock): string {
 }
 
 function notificationDescriptionText(block: StageBlock): string {
-    return safeTrim(block.notification_description) || safeTrim(block.placeholder);
+    return (
+        safeTrim(block.notification_description) || safeTrim(block.placeholder)
+    );
 }
 
-function notificationAvatarUrl(block: StageBlock, variation: { value1: string; value2: string; value3: string; value4: string }): string | null {
-    const resolvedUrl = replaceNotificationTokens(safeTrim(block.notification_avatar_url), variation);
+function notificationAvatarUrl(
+    block: StageBlock,
+    variation: {
+        value1: string;
+        value2: string;
+        value3: string;
+        value4: string;
+    },
+): string | null {
+    const resolvedUrl = replaceNotificationTokens(
+        safeTrim(block.notification_avatar_url),
+        variation,
+    );
 
     return sanitizeStoredAssetUrl(resolvedUrl);
 }
 
 function notificationTimeBadge(block: StageBlock): string {
-    const intervalSeconds = Math.max(1, Number(block.notification_interval_seconds ?? 2));
+    const intervalSeconds = Math.max(
+        1,
+        Number(block.notification_interval_seconds ?? 2),
+    );
 
     if (intervalSeconds <= 3) {
         return 'Agora mesmo';
@@ -1990,12 +2499,26 @@ function notificationMotionMetrics(block: StageBlock): {
     transitionMilliseconds: number;
     progress: number;
 } {
-    const visibleMilliseconds = Math.max(1, Number(block.notification_duration_seconds ?? 5)) * 1000;
-    const configuredCycleMilliseconds = Math.max(1, Number(block.notification_interval_seconds ?? 2)) * 1000;
-    const pauseMilliseconds = Math.max(650, Math.round(visibleMilliseconds * 0.15));
-    const cycleMilliseconds = Math.max(visibleMilliseconds + pauseMilliseconds, configuredCycleMilliseconds);
-    const millisecondsIntoCycle = cycleMilliseconds > 0 ? stageElapsedMilliseconds.value % cycleMilliseconds : 0;
-    const transitionMilliseconds = Math.min(520, Math.max(220, Math.round(visibleMilliseconds * 0.18)));
+    const visibleMilliseconds =
+        Math.max(1, Number(block.notification_duration_seconds ?? 5)) * 1000;
+    const configuredCycleMilliseconds =
+        Math.max(1, Number(block.notification_interval_seconds ?? 2)) * 1000;
+    const pauseMilliseconds = Math.max(
+        650,
+        Math.round(visibleMilliseconds * 0.15),
+    );
+    const cycleMilliseconds = Math.max(
+        visibleMilliseconds + pauseMilliseconds,
+        configuredCycleMilliseconds,
+    );
+    const millisecondsIntoCycle =
+        cycleMilliseconds > 0
+            ? stageElapsedMilliseconds.value % cycleMilliseconds
+            : 0;
+    const transitionMilliseconds = Math.min(
+        520,
+        Math.max(220, Math.round(visibleMilliseconds * 0.18)),
+    );
 
     if (millisecondsIntoCycle >= visibleMilliseconds) {
         return {
@@ -2013,7 +2536,10 @@ function notificationMotionMetrics(block: StageBlock): {
             visibleMilliseconds,
             millisecondsIntoCycle,
             transitionMilliseconds,
-            progress: Math.max(0, Math.min(1, millisecondsIntoCycle / transitionMilliseconds)),
+            progress: Math.max(
+                0,
+                Math.min(1, millisecondsIntoCycle / transitionMilliseconds),
+            ),
         };
     }
 
@@ -2025,7 +2551,10 @@ function notificationMotionMetrics(block: StageBlock): {
             visibleMilliseconds,
             millisecondsIntoCycle,
             transitionMilliseconds,
-            progress: Math.max(0, Math.min(1, millisecondsUntilExit / transitionMilliseconds)),
+            progress: Math.max(
+                0,
+                Math.min(1, millisecondsUntilExit / transitionMilliseconds),
+            ),
         };
     }
 
@@ -2043,11 +2572,17 @@ function notificationShellStyle(block: StageBlock): CSSProperties {
     const easedProgress = 1 - Math.pow(1 - metrics.progress, 3);
     const position = block.notification_position ?? 'default';
     const offsetDistance = Math.round((1 - easedProgress) * 18);
-    const translateX = position.includes('left') ? -offsetDistance : position.includes('right') ? offsetDistance : 0;
-    const translateY = position.includes('bottom') ? offsetDistance : -Math.round((1 - easedProgress) * 10);
+    const translateX = position.includes('left')
+        ? -offsetDistance
+        : position.includes('right')
+          ? offsetDistance
+          : 0;
+    const translateY = position.includes('bottom')
+        ? offsetDistance
+        : -Math.round((1 - easedProgress) * 10);
     const style: CSSProperties = {
         opacity: easedProgress,
-        transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${(0.97 + (easedProgress * 0.03)).toFixed(3)})`,
+        transform: `translate3d(${translateX}px, ${translateY}px, 0) scale(${(0.97 + easedProgress * 0.03).toFixed(3)})`,
         filter: `blur(${((1 - easedProgress) * 0.8).toFixed(2)}px)`,
         pointerEvents: easedProgress > 0.08 ? 'auto' : 'none',
         willChange: 'transform, opacity, filter',
@@ -2081,13 +2616,20 @@ function notificationProgressWidth(block: StageBlock): string {
         return '0%';
     }
 
-    const elapsedWithinDuration = Math.min(metrics.millisecondsIntoCycle, metrics.visibleMilliseconds);
-    const remainingRatio = 1 - (elapsedWithinDuration / Math.max(1, metrics.visibleMilliseconds));
+    const elapsedWithinDuration = Math.min(
+        metrics.millisecondsIntoCycle,
+        metrics.visibleMilliseconds,
+    );
+    const remainingRatio =
+        1 - elapsedWithinDuration / Math.max(1, metrics.visibleMilliseconds);
 
     return `${Math.max(0, Math.min(100, Math.round(remainingRatio * 100)))}%`;
 }
 
-function replaceNotificationTokens(template: string, values: { value1: string; value2: string; value3: string; value4: string }): string {
+function replaceNotificationTokens(
+    template: string,
+    values: { value1: string; value2: string; value3: string; value4: string },
+): string {
     return template
         .replaceAll('@1', values.value1 || '')
         .replaceAll('@2', values.value2 || '')
@@ -2107,7 +2649,11 @@ function parseLegacyTimerSeconds(value: string | null): number {
     }
 
     const parts = raw.split(':');
-    if (parts.length === 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+    if (
+        parts.length === 2 &&
+        /^\d+$/.test(parts[0]) &&
+        /^\d+$/.test(parts[1])
+    ) {
         return Math.max(0, Number(parts[0]) * 60 + Number(parts[1]));
     }
 
@@ -2141,7 +2687,10 @@ function startTimerTicker(): void {
     stageElapsedMilliseconds.value = 0;
 
     const tick = (): void => {
-        stageElapsedMilliseconds.value = Math.max(0, Date.now() - (stageStartedAt.value ?? Date.now()));
+        stageElapsedMilliseconds.value = Math.max(
+            0,
+            Date.now() - (stageStartedAt.value ?? Date.now()),
+        );
         timerFrame = requestAnimationFrame(tick);
     };
 
@@ -2149,10 +2698,19 @@ function startTimerTicker(): void {
 }
 
 function timerDisplayText(block: StageBlock): string {
-    const template = safeTrim(block.timer_text) || safeTrim(block.placeholder) || (safeTrim(block.label) ? `${safeTrim(block.label)} [time]` : '');
+    const template =
+        safeTrim(block.timer_text) ||
+        safeTrim(block.placeholder) ||
+        (safeTrim(block.label) ? `${safeTrim(block.label)} [time]` : '');
     const current = Math.max(
         0,
-        Math.max(0, Number(block.timer_seconds ?? parseLegacyTimerSeconds(block.placeholder))) - Math.floor(stageElapsedMilliseconds.value / 1000),
+        Math.max(
+            0,
+            Number(
+                block.timer_seconds ??
+                    parseLegacyTimerSeconds(block.placeholder),
+            ),
+        ) - Math.floor(stageElapsedMilliseconds.value / 1000),
     );
 
     if (template.length === 0) {
@@ -2163,7 +2721,10 @@ function timerDisplayText(block: StageBlock): string {
 }
 
 function loadingProgress(block: StageBlock): number {
-    const start = Math.max(0, Math.min(100, Number(block.loading_start_seconds ?? 0)));
+    const start = Math.max(
+        0,
+        Math.min(100, Number(block.loading_start_seconds ?? 0)),
+    );
     const duration = Math.max(1, Number(block.loading_duration_seconds ?? 5));
     const stage = currentStage.value;
 
@@ -2171,9 +2732,10 @@ function loadingProgress(block: StageBlock): number {
         return start;
     }
 
-    const startedAt = loadingStartTimes.value[loadingKey(stage.id, block.id)] ?? Date.now();
+    const startedAt =
+        loadingStartTimes.value[loadingKey(stage.id, block.id)] ?? Date.now();
     const elapsed = Math.max(0, (Date.now() - startedAt) / 1000);
-    const progress = start + ((elapsed / duration) * (100 - start));
+    const progress = start + (elapsed / duration) * (100 - start);
 
     return Math.max(start, Math.min(100, Math.round(progress)));
 }
@@ -2190,8 +2752,12 @@ function syncVisibleLoadingBlocks(stage: PublicStage | null): void {
     }
 
     const nextLoadingStartTimes: Record<string, number> = {};
-    const visibleLoadingBlocks = visibleStageBlocks(stage).filter((block) => block.type === 'loading');
-    const visibleLoadingKeys = visibleLoadingBlocks.map((block) => loadingKey(stage.id, block.id));
+    const visibleLoadingBlocks = visibleStageBlocks(stage).filter(
+        (block) => block.type === 'loading',
+    );
+    const visibleLoadingKeys = visibleLoadingBlocks.map((block) =>
+        loadingKey(stage.id, block.id),
+    );
 
     Object.entries(loadingAutoNavigateTimeouts).forEach(([key, timeout]) => {
         if (visibleLoadingKeys.includes(key)) {
@@ -2207,7 +2773,10 @@ function syncVisibleLoadingBlocks(stage: PublicStage | null): void {
         const startedAt = loadingStartTimes.value[key] ?? Date.now();
         nextLoadingStartTimes[key] = startedAt;
 
-        if (block.loading_navigation_action === 'none' || triggeredLoadingActions.value[key] === true) {
+        if (
+            block.loading_navigation_action === 'none' ||
+            triggeredLoadingActions.value[key] === true
+        ) {
             if (loadingAutoNavigateTimeouts[key]) {
                 clearTimeout(loadingAutoNavigateTimeouts[key]);
                 delete loadingAutoNavigateTimeouts[key];
@@ -2220,7 +2789,10 @@ function syncVisibleLoadingBlocks(stage: PublicStage | null): void {
             return;
         }
 
-        const duration = Math.max(1, Number(block.loading_duration_seconds ?? 5));
+        const duration = Math.max(
+            1,
+            Number(block.loading_duration_seconds ?? 5),
+        );
         const elapsedMs = Math.max(0, Date.now() - startedAt);
         const remainingMs = Math.max(0, duration * 1000 - elapsedMs);
 
@@ -2232,7 +2804,10 @@ function syncVisibleLoadingBlocks(stage: PublicStage | null): void {
                 return;
             }
 
-            if (!isBlockVisible(block) || triggeredLoadingActions.value[key] === true) {
+            if (
+                !isBlockVisible(block) ||
+                triggeredLoadingActions.value[key] === true
+            ) {
                 return;
             }
 
@@ -2245,7 +2820,10 @@ function syncVisibleLoadingBlocks(stage: PublicStage | null): void {
 }
 
 function levelProgress(block: StageBlock): number {
-    return Math.max(0, Math.min(100, Math.round(Number(block.level_percentage ?? 0))));
+    return Math.max(
+        0,
+        Math.min(100, Math.round(Number(block.level_percentage ?? 0))),
+    );
 }
 
 function levelBarColorClass(block: StageBlock): string {
@@ -2281,7 +2859,11 @@ function spacerHeight(block: StageBlock): number {
     return Math.max(8, Math.min(240, Math.round(rawValue)));
 }
 
-function toggleMultipleChoice(stageId: number, blockId: string, value: string): void {
+function toggleMultipleChoice(
+    stageId: number,
+    blockId: string,
+    value: string,
+): void {
     const key = answerKey(stageId, blockId);
     const current = answers.value[key];
     const currentValues = Array.isArray(current) ? [...current] : [];
@@ -2304,7 +2886,11 @@ function isFilled(value: string | string[] | undefined): boolean {
     return typeof value === 'string' && value.trim() !== '';
 }
 
-function buildSubmittedLeadPreview(): { name: string; email: string; phone: string } {
+function buildSubmittedLeadPreview(): {
+    name: string;
+    email: string;
+    phone: string;
+} {
     let name = '';
     let email = '';
     let phone = '';
@@ -2326,9 +2912,9 @@ function buildSubmittedLeadPreview(): { name: string; email: string; phone: stri
             }
 
             if (
-                name === ''
-                && block.type === 'text'
-                && safeTrim(block.label).toLowerCase().includes('nome')
+                name === '' &&
+                block.type === 'text' &&
+                safeTrim(block.label).toLowerCase().includes('nome')
             ) {
                 name = safeTrim(value);
             }
@@ -2343,43 +2929,74 @@ function buildSubmittedLeadPreview(): { name: string; email: string; phone: stri
 }
 
 function isOptionsComponentType(type: string): boolean {
-    return type === 'options' || type === 'multiple_choice' || type === 'single_choice' || type === 'yes_no';
+    return (
+        type === 'options' ||
+        type === 'multiple_choice' ||
+        type === 'single_choice' ||
+        type === 'yes_no'
+    );
 }
 
 function isAnswerableBlock(type: string): boolean {
-    return ['text', 'email', 'phone', 'number', 'textarea', 'video_response', 'date', 'height', 'address', 'weight', 'options', 'multiple_choice', 'single_choice', 'yes_no'].includes(type);
+    return [
+        'text',
+        'email',
+        'phone',
+        'number',
+        'textarea',
+        'video_response',
+        'date',
+        'height',
+        'address',
+        'weight',
+        'options',
+        'multiple_choice',
+        'single_choice',
+        'yes_no',
+    ].includes(type);
 }
 
 function validateStage(stage: PublicStage): boolean {
     const errors: Record<string, string> = {};
-    const stageAnswerKeys = stage.blocks.map((block) => answerKey(stage.id, block.id));
+    const stageAnswerKeys = stage.blocks.map((block) =>
+        answerKey(stage.id, block.id),
+    );
 
     for (const block of visibleStageBlocks(stage)) {
-        const isRequired = isOptionsComponentType(block.type) ? (block.options_required_selection ?? block.required) : block.required;
+        const isRequired = isOptionsComponentType(block.type)
+            ? (block.options_required_selection ?? block.required)
+            : block.required;
 
-        if (!isRequired || !isAnswerableBlock(block.type)) {
+        if (!isAnswerableBlock(block.type)) {
             continue;
         }
 
         const value = getAnswer(stage.id, block.id);
 
-        if (!isFilled(value)) {
-            errors[answerKey(stage.id, block.id)] = 'Campo obrigatorio';
+        if (isRequired && !isFilled(value)) {
+            errors[answerKey(stage.id, block.id)] = 'Campo obrigatório';
             continue;
         }
 
-        if (block.type === 'email' && typeof value === 'string' && !isValidEmail(value)) {
-            errors[answerKey(stage.id, block.id)] = 'E-mail invalido';
+        if (
+            block.type === 'email' &&
+            typeof value === 'string' &&
+            isFilled(value) &&
+            !isValidEmail(value)
+        ) {
+            errors[answerKey(stage.id, block.id)] = 'E-mail inválido';
         }
     }
 
     fieldErrors.value = Object.fromEntries(
         Object.entries({
             ...Object.fromEntries(
-                Object.entries(fieldErrors.value).filter(([key]) => !stageAnswerKeys.includes(key))
+                Object.entries(fieldErrors.value).filter(
+                    ([key]) => !stageAnswerKeys.includes(key),
+                ),
             ),
             ...errors,
-        }).filter(([, value]) => safeTrim(value).length > 0)
+        }).filter(([, value]) => safeTrim(value).length > 0),
     );
 
     return Object.keys(errors).length === 0;
@@ -2438,52 +3055,73 @@ function submitFunnel(): void {
     });
 }
 
-watch(currentStage, (stage) => {
-    fieldErrors.value = {};
+watch(
+    currentStage,
+    (stage) => {
+        fieldErrors.value = {};
 
-    if (timerFrame !== null) {
-        cancelAnimationFrame(timerFrame);
-        timerFrame = null;
-    }
+        if (timerFrame !== null) {
+            cancelAnimationFrame(timerFrame);
+            timerFrame = null;
+        }
 
-    if (!stage) {
-        return;
-    }
+        if (!stage) {
+            return;
+        }
 
-    for (const block of stage.blocks) {
-        const key = answerKey(stage.id, block.id);
+        for (const block of stage.blocks) {
+            const key = answerKey(stage.id, block.id);
 
-        if (block.type === 'height' && (block.height_mode ?? 'ruler') === 'ruler') {
-            if (typeof answers.value[key] !== 'string' || (answers.value[key] as string).trim() === '') {
-                answers.value[key] = '170';
+            if (
+                block.type === 'height' &&
+                (block.height_mode ?? 'ruler') === 'ruler'
+            ) {
+                if (
+                    typeof answers.value[key] !== 'string' ||
+                    (answers.value[key] as string).trim() === ''
+                ) {
+                    answers.value[key] = '170';
+                }
+            }
+
+            if (
+                block.type === 'weight' &&
+                (block.weight_mode ?? 'ruler') === 'ruler'
+            ) {
+                if (
+                    typeof answers.value[key] !== 'string' ||
+                    (answers.value[key] as string).trim() === ''
+                ) {
+                    answers.value[key] = '70';
+                }
+            }
+
+            if (block.type === 'faq') {
+                faqItems(block).forEach((_, index) => {
+                    openFaqItems.value[faqItemKey(stage.id, block.id, index)] =
+                        (block.faq_first_active ?? true) && index === 0;
+                });
             }
         }
 
-        if (block.type === 'weight' && (block.weight_mode ?? 'ruler') === 'ruler') {
-            if (typeof answers.value[key] !== 'string' || (answers.value[key] as string).trim() === '') {
-                answers.value[key] = '70';
-            }
-        }
-
-        if (block.type === 'faq') {
-            faqItems(block).forEach((_, index) => {
-                openFaqItems.value[faqItemKey(stage.id, block.id, index)] = (block.faq_first_active ?? true) && index === 0;
-            });
-        }
-    }
-
-    initializeStageTimers();
-    startTimerTicker();
-    syncVisibleLoadingBlocks(stage);
-}, { immediate: true });
+        initializeStageTimers();
+        startTimerTicker();
+        syncVisibleLoadingBlocks(stage);
+    },
+    { immediate: true },
+);
 
 watch(stageElapsedSeconds, () => {
     syncVisibleLoadingBlocks(currentStage.value);
 });
 
-watch(answers, () => {
-    syncVisibleLoadingBlocks(currentStage.value);
-}, { deep: true });
+watch(
+    answers,
+    () => {
+        syncVisibleLoadingBlocks(currentStage.value);
+    },
+    { deep: true },
+);
 
 watch(isCompleted, (completed) => {
     if (completionPageRedirectTimeout) {
@@ -2496,7 +3134,10 @@ watch(isCompleted, (completed) => {
     }
 
     const redirectUrl = safeTrim(completionPage.value.auto_redirect_url);
-    const delaySeconds = Math.max(0, Number(completionPage.value.auto_redirect_delay_seconds ?? 0));
+    const delaySeconds = Math.max(
+        0,
+        Number(completionPage.value.auto_redirect_delay_seconds ?? 0),
+    );
 
     if (redirectUrl.length === 0 || delaySeconds <= 0) {
         return;
@@ -2530,22 +3171,55 @@ onBeforeUnmount(() => {
 
 <template>
     <Head :title="pageTitle">
-        <meta v-if="pageDescription" name="description" :content="pageDescription" />
+        <meta
+            v-if="pageDescription"
+            name="description"
+            :content="pageDescription"
+        />
         <meta property="og:title" :content="pageTitle" />
-        <meta v-if="pageDescription" property="og:description" :content="pageDescription" />
+        <meta
+            v-if="pageDescription"
+            property="og:description"
+            :content="pageDescription"
+        />
         <meta property="og:type" content="website" />
         <meta property="og:url" :content="props.funnel.public_url" />
-        <meta v-if="seoImageAssetUrl" property="og:image" :content="seoImageAssetUrl" />
+        <meta
+            v-if="seoImageAssetUrl"
+            property="og:image"
+            :content="seoImageAssetUrl"
+        />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" :content="pageTitle" />
-        <meta v-if="pageDescription" name="twitter:description" :content="pageDescription" />
-        <meta v-if="seoImageAssetUrl" name="twitter:image" :content="seoImageAssetUrl" />
+        <meta
+            v-if="pageDescription"
+            name="twitter:description"
+            :content="pageDescription"
+        />
+        <meta
+            v-if="seoImageAssetUrl"
+            name="twitter:image"
+            :content="seoImageAssetUrl"
+        />
         <link v-if="faviconAssetUrl" rel="icon" :href="faviconAssetUrl" />
         <link rel="canonical" :href="props.funnel.public_url" />
     </Head>
 
-    <div data-funnel-theme class="min-h-screen px-4 py-10" :class="fontClass" :style="funnelThemeStyle">
-        <div v-if="isCompleted" data-testid="public-funnel-completed" class="mx-auto max-w-xl rounded-[2rem] border p-8 text-center shadow-[0_26px_60px_rgba(0,0,0,0.38)]" :style="{ backgroundColor: designTokens.surfaces.card, borderColor: designTokens.borders.default }">
+    <div
+        data-funnel-theme
+        class="min-h-screen px-4 py-10"
+        :class="fontClass"
+        :style="funnelThemeStyle"
+    >
+        <div
+            v-if="isCompleted"
+            data-testid="public-funnel-completed"
+            class="mx-auto max-w-xl rounded-[2rem] border p-8 text-center shadow-[0_26px_60px_rgba(0,0,0,0.38)]"
+            :style="{
+                backgroundColor: designTokens.surfaces.card,
+                borderColor: designTokens.borders.default,
+            }"
+        >
             <img
                 v-if="usesCustomCompletionPage && completionPageImageUrl"
                 :src="completionPageImageUrl"
@@ -2553,33 +3227,68 @@ onBeforeUnmount(() => {
                 class="mx-auto mb-5 max-h-56 w-full rounded-[1.5rem] object-cover"
             />
             <h1 class="text-3xl font-semibold text-white">
-                {{ usesCustomCompletionPage ? completionPageTitle : 'Resposta enviada' }}
+                {{
+                    usesCustomCompletionPage
+                        ? completionPageTitle
+                        : 'Resposta enviada'
+                }}
             </h1>
             <p class="mt-3 text-[#9ebbf0]">
-                {{ usesCustomCompletionPage ? completionPageDescription : 'Obrigado. Recebemos suas respostas e em breve entraremos em contato.' }}
+                {{
+                    usesCustomCompletionPage
+                        ? completionPageDescription
+                        : 'Obrigado. Recebemos suas respostas e em breve entraremos em contato.'
+                }}
             </p>
             <div
-                v-if="usesCustomCompletionPage && (
-                    shouldRenderCompletionButton(completionPage.primary_button_text, completionPage.primary_button_url)
-                    || shouldRenderCompletionButton(completionPage.secondary_button_text, completionPage.secondary_button_url)
-                )"
+                v-if="
+                    usesCustomCompletionPage &&
+                    (shouldRenderCompletionButton(
+                        completionPage.primary_button_text,
+                        completionPage.primary_button_url,
+                    ) ||
+                        shouldRenderCompletionButton(
+                            completionPage.secondary_button_text,
+                            completionPage.secondary_button_url,
+                        ))
+                "
                 class="mt-6 flex flex-col gap-3"
             >
                 <button
-                    v-if="shouldRenderCompletionButton(completionPage.primary_button_text, completionPage.primary_button_url)"
+                    v-if="
+                        shouldRenderCompletionButton(
+                            completionPage.primary_button_text,
+                            completionPage.primary_button_url,
+                        )
+                    "
                     data-testid="public-completion-primary-button"
                     type="button"
                     class="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-[#1f60d4] to-[#4d87ff] px-4 py-3 text-base font-medium text-white transition hover:brightness-110"
-                    @click="openCompletionPageLink(completionPage.primary_button_url, completionPage.primary_button_new_tab ?? false)"
+                    @click="
+                        openCompletionPageLink(
+                            completionPage.primary_button_url,
+                            completionPage.primary_button_new_tab ?? false,
+                        )
+                    "
                 >
                     {{ completionPage.primary_button_text }}
                 </button>
                 <button
-                    v-if="shouldRenderCompletionButton(completionPage.secondary_button_text, completionPage.secondary_button_url)"
+                    v-if="
+                        shouldRenderCompletionButton(
+                            completionPage.secondary_button_text,
+                            completionPage.secondary_button_url,
+                        )
+                    "
                     data-testid="public-completion-secondary-button"
                     type="button"
                     class="inline-flex w-full items-center justify-center rounded-xl border border-[#2f538f] px-4 py-3 text-base font-medium text-[#d8e7ff] transition hover:bg-[#10264d]"
-                    @click="openCompletionPageLink(completionPage.secondary_button_url, completionPage.secondary_button_new_tab ?? false)"
+                    @click="
+                        openCompletionPageLink(
+                            completionPage.secondary_button_url,
+                            completionPage.secondary_button_new_tab ?? false,
+                        )
+                    "
                 >
                     {{ completionPage.secondary_button_text }}
                 </button>
@@ -2590,12 +3299,28 @@ onBeforeUnmount(() => {
             v-else
             data-testid="public-funnel-card"
             class="mx-auto border p-6 shadow-[0_26px_60px_rgba(0,0,0,0.38)]"
-            :class="[containerWidthClass, radiusClass, design.alignment === 'left' ? 'mr-auto ml-0' : 'mx-auto']"
-            :style="{ backgroundColor: designTokens.surfaces.card, borderColor: designTokens.borders.default }"
+            :class="[
+                containerWidthClass,
+                radiusClass,
+                design.alignment === 'left' ? 'mr-auto ml-0' : 'mx-auto',
+            ]"
+            :style="{
+                backgroundColor: designTokens.surfaces.card,
+                borderColor: designTokens.borders.default,
+            }"
         >
             <div class="mb-6">
-                <div v-if="currentStageShowLogo" class="mb-2 flex items-center gap-2 text-xs" :style="{ color: designTokens.colors.textMuted }">
-                    <img v-if="logoAssetUrl" :src="logoAssetUrl" alt="Logo do funil" class="h-7 w-auto max-w-28 object-contain" />
+                <div
+                    v-if="currentStageShowLogo"
+                    class="mb-2 flex items-center gap-2 text-xs"
+                    :style="{ color: designTokens.colors.textMuted }"
+                >
+                    <img
+                        v-if="logoAssetUrl"
+                        :src="logoAssetUrl"
+                        alt="Logo do funil"
+                        class="h-7 w-auto max-w-28 object-contain"
+                    />
                     <span v-else>{{ props.funnel.name }}</span>
                 </div>
                 <button
@@ -2607,135 +3332,369 @@ onBeforeUnmount(() => {
                 >
                     &larr; Voltar
                 </button>
-                <div v-if="currentStageShowProgress" class="mt-4 h-2 rounded-full" :style="{ backgroundColor: designTokens.surfaces.muted }">
-                    <div class="h-2 rounded-full" :style="{ width: `${((stageIndex + 1) / props.funnel.stages.length) * 100}%`, backgroundColor: designTokens.colors.primary }" />
+                <div
+                    v-if="currentStageShowProgress"
+                    class="mt-4 h-2 rounded-full"
+                    :style="{ backgroundColor: designTokens.surfaces.muted }"
+                >
+                    <div
+                        class="h-2 rounded-full"
+                        :style="{
+                            width: `${((stageIndex + 1) / props.funnel.stages.length) * 100}%`,
+                            backgroundColor: designTokens.colors.primary,
+                        }"
+                    />
                 </div>
             </div>
 
             <div v-if="currentStage" :class="spacingClass">
-                <div v-for="block in visibleCurrentStageBlocks" :key="block.id" class="w-full" :style="publicBlockWrapperStyle(block)">
-                    <template v-if="block.type !== 'button' && block.type !== 'spacer' && block.type !== 'content_text' && block.type !== 'arguments' && block.type !== 'metrics' && block.type !== 'testimonials' && block.type !== 'faq' && block.type !== 'price' && block.type !== 'carousel' && block.type !== 'image' && block.type !== 'video' && block.type !== 'audio' && block.type !== 'attention' && block.type !== 'alert' && block.type !== 'notification' && block.type !== 'timer' && block.type !== 'loading' && block.type !== 'level' && !isOptionsComponentType(block.type)">
-                        <label v-if="shouldShowPublicLabel(block)" :class="publicLabelClass(block)">{{ block.label }}</label>
+                <div
+                    v-for="block in visibleCurrentStageBlocks"
+                    :key="block.id"
+                    class="w-full"
+                    :style="publicBlockWrapperStyle(block)"
+                >
+                    <template
+                        v-if="
+                            block.type !== 'button' &&
+                            block.type !== 'spacer' &&
+                            block.type !== 'content_text' &&
+                            block.type !== 'arguments' &&
+                            block.type !== 'metrics' &&
+                            block.type !== 'testimonials' &&
+                            block.type !== 'faq' &&
+                            block.type !== 'price' &&
+                            block.type !== 'carousel' &&
+                            block.type !== 'image' &&
+                            block.type !== 'video' &&
+                            block.type !== 'audio' &&
+                            block.type !== 'attention' &&
+                            block.type !== 'alert' &&
+                            block.type !== 'notification' &&
+                            block.type !== 'timer' &&
+                            block.type !== 'loading' &&
+                            block.type !== 'level' &&
+                            !isOptionsComponentType(block.type)
+                        "
+                    >
+                        <label
+                            v-if="shouldShowPublicLabel(block)"
+                            :class="publicLabelClass(block)"
+                            >{{ block.label }}</label
+                        >
                     </template>
 
                     <div
-                        v-if="block.type === 'height' && (block.height_mode ?? 'ruler') === 'ruler'"
+                        v-if="
+                            block.type === 'height' &&
+                            (block.height_mode ?? 'ruler') === 'ruler'
+                        "
                         class="rounded-xl border border-[#2f538f] px-4 py-4"
                         :style="{ backgroundColor: '#0b274f' }"
                     >
-                        <div class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm">
+                        <div
+                            class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm"
+                        >
                             <button
                                 type="button"
                                 class="rounded-full px-4 py-1.5"
-                                :class="getHeightUnit(currentStage.id, block.id) === 'cm' ? 'bg-[#071733] text-white' : 'text-[#9dbbeb]'"
-                                @click="setHeightUnit(currentStage.id, block.id, 'cm')"
+                                :class="
+                                    getHeightUnit(currentStage.id, block.id) ===
+                                    'cm'
+                                        ? 'bg-[#071733] text-white'
+                                        : 'text-[#9dbbeb]'
+                                "
+                                @click="
+                                    setHeightUnit(
+                                        currentStage.id,
+                                        block.id,
+                                        'cm',
+                                    )
+                                "
                             >
                                 cm
                             </button>
                             <button
                                 type="button"
                                 class="rounded-full px-4 py-1.5"
-                                :class="getHeightUnit(currentStage.id, block.id) === 'in' ? 'bg-[#071733] text-white' : 'text-[#9dbbeb]'"
-                                @click="setHeightUnit(currentStage.id, block.id, 'in')"
+                                :class="
+                                    getHeightUnit(currentStage.id, block.id) ===
+                                    'in'
+                                        ? 'bg-[#071733] text-white'
+                                        : 'text-[#9dbbeb]'
+                                "
+                                @click="
+                                    setHeightUnit(
+                                        currentStage.id,
+                                        block.id,
+                                        'in',
+                                    )
+                                "
                             >
                                 pol
                             </button>
                         </div>
 
-                        <div class="text-center text-5xl font-semibold text-white">
-                            {{ getHeightDisplayValue(currentStage.id, block.id) }}<span class="text-3xl">{{ getHeightUnit(currentStage.id, block.id) }}</span>
+                        <div
+                            class="text-center text-5xl font-semibold text-white"
+                        >
+                            {{ getHeightDisplayValue(currentStage.id, block.id)
+                            }}<span class="text-3xl">{{
+                                getHeightUnit(currentStage.id, block.id)
+                            }}</span>
                         </div>
 
                         <div class="mt-4 px-1">
                             <input
                                 type="range"
-                                :min="getHeightUnit(currentStage.id, block.id) === 'cm' ? 120 : 47"
-                                :max="getHeightUnit(currentStage.id, block.id) === 'cm' ? 230 : 91"
-                                :value="getHeightDisplayValue(currentStage.id, block.id)"
+                                :min="
+                                    getHeightUnit(currentStage.id, block.id) ===
+                                    'cm'
+                                        ? 120
+                                        : 47
+                                "
+                                :max="
+                                    getHeightUnit(currentStage.id, block.id) ===
+                                    'cm'
+                                        ? 230
+                                        : 91
+                                "
+                                :value="
+                                    getHeightDisplayValue(
+                                        currentStage.id,
+                                        block.id,
+                                    )
+                                "
                                 class="w-full accent-[#4f8fff]"
-                                @input="setHeightFromRuler(currentStage.id, block.id, Number(($event.target as HTMLInputElement).value))"
+                                @input="
+                                    setHeightFromRuler(
+                                        currentStage.id,
+                                        block.id,
+                                        Number(
+                                            ($event.target as HTMLInputElement)
+                                                .value,
+                                        ),
+                                    )
+                                "
                             />
-                            <div class="mt-2 flex justify-between text-xs text-[#9dbbeb]">
-                                <span>{{ getHeightUnit(currentStage.id, block.id) === 'cm' ? 120 : 47 }}</span>
-                                <span>{{ getHeightUnit(currentStage.id, block.id) === 'cm' ? 175 : 69 }}</span>
-                                <span>{{ getHeightUnit(currentStage.id, block.id) === 'cm' ? 230 : 91 }}</span>
+                            <div
+                                class="mt-2 flex justify-between text-xs text-[#9dbbeb]"
+                            >
+                                <span>{{
+                                    getHeightUnit(currentStage.id, block.id) ===
+                                    'cm'
+                                        ? 120
+                                        : 47
+                                }}</span>
+                                <span>{{
+                                    getHeightUnit(currentStage.id, block.id) ===
+                                    'cm'
+                                        ? 175
+                                        : 69
+                                }}</span>
+                                <span>{{
+                                    getHeightUnit(currentStage.id, block.id) ===
+                                    'cm'
+                                        ? 230
+                                        : 91
+                                }}</span>
                             </div>
                         </div>
                     </div>
 
                     <div
-                        v-else-if="block.type === 'weight' && (block.weight_mode ?? 'ruler') === 'ruler'"
+                        v-else-if="
+                            block.type === 'weight' &&
+                            (block.weight_mode ?? 'ruler') === 'ruler'
+                        "
                         class="rounded-xl border border-[#2f538f] px-4 py-4"
                         :style="{ backgroundColor: '#0b274f' }"
                     >
-                        <div class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm">
+                        <div
+                            class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm"
+                        >
                             <button
                                 type="button"
                                 class="rounded-full px-4 py-1.5"
-                                :class="getWeightUnit(currentStage.id, block.id) === 'kg' ? 'bg-[#071733] text-white' : 'text-[#9dbbeb]'"
-                                @click="setWeightUnit(currentStage.id, block.id, 'kg')"
+                                :class="
+                                    getWeightUnit(currentStage.id, block.id) ===
+                                    'kg'
+                                        ? 'bg-[#071733] text-white'
+                                        : 'text-[#9dbbeb]'
+                                "
+                                @click="
+                                    setWeightUnit(
+                                        currentStage.id,
+                                        block.id,
+                                        'kg',
+                                    )
+                                "
                             >
                                 kg
                             </button>
                             <button
                                 type="button"
                                 class="rounded-full px-4 py-1.5"
-                                :class="getWeightUnit(currentStage.id, block.id) === 'lb' ? 'bg-[#071733] text-white' : 'text-[#9dbbeb]'"
-                                @click="setWeightUnit(currentStage.id, block.id, 'lb')"
+                                :class="
+                                    getWeightUnit(currentStage.id, block.id) ===
+                                    'lb'
+                                        ? 'bg-[#071733] text-white'
+                                        : 'text-[#9dbbeb]'
+                                "
+                                @click="
+                                    setWeightUnit(
+                                        currentStage.id,
+                                        block.id,
+                                        'lb',
+                                    )
+                                "
                             >
                                 lb
                             </button>
                         </div>
 
-                        <div class="text-center text-5xl font-semibold text-white">
-                            {{ getWeightDisplayValue(currentStage.id, block.id) }}<span class="text-3xl">{{ getWeightUnit(currentStage.id, block.id) }}</span>
+                        <div
+                            class="text-center text-5xl font-semibold text-white"
+                        >
+                            {{ getWeightDisplayValue(currentStage.id, block.id)
+                            }}<span class="text-3xl">{{
+                                getWeightUnit(currentStage.id, block.id)
+                            }}</span>
                         </div>
 
                         <div class="mt-4 px-1">
                             <input
                                 type="range"
-                                :min="getWeightUnit(currentStage.id, block.id) === 'kg' ? 30 : 66"
-                                :max="getWeightUnit(currentStage.id, block.id) === 'kg' ? 180 : 397"
-                                :value="getWeightDisplayValue(currentStage.id, block.id)"
+                                :min="
+                                    getWeightUnit(currentStage.id, block.id) ===
+                                    'kg'
+                                        ? 30
+                                        : 66
+                                "
+                                :max="
+                                    getWeightUnit(currentStage.id, block.id) ===
+                                    'kg'
+                                        ? 180
+                                        : 397
+                                "
+                                :value="
+                                    getWeightDisplayValue(
+                                        currentStage.id,
+                                        block.id,
+                                    )
+                                "
                                 class="w-full accent-[#4f8fff]"
-                                @input="setWeightFromRuler(currentStage.id, block.id, Number(($event.target as HTMLInputElement).value))"
+                                @input="
+                                    setWeightFromRuler(
+                                        currentStage.id,
+                                        block.id,
+                                        Number(
+                                            ($event.target as HTMLInputElement)
+                                                .value,
+                                        ),
+                                    )
+                                "
                             />
-                            <div class="mt-2 flex justify-between text-xs text-[#9dbbeb]">
-                                <span>{{ getWeightUnit(currentStage.id, block.id) === 'kg' ? 30 : 66 }}</span>
-                                <span>{{ getWeightUnit(currentStage.id, block.id) === 'kg' ? 80 : 176 }}</span>
-                                <span>{{ getWeightUnit(currentStage.id, block.id) === 'kg' ? 180 : 397 }}</span>
+                            <div
+                                class="mt-2 flex justify-between text-xs text-[#9dbbeb]"
+                            >
+                                <span>{{
+                                    getWeightUnit(currentStage.id, block.id) ===
+                                    'kg'
+                                        ? 30
+                                        : 66
+                                }}</span>
+                                <span>{{
+                                    getWeightUnit(currentStage.id, block.id) ===
+                                    'kg'
+                                        ? 80
+                                        : 176
+                                }}</span>
+                                <span>{{
+                                    getWeightUnit(currentStage.id, block.id) ===
+                                    'kg'
+                                        ? 180
+                                        : 397
+                                }}</span>
                             </div>
                         </div>
                     </div>
 
                     <input
-                        v-else-if="['text', 'email', 'phone', 'number', 'date', 'height', 'address', 'weight'].includes(block.type)"
+                        v-else-if="
+                            [
+                                'text',
+                                'email',
+                                'phone',
+                                'number',
+                                'date',
+                                'height',
+                                'address',
+                                'weight',
+                            ].includes(block.type)
+                        "
                         :type="fieldInputType(block.type)"
                         :inputmode="fieldInputMode(block.type)"
-                        :value="(getAnswer(currentStage.id, block.id) as string | undefined) ?? ''"
+                        :value="
+                            (getAnswer(currentStage.id, block.id) as
+                                string | undefined) ?? ''
+                        "
                         :placeholder="block.placeholder ?? ''"
                         :autocomplete="block.type === 'email' ? 'email' : 'off'"
-                        :autocapitalize="block.type === 'email' ? 'none' : 'sentences'"
+                        :autocapitalize="
+                            block.type === 'email' ? 'none' : 'sentences'
+                        "
                         :spellcheck="block.type === 'email' ? false : true"
-                        class="w-full rounded-xl border px-3 py-2.5 outline-none transition focus:border-(--funnel-focus) disabled:opacity-(--funnel-disabled-opacity)"
-                        :style="{ backgroundColor: designTokens.components.fieldBackground, borderColor: designTokens.borders.default, color: designTokens.components.fieldText }"
-                        @input="setMaskedTextAnswer(currentStage.id, block, ($event.target as HTMLInputElement).value)"
+                        class="w-full rounded-xl border px-3 py-2.5 transition outline-none focus:border-(--funnel-focus) disabled:opacity-(--funnel-disabled-opacity)"
+                        :style="{
+                            backgroundColor:
+                                designTokens.components.fieldBackground,
+                            borderColor: designTokens.borders.default,
+                            color: designTokens.components.fieldText,
+                        }"
+                        @input="
+                            setMaskedTextAnswer(
+                                currentStage.id,
+                                block,
+                                ($event.target as HTMLInputElement).value,
+                            )
+                        "
                     />
 
                     <textarea
-                        v-else-if="block.type === 'textarea' || block.type === 'video_response'"
-                        :value="(getAnswer(currentStage.id, block.id) as string | undefined) ?? ''"
+                        v-else-if="
+                            block.type === 'textarea' ||
+                            block.type === 'video_response'
+                        "
+                        :value="
+                            (getAnswer(currentStage.id, block.id) as
+                                string | undefined) ?? ''
+                        "
                         :placeholder="block.placeholder ?? ''"
                         rows="3"
-                        class="w-full rounded-xl border px-3 py-2.5 outline-none transition focus:border-(--funnel-focus) disabled:opacity-(--funnel-disabled-opacity)"
-                        :style="{ backgroundColor: designTokens.components.fieldBackground, borderColor: designTokens.borders.default, color: designTokens.components.fieldText }"
-                        @input="setTextAnswer(currentStage.id, block.id, ($event.target as HTMLTextAreaElement).value)"
+                        class="w-full rounded-xl border px-3 py-2.5 transition outline-none focus:border-(--funnel-focus) disabled:opacity-(--funnel-disabled-opacity)"
+                        :style="{
+                            backgroundColor:
+                                designTokens.components.fieldBackground,
+                            borderColor: designTokens.borders.default,
+                            color: designTokens.components.fieldText,
+                        }"
+                        @input="
+                            setTextAnswer(
+                                currentStage.id,
+                                block.id,
+                                ($event.target as HTMLTextAreaElement).value,
+                            )
+                        "
                     />
 
                     <div
-                        v-else-if="block.type === 'content_text' && hasContentTextContent(block)"
+                        v-else-if="
+                            block.type === 'content_text' &&
+                            hasContentTextContent(block)
+                        "
                         :data-testid="`public-content-text-${block.id}`"
-                        class="px-1 py-1 text-[#dce8ff] [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:leading-tight [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:leading-tight [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:leading-tight [&_p]:mt-2 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-[#9cc1ff] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_a]:text-[#9fc2ff] [&_a]:underline"
+                        class="px-1 py-1 text-[#dce8ff] [&_a]:text-[#9fc2ff] [&_a]:underline [&_h1]:text-3xl [&_h1]:leading-tight [&_h1]:font-bold [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-bold [&_h3]:text-xl [&_h3]:leading-tight [&_h3]:font-semibold [&_p]:mt-2 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-[#9cc1ff] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5"
                         :class="contentTextAlignClass(block)"
                         v-html="contentTextMarkup(block)"
                     ></div>
@@ -2743,27 +3702,59 @@ onBeforeUnmount(() => {
                     <div
                         v-else-if="block.type === 'image'"
                         class="border"
-                        :class="[imageFrameClass(block), imageRadiusClass(block)]"
+                        :class="[
+                            imageFrameClass(block),
+                            imageRadiusClass(block),
+                        ]"
                     >
-                        <div v-if="imageAspectClass(block)" :class="['w-full overflow-hidden', imageAspectClass(block), imageRadiusClass(block)]">
+                        <div
+                            v-if="imageAspectClass(block)"
+                            :class="[
+                                'w-full overflow-hidden',
+                                imageAspectClass(block),
+                                imageRadiusClass(block),
+                            ]"
+                        >
                             <img
                                 v-if="sanitizeStoredAssetUrl(block.placeholder)"
-                                :src="sanitizeStoredAssetUrl(block.placeholder) ?? undefined"
+                                :src="
+                                    sanitizeStoredAssetUrl(block.placeholder) ??
+                                    undefined
+                                "
                                 alt="Imagem do funil"
-                                :class="['h-full w-full', imageFitClass(block), imageRadiusClass(block)]"
+                                :class="[
+                                    'h-full w-full',
+                                    imageFitClass(block),
+                                    imageRadiusClass(block),
+                                ]"
                             />
-                            <div v-else class="flex h-full items-center justify-center border border-dashed border-[#2f538f] text-sm text-[#c8ddff]" :class="imageRadiusClass(block)">
+                            <div
+                                v-else
+                                class="flex h-full items-center justify-center border border-dashed border-[#2f538f] text-sm text-[#c8ddff]"
+                                :class="imageRadiusClass(block)"
+                            >
                                 Imagem nao configurada
                             </div>
                         </div>
                         <template v-else>
                             <img
                                 v-if="sanitizeStoredAssetUrl(block.placeholder)"
-                                :src="sanitizeStoredAssetUrl(block.placeholder) ?? undefined"
+                                :src="
+                                    sanitizeStoredAssetUrl(block.placeholder) ??
+                                    undefined
+                                "
                                 alt="Imagem do funil"
-                                :class="['max-h-[22rem] w-full', imageFitClass(block), imageRadiusClass(block)]"
+                                :class="[
+                                    'max-h-[22rem] w-full',
+                                    imageFitClass(block),
+                                    imageRadiusClass(block),
+                                ]"
                             />
-                            <div v-else class="flex h-40 items-center justify-center border border-dashed border-[#2f538f] text-sm text-[#c8ddff]" :class="imageRadiusClass(block)">
+                            <div
+                                v-else
+                                class="flex h-40 items-center justify-center border border-dashed border-[#2f538f] text-sm text-[#c8ddff]"
+                                :class="imageRadiusClass(block)"
+                            >
                                 Imagem nao configurada
                             </div>
                         </template>
@@ -2774,16 +3765,36 @@ onBeforeUnmount(() => {
                         class="rounded-xl border border-[#2f538f] p-2"
                         :style="{ backgroundColor: '#0b274f' }"
                     >
-                        <div v-if="toEmbedVideoUrl(block.placeholder)" :class="['overflow-hidden rounded-lg border border-[#2f538f]', getVideoAspectClass(block)]">
+                        <div
+                            v-if="toEmbedVideoUrl(block.placeholder)"
+                            :class="[
+                                'overflow-hidden rounded-lg border border-[#2f538f]',
+                                getVideoAspectClass(block),
+                            ]"
+                        >
                             <iframe
-                                :src="toEmbedVideoUrl(block.placeholder) ?? undefined"
+                                :src="
+                                    toEmbedVideoUrl(block.placeholder) ??
+                                    undefined
+                                "
                                 title="Video do funil"
                                 class="h-full w-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allow="
+                                    accelerometer;
+                                    autoplay;
+                                    clipboard-write;
+                                    encrypted-media;
+                                    gyroscope;
+                                    picture-in-picture;
+                                    web-share;
+                                "
                                 allowfullscreen
                             />
                         </div>
-                        <div v-else class="flex h-40 items-center justify-center rounded-lg border border-dashed border-[#2f538f] text-sm text-[#c8ddff]">
+                        <div
+                            v-else
+                            class="flex h-40 items-center justify-center rounded-lg border border-dashed border-[#2f538f] text-sm text-[#c8ddff]"
+                        >
                             Video nao configurado
                         </div>
                     </div>
@@ -2791,32 +3802,93 @@ onBeforeUnmount(() => {
                     <div
                         v-else-if="block.type === 'audio'"
                         class="relative rounded-[26px] border p-3"
-                        :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-[#274573] bg-[#0b1f42]' : 'border-[#e6e1d8] bg-[#efebe5]'"
-                        :style="(block.audio_theme ?? 'light') === 'dark'
-                            ? {}
-                            : {
-                                backgroundImage: 'radial-gradient(circle at 10px 10px, rgba(255,255,255,0.35) 1px, transparent 1px)',
-                                backgroundSize: '18px 18px',
-                            }"
+                        :class="
+                            (block.audio_theme ?? 'light') === 'dark'
+                                ? 'border-[#274573] bg-[#0b1f42]'
+                                : 'border-[#e6e1d8] bg-[#efebe5]'
+                        "
+                        :style="
+                            (block.audio_theme ?? 'light') === 'dark'
+                                ? {}
+                                : {
+                                      backgroundImage:
+                                          'radial-gradient(circle at 10px 10px, rgba(255,255,255,0.35) 1px, transparent 1px)',
+                                      backgroundSize: '18px 18px',
+                                  }
+                        "
                     >
                         <span
-                            class="absolute left-[15px] top-[26px] h-3 w-3 rotate-45"
-                            :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-l border-t border-[#33598d] bg-[#102a56]' : 'border-l border-t border-[#ece7df] bg-white'"
+                            class="absolute top-[26px] left-[15px] h-3 w-3 rotate-45"
+                            :class="
+                                (block.audio_theme ?? 'light') === 'dark'
+                                    ? 'border-t border-l border-[#33598d] bg-[#102a56]'
+                                    : 'border-t border-l border-[#ece7df] bg-white'
+                            "
                         />
                         <div
                             class="relative rounded-[22px] border px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.06)]"
-                            :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-[#33598d] bg-[#102a56]' : 'border-[#ece7df] bg-white'"
+                            :class="
+                                (block.audio_theme ?? 'light') === 'dark'
+                                    ? 'border-[#33598d] bg-[#102a56]'
+                                    : 'border-[#ece7df] bg-white'
+                            "
                         >
                             <audio
-                                :ref="(element) => bindAudioElement(audioPreviewKey(currentStage.id, block.id), element as HTMLAudioElement | null)"
+                                :ref="
+                                    (element) =>
+                                        bindAudioElement(
+                                            audioPreviewKey(
+                                                currentStage.id,
+                                                block.id,
+                                            ),
+                                            element as HTMLAudioElement | null,
+                                        )
+                                "
                                 :src="audioSource(block) ?? undefined"
                                 preload="metadata"
                                 class="hidden"
-                                @loadedmetadata="onAudioLoadedMetadata(audioPreviewKey(currentStage.id, block.id), $event)"
-                                @timeupdate="onAudioTimeUpdate(audioPreviewKey(currentStage.id, block.id), $event)"
-                                @play="onAudioPlay(audioPreviewKey(currentStage.id, block.id))"
-                                @pause="onAudioPause(audioPreviewKey(currentStage.id, block.id))"
-                                @ended="onAudioEnded(audioPreviewKey(currentStage.id, block.id))"
+                                @loadedmetadata="
+                                    onAudioLoadedMetadata(
+                                        audioPreviewKey(
+                                            currentStage.id,
+                                            block.id,
+                                        ),
+                                        $event,
+                                    )
+                                "
+                                @timeupdate="
+                                    onAudioTimeUpdate(
+                                        audioPreviewKey(
+                                            currentStage.id,
+                                            block.id,
+                                        ),
+                                        $event,
+                                    )
+                                "
+                                @play="
+                                    onAudioPlay(
+                                        audioPreviewKey(
+                                            currentStage.id,
+                                            block.id,
+                                        ),
+                                    )
+                                "
+                                @pause="
+                                    onAudioPause(
+                                        audioPreviewKey(
+                                            currentStage.id,
+                                            block.id,
+                                        ),
+                                    )
+                                "
+                                @ended="
+                                    onAudioEnded(
+                                        audioPreviewKey(
+                                            currentStage.id,
+                                            block.id,
+                                        ),
+                                    )
+                                "
                             />
                             <div class="flex items-center gap-3">
                                 <button
@@ -2824,15 +3896,55 @@ onBeforeUnmount(() => {
                                     :data-testid="`public-audio-toggle-${block.id}`"
                                     class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition disabled:opacity-50"
                                     :disabled="!audioSource(block)"
-                                    @click="toggleAudioPlayback(audioPreviewKey(currentStage.id, block.id))"
+                                    @click="
+                                        toggleAudioPlayback(
+                                            audioPreviewKey(
+                                                currentStage.id,
+                                                block.id,
+                                            ),
+                                        )
+                                    "
                                 >
-                                    <template v-if="activeAudioKey === audioPreviewKey(currentStage.id, block.id)">
+                                    <template
+                                        v-if="
+                                            activeAudioKey ===
+                                            audioPreviewKey(
+                                                currentStage.id,
+                                                block.id,
+                                            )
+                                        "
+                                    >
                                         <span class="flex items-center gap-1">
-                                            <span class="h-4 w-1 rounded-full" :class="(block.audio_theme ?? 'light') === 'dark' ? 'bg-[#b8cbe8]' : 'bg-[#9f9393]'" />
-                                            <span class="h-4 w-1 rounded-full" :class="(block.audio_theme ?? 'light') === 'dark' ? 'bg-[#b8cbe8]' : 'bg-[#9f9393]'" />
+                                            <span
+                                                class="h-4 w-1 rounded-full"
+                                                :class="
+                                                    (block.audio_theme ??
+                                                        'light') === 'dark'
+                                                        ? 'bg-[#b8cbe8]'
+                                                        : 'bg-[#9f9393]'
+                                                "
+                                            />
+                                            <span
+                                                class="h-4 w-1 rounded-full"
+                                                :class="
+                                                    (block.audio_theme ??
+                                                        'light') === 'dark'
+                                                        ? 'bg-[#b8cbe8]'
+                                                        : 'bg-[#9f9393]'
+                                                "
+                                            />
                                         </span>
                                     </template>
-                                    <span v-else class="ml-0.5 inline-block h-0 w-0 border-y-[8px] border-y-transparent border-l-[12px]" :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-l-[#b8cbe8]' : 'border-l-[#9f9393]'" />
+                                    <span
+                                        v-else
+                                        class="ml-0.5 inline-block h-0 w-0 border-y-[8px] border-l-[12px] border-y-transparent"
+                                        :class="
+                                            (block.audio_theme ?? 'light') ===
+                                            'dark'
+                                                ? 'border-l-[#b8cbe8]'
+                                                : 'border-l-[#9f9393]'
+                                        "
+                                    />
                                 </button>
                                 <div class="min-w-0 flex-1">
                                     <div
@@ -2842,55 +3954,169 @@ onBeforeUnmount(() => {
                                         tabindex="0"
                                         :aria-valuemin="0"
                                         :aria-valuemax="100"
-                                        :aria-valuenow="Math.round(audioProgressRatio(audioPreviewKey(currentStage.id, block.id)) * 100)"
-                                        @click="seekAudio(audioPreviewKey(currentStage.id, block.id), $event)"
-                                        @keydown="handleAudioKeyboard(audioPreviewKey(currentStage.id, block.id), $event)"
+                                        :aria-valuenow="
+                                            Math.round(
+                                                audioProgressRatio(
+                                                    audioPreviewKey(
+                                                        currentStage.id,
+                                                        block.id,
+                                                    ),
+                                                ) * 100,
+                                            )
+                                        "
+                                        @click="
+                                            seekAudio(
+                                                audioPreviewKey(
+                                                    currentStage.id,
+                                                    block.id,
+                                                ),
+                                                $event,
+                                            )
+                                        "
+                                        @keydown="
+                                            handleAudioKeyboard(
+                                                audioPreviewKey(
+                                                    currentStage.id,
+                                                    block.id,
+                                                ),
+                                                $event,
+                                            )
+                                        "
                                     >
-                                        <div class="flex items-center gap-[3px]">
-                                            <span class="mr-1 inline-block h-3.5 w-3.5 rounded-full bg-[#58baf1]" />
+                                        <div
+                                            class="flex items-center gap-[3px]"
+                                        >
                                             <span
-                                                v-for="(barHeight, barIndex) in audioWaveHeights"
+                                                class="mr-1 inline-block h-3.5 w-3.5 rounded-full bg-[#58baf1]"
+                                            />
+                                            <span
+                                                v-for="(
+                                                    barHeight, barIndex
+                                                ) in audioWaveHeights"
                                                 :key="`public-audio-wave-${block.id}-${barIndex}`"
                                                 class="inline-block w-[3px] rounded-full transition-colors"
-                                                :class="barIndex / audioWaveHeights.length < audioProgressRatio(audioPreviewKey(currentStage.id, block.id))
-                                                    ? 'bg-[#58baf1]'
-                                                    : (block.audio_theme ?? 'light') === 'dark'
-                                                        ? 'bg-[#8ea3c5]/65'
-                                                        : 'bg-[#d5d6d8]'"
-                                                :style="{ height: `${barHeight}px` }"
+                                                :class="
+                                                    barIndex /
+                                                        audioWaveHeights.length <
+                                                    audioProgressRatio(
+                                                        audioPreviewKey(
+                                                            currentStage.id,
+                                                            block.id,
+                                                        ),
+                                                    )
+                                                        ? 'bg-[#58baf1]'
+                                                        : (block.audio_theme ??
+                                                                'light') ===
+                                                            'dark'
+                                                          ? 'bg-[#8ea3c5]/65'
+                                                          : 'bg-[#d5d6d8]'
+                                                "
+                                                :style="{
+                                                    height: `${barHeight}px`,
+                                                }"
                                             />
                                         </div>
                                     </div>
-                                    <div class="mt-2 flex items-center justify-between pl-0.5 text-[11px] font-medium leading-none tracking-wide" :class="(block.audio_theme ?? 'light') === 'dark' ? 'text-[#bfd4f4]' : 'text-[#7a8ea9]'">
-                                        <p :data-testid="`public-audio-current-${block.id}`">{{ displayedAudioCurrentTime(audioPreviewKey(currentStage.id, block.id)) }}</p>
-                                        <p :data-testid="`public-audio-duration-${block.id}`">{{ displayedAudioDuration(audioPreviewKey(currentStage.id, block.id)) }}</p>
+                                    <div
+                                        class="mt-2 flex items-center justify-between pl-0.5 text-[11px] leading-none font-medium tracking-wide"
+                                        :class="
+                                            (block.audio_theme ?? 'light') ===
+                                            'dark'
+                                                ? 'text-[#bfd4f4]'
+                                                : 'text-[#7a8ea9]'
+                                        "
+                                    >
+                                        <p
+                                            :data-testid="`public-audio-current-${block.id}`"
+                                        >
+                                            {{
+                                                displayedAudioCurrentTime(
+                                                    audioPreviewKey(
+                                                        currentStage.id,
+                                                        block.id,
+                                                    ),
+                                                )
+                                            }}
+                                        </p>
+                                        <p
+                                            :data-testid="`public-audio-duration-${block.id}`"
+                                        >
+                                            {{
+                                                displayedAudioDuration(
+                                                    audioPreviewKey(
+                                                        currentStage.id,
+                                                        block.id,
+                                                    ),
+                                                )
+                                            }}
+                                        </p>
                                     </div>
                                 </div>
-                                <div class="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border" :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-[#4f6f9f] bg-[#cad3df]' : 'border-[#d8dde3] bg-[#d2d9e2]'">
+                                <div
+                                    class="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border"
+                                    :class="
+                                        (block.audio_theme ?? 'light') ===
+                                        'dark'
+                                            ? 'border-[#4f6f9f] bg-[#cad3df]'
+                                            : 'border-[#d8dde3] bg-[#d2d9e2]'
+                                    "
+                                >
                                     <img
-                                        v-if="sanitizeStoredAssetUrl(block.audio_avatar_url)"
-                                        :src="sanitizeStoredAssetUrl(block.audio_avatar_url) ?? undefined"
+                                        v-if="
+                                            sanitizeStoredAssetUrl(
+                                                block.audio_avatar_url,
+                                            )
+                                        "
+                                        :src="
+                                            sanitizeStoredAssetUrl(
+                                                block.audio_avatar_url,
+                                            ) ?? undefined
+                                        "
                                         alt="Avatar do audio"
                                         class="h-full w-full object-cover"
                                     />
                                     <template v-else>
-                                        <div class="absolute left-1/2 top-[6px] h-[10px] w-[10px] -translate-x-1/2 rounded-full bg-[#edf1f6]" />
-                                        <div class="absolute left-1/2 top-[17px] h-[14px] w-[22px] -translate-x-1/2 rounded-[999px_999px_8px_8px] bg-[#edf1f6]" />
+                                        <div
+                                            class="absolute top-[6px] left-1/2 h-[10px] w-[10px] -translate-x-1/2 rounded-full bg-[#edf1f6]"
+                                        />
+                                        <div
+                                            class="absolute top-[17px] left-1/2 h-[14px] w-[22px] -translate-x-1/2 rounded-[999px_999px_8px_8px] bg-[#edf1f6]"
+                                        />
                                     </template>
-                                    <div class="absolute bottom-[1px] left-[1px] grid h-[15px] w-[15px] place-items-center rounded-full bg-white shadow-sm">
-                                        <span class="block h-[7px] w-[4px] rounded-[999px] border-2 border-b-0 border-[#39b6f3]" />
-                                        <span class="absolute bottom-[4px] h-[3px] w-[2px] bg-[#39b6f3]" />
-                                        <span class="absolute bottom-[2px] h-[2px] w-[6px] rounded bg-[#39b6f3]" />
+                                    <div
+                                        class="absolute bottom-[1px] left-[1px] grid h-[15px] w-[15px] place-items-center rounded-full bg-white shadow-sm"
+                                    >
+                                        <span
+                                            class="block h-[7px] w-[4px] rounded-[999px] border-2 border-b-0 border-[#39b6f3]"
+                                        />
+                                        <span
+                                            class="absolute bottom-[4px] h-[3px] w-[2px] bg-[#39b6f3]"
+                                        />
+                                        <span
+                                            class="absolute bottom-[2px] h-[2px] w-[6px] rounded bg-[#39b6f3]"
+                                        />
                                     </div>
                                 </div>
                             </div>
-                            <p v-if="safeTrim(block.audio_sender).length" class="pt-2 text-[9px] uppercase tracking-[0.08em]" :class="(block.audio_theme ?? 'light') === 'dark' ? 'text-[#9fb8dd]' : 'text-[#9ca7b7]'">
+                            <p
+                                v-if="safeTrim(block.audio_sender).length"
+                                class="pt-2 text-[9px] tracking-[0.08em] uppercase"
+                                :class="
+                                    (block.audio_theme ?? 'light') === 'dark'
+                                        ? 'text-[#9fb8dd]'
+                                        : 'text-[#9ca7b7]'
+                                "
+                            >
                                 {{ block.audio_sender }}
                             </p>
                             <p
                                 v-if="!audioSource(block)"
                                 class="pt-2 text-[10px]"
-                                :class="(block.audio_theme ?? 'light') === 'dark' ? 'text-[#86a2cf]' : 'text-[#8793a5]'"
+                                :class="
+                                    (block.audio_theme ?? 'light') === 'dark'
+                                        ? 'text-[#86a2cf]'
+                                        : 'text-[#8793a5]'
+                                "
                             >
                                 Audio nao configurado
                             </p>
@@ -2898,9 +4124,15 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div
-                        v-else-if="block.type === 'attention' || block.type === 'alert'"
+                        v-else-if="
+                            block.type === 'attention' || block.type === 'alert'
+                        "
                         class="rounded-[20px] border text-center text-base leading-normal md:text-lg"
-                        :class="[attentionToneClass(block), attentionPaddingClass(block), attentionHighlightClass(block)]"
+                        :class="[
+                            attentionToneClass(block),
+                            attentionPaddingClass(block),
+                            attentionHighlightClass(block),
+                        ]"
                     >
                         {{ block.placeholder }}
                     </div>
@@ -2909,38 +4141,114 @@ onBeforeUnmount(() => {
                         v-else-if="block.type === 'notification'"
                         :data-testid="`public-notification-${block.id}`"
                         class="w-full"
-                        :class="[notificationPositionClass(block), notificationSizeClass(block)]"
+                        :class="[
+                            notificationPositionClass(block),
+                            notificationSizeClass(block),
+                        ]"
                         :style="notificationShellStyle(block)"
                     >
-                        <div class="rounded-[22px] border shadow-[0_16px_38px_rgba(9,18,36,0.22)] backdrop-blur-sm" :class="[notificationToneClass(block), notificationCardPaddingClass(block)]">
-                            <div class="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.22em] opacity-65">
+                        <div
+                            class="rounded-[22px] border shadow-[0_16px_38px_rgba(9,18,36,0.22)] backdrop-blur-sm"
+                            :class="[
+                                notificationToneClass(block),
+                                notificationCardPaddingClass(block),
+                            ]"
+                        >
+                            <div
+                                class="flex items-center justify-between gap-3 text-[10px] tracking-[0.22em] uppercase opacity-65"
+                            >
                                 <span class="inline-flex items-center gap-2" />
                                 <span class="inline-flex items-center gap-1.5">
-                                    <span class="inline-block h-1.5 w-1.5 rounded-full" :class="notificationAccentClass(block)" />
+                                    <span
+                                        class="inline-block h-1.5 w-1.5 rounded-full"
+                                        :class="notificationAccentClass(block)"
+                                    />
                                     {{ notificationTimeBadge(block) }}
                                 </span>
                             </div>
                             <div class="mt-2 flex items-start gap-3">
-                                <div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border" :class="notificationAvatarShellClass(block)">
+                                <div
+                                    class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border"
+                                    :class="notificationAvatarShellClass(block)"
+                                >
                                     <img
-                                        v-if="notificationAvatarUrl(block, activeNotificationVariation(block))"
-                                        :src="notificationAvatarUrl(block, activeNotificationVariation(block)) ?? undefined"
+                                        v-if="
+                                            notificationAvatarUrl(
+                                                block,
+                                                activeNotificationVariation(
+                                                    block,
+                                                ),
+                                            )
+                                        "
+                                        :src="
+                                            notificationAvatarUrl(
+                                                block,
+                                                activeNotificationVariation(
+                                                    block,
+                                                ),
+                                            ) ?? undefined
+                                        "
                                         alt="Avatar da notificacao"
                                         class="h-full w-full object-cover"
                                     />
-                                    <span v-else class="inline-block h-3 w-3 rounded-full" :class="notificationAccentClass(block)" />
+                                    <span
+                                        v-else
+                                        class="inline-block h-3 w-3 rounded-full"
+                                        :class="notificationAccentClass(block)"
+                                    />
                                 </div>
                                 <div class="min-w-0 flex-1">
-                                    <p v-if="notificationTitleText(block).length" class="font-semibold leading-tight" :class="notificationTitleClass(block)">
-                                        {{ replaceNotificationTokens(notificationTitleText(block), activeNotificationVariation(block)) }}
+                                    <p
+                                        v-if="
+                                            notificationTitleText(block).length
+                                        "
+                                        class="leading-tight font-semibold"
+                                        :class="notificationTitleClass(block)"
+                                    >
+                                        {{
+                                            replaceNotificationTokens(
+                                                notificationTitleText(block),
+                                                activeNotificationVariation(
+                                                    block,
+                                                ),
+                                            )
+                                        }}
                                     </p>
-                                    <p v-if="notificationDescriptionText(block).length" class="leading-snug opacity-80" :class="[notificationDescriptionClass(block), notificationTitleText(block).length ? 'mt-1.5' : 'mt-0.5']">
-                                        {{ replaceNotificationTokens(notificationDescriptionText(block), activeNotificationVariation(block)) }}
+                                    <p
+                                        v-if="
+                                            notificationDescriptionText(block)
+                                                .length
+                                        "
+                                        class="leading-snug opacity-80"
+                                        :class="[
+                                            notificationDescriptionClass(block),
+                                            notificationTitleText(block).length
+                                                ? 'mt-1.5'
+                                                : 'mt-0.5',
+                                        ]"
+                                    >
+                                        {{
+                                            replaceNotificationTokens(
+                                                notificationDescriptionText(
+                                                    block,
+                                                ),
+                                                activeNotificationVariation(
+                                                    block,
+                                                ),
+                                            )
+                                        }}
                                     </p>
                                 </div>
                             </div>
-                            <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-black/10">
-                                <div class="h-full rounded-full bg-black/20 transition-[width] duration-300" :style="{ width: notificationProgressWidth(block) }" />
+                            <div
+                                class="mt-3 h-1.5 overflow-hidden rounded-full bg-black/10"
+                            >
+                                <div
+                                    class="h-full rounded-full bg-black/20 transition-[width] duration-300"
+                                    :style="{
+                                        width: notificationProgressWidth(block),
+                                    }"
+                                />
                             </div>
                         </div>
                     </div>
@@ -2948,27 +4256,74 @@ onBeforeUnmount(() => {
                     <div
                         v-else-if="block.type === 'timer'"
                         class="rounded-2xl border px-3 py-2 text-center text-base leading-tight"
-                        :class="block.timer_style === 'amber'
-                            ? 'border-[#f0dfb1] bg-[#fff4da] text-[#9f6500]'
-                            : block.timer_style === 'blue'
-                                ? 'border-[#c3d8ff] bg-[#eaf2ff] text-[#1f4ea5]'
-                                : 'border-[#f0c9c9] bg-[#f8dfdf] text-[#c62828]'"
+                        :class="
+                            block.timer_style === 'amber'
+                                ? 'border-[#f0dfb1] bg-[#fff4da] text-[#9f6500]'
+                                : block.timer_style === 'blue'
+                                  ? 'border-[#c3d8ff] bg-[#eaf2ff] text-[#1f4ea5]'
+                                  : 'border-[#f0c9c9] bg-[#f8dfdf] text-[#c62828]'
+                        "
                     >
                         {{ timerDisplayText(block) }}
                     </div>
 
                     <div
                         v-else-if="block.type === 'loading'"
-                        class="rounded-xl border border-[#e7eaf0] bg-white px-2.5 py-2 text-[#0b1020]"
+                        :data-testid="`public-loading-${block.id}`"
+                        class="rounded-xl border px-2.5 py-2"
+                        :style="{
+                            backgroundColor: designTokens.surfaces.muted,
+                            borderColor: designTokens.borders.default,
+                            color: designTokens.colors.heading,
+                        }"
                     >
-                        <div v-if="block.loading_show_title !== false || block.loading_show_progress !== false" class="flex items-center justify-between">
-                            <p v-if="block.loading_show_title !== false && block.label?.trim().length" class="text-sm font-semibold">{{ block.label }}</p>
-                            <p v-if="block.loading_show_progress !== false" class="text-sm font-semibold text-[#7a7f8a]">{{ loadingProgress(block) }}%</p>
+                        <div
+                            v-if="
+                                block.loading_show_title !== false ||
+                                block.loading_show_progress !== false
+                            "
+                            class="flex items-center justify-between"
+                        >
+                            <p
+                                v-if="
+                                    block.loading_show_title !== false &&
+                                    block.label?.trim().length
+                                "
+                                class="text-sm font-semibold"
+                            >
+                                {{ block.label }}
+                            </p>
+                            <p
+                                v-if="block.loading_show_progress !== false"
+                                class="text-sm font-semibold"
+                                :style="{
+                                    color: designTokens.colors.textMuted,
+                                }"
+                            >
+                                {{ loadingProgress(block) }}%
+                            </p>
                         </div>
-                        <div v-if="block.loading_show_progress !== false" class="mt-1 h-2.5 overflow-hidden rounded-full bg-[#e3e6ed]">
-                            <div class="h-full rounded-full bg-[#030a1b] transition-all duration-300" :style="{ width: `${loadingProgress(block)}%` }" />
+                        <div
+                            v-if="block.loading_show_progress !== false"
+                            class="mt-1 h-2.5 overflow-hidden rounded-full"
+                            :style="{
+                                backgroundColor: designTokens.surfaces.card,
+                            }"
+                        >
+                            <div
+                                class="h-full rounded-full transition-all duration-300"
+                                :style="{
+                                    width: `${loadingProgress(block)}%`,
+                                    backgroundColor:
+                                        designTokens.colors.primary,
+                                }"
+                            />
                         </div>
-                        <p v-if="block.placeholder?.trim().length" class="mt-2 text-center text-[1.15rem] leading-snug text-[#576a84]">
+                        <p
+                            v-if="block.placeholder?.trim().length"
+                            class="mt-2 text-center text-[1.15rem] leading-snug"
+                            :style="{ color: designTokens.colors.text }"
+                        >
                             {{ block.placeholder }}
                         </p>
                     </div>
@@ -2976,43 +4331,148 @@ onBeforeUnmount(() => {
                     <div
                         v-else-if="block.type === 'level'"
                         :data-testid="`public-level-${block.id}`"
-                        class="rounded-xl border border-[#e7eaf0] bg-white px-3 py-2.5 text-[#0b1020]"
+                        class="rounded-xl border px-3 py-2.5"
+                        :style="{
+                            backgroundColor: designTokens.surfaces.muted,
+                            borderColor: designTokens.borders.default,
+                            color: designTokens.colors.heading,
+                        }"
                     >
                         <div class="flex items-end justify-between gap-2">
                             <div class="min-w-0">
-                                <p v-if="block.level_title?.trim().length" class="text-lg font-semibold">{{ block.level_title }}</p>
-                                <p v-if="block.level_subtitle?.trim().length" :data-testid="`public-level-subtitle-${block.id}`" class="text-[1.35rem] leading-tight text-[#576a84]">{{ block.level_subtitle }}</p>
+                                <p
+                                    v-if="block.level_title?.trim().length"
+                                    class="text-lg font-semibold"
+                                >
+                                    {{ block.level_title }}
+                                </p>
+                                <p
+                                    v-if="block.level_subtitle?.trim().length"
+                                    :data-testid="`public-level-subtitle-${block.id}`"
+                                    class="text-[1.35rem] leading-tight"
+                                    :style="{
+                                        color: designTokens.colors.text,
+                                    }"
+                                >
+                                    {{ block.level_subtitle }}
+                                </p>
                             </div>
-                            <p v-if="block.level_show_progress !== false" class="text-[1.35rem] font-semibold text-[#7a7f8a]">{{ levelProgress(block) }}%</p>
+                            <p
+                                v-if="block.level_show_progress !== false"
+                                class="text-[1.35rem] font-semibold"
+                                :style="{
+                                    color: designTokens.colors.textMuted,
+                                }"
+                            >
+                                {{ levelProgress(block) }}%
+                            </p>
                         </div>
-                        <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-[#e3e6ed]">
-                            <div class="relative h-full rounded-full transition-all duration-300" :class="levelBarColorClass(block)" :style="{ width: `${levelProgress(block)}%` }">
+                        <div
+                            class="mt-1.5 h-2.5 overflow-hidden rounded-full"
+                            :style="{
+                                backgroundColor: designTokens.surfaces.card,
+                            }"
+                        >
+                            <div
+                                class="relative h-full rounded-full transition-all duration-300"
+                                :class="levelBarColorClass(block)"
+                                :style="{
+                                    width: `${levelProgress(block)}%`,
+                                    ...levelBarStyle(block),
+                                }"
+                            >
                                 <span
                                     v-if="block.level_show_meter !== false"
-                                    class="absolute right-0 top-1/2 h-4 w-4 translate-x-1/2 -translate-y-1/2 rounded-full border-[4px] border-[#d8dce3] bg-[#f8f9fb]"
+                                    class="absolute top-1/2 right-0 h-4 w-4 translate-x-1/2 -translate-y-1/2 rounded-full border-[4px]"
+                                    :style="{
+                                        backgroundColor:
+                                            designTokens.surfaces.card,
+                                        borderColor:
+                                            designTokens.borders.default,
+                                    }"
                                 />
                             </div>
                         </div>
-                        <p v-if="block.level_indicator_text?.trim().length" class="mt-2 text-center text-sm text-[#576a84]">{{ block.level_indicator_text }}</p>
-                        <p v-if="levelLegends(block).length" class="mt-1.5 text-center text-xs text-[#7a7f8a]">{{ levelLegends(block).join(' | ') }}</p>
+                        <p
+                            v-if="block.level_indicator_text?.trim().length"
+                            class="mt-2 text-center text-sm"
+                            :style="{ color: designTokens.colors.text }"
+                        >
+                            {{ block.level_indicator_text }}
+                        </p>
+                        <p
+                            v-if="levelLegends(block).length"
+                            class="mt-1.5 text-center text-xs"
+                            :style="{
+                                color: designTokens.colors.textMuted,
+                            }"
+                        >
+                            {{ levelLegends(block).join(' | ') }}
+                        </p>
                     </div>
 
-                    <div v-else-if="block.type === 'testimonials'" :class="testimonialListClass(block)">
+                    <div
+                        v-else-if="block.type === 'testimonials'"
+                        :class="testimonialListClass(block)"
+                    >
                         <article
                             v-for="item in testimonialItems(block)"
                             :key="`${block.id}-testimonial-${item.id}`"
-                            class="border border-[#d7dde8] bg-white text-[#1f2a3d]"
+                            :data-testid="`public-testimonial-${block.id}-${item.id}`"
+                            class="border"
                             :class="[
                                 optionsCardRadiusClass(block),
                                 'px-2.5 py-2',
                                 optionsCardShadowClass(block),
-                                block.testimonials_layout === 'slide' ? 'min-w-[220px]' : '',
+                                block.testimonials_layout === 'slide'
+                                    ? 'min-w-[220px]'
+                                    : '',
                             ]"
+                            :style="{
+                                backgroundColor: designTokens.surfaces.muted,
+                                borderColor: designTokens.borders.default,
+                                color: designTokens.colors.text,
+                            }"
                         >
-                            <div class="flex items-center gap-1 text-amber-500"><span v-for="starIndex in ratingStars(item.rating)" :key="`${item.id}-star-${starIndex}`">&#9733;</span></div>
-                            <p v-if="item.label.length" class="mt-0.5 text-base font-semibold text-[#08152b]">{{ item.label }}</p>
-                            <p v-if="item.subtitle.length" class="text-sm text-[#5f6f85]">{{ item.subtitle }}</p>
-                            <p v-if="item.description.length" class="mt-1.5 text-base leading-6 text-[#54637a]">{{ item.description }}</p>
+                            <div
+                                class="flex items-center gap-1"
+                                :style="{
+                                    color: designTokens.states.warning,
+                                }"
+                            >
+                                <span
+                                    v-for="starIndex in ratingStars(
+                                        item.rating,
+                                    )"
+                                    :key="`${item.id}-star-${starIndex}`"
+                                    >&#9733;</span
+                                >
+                            </div>
+                            <p
+                                v-if="item.label.length"
+                                class="mt-0.5 text-base font-semibold"
+                                :style="{
+                                    color: designTokens.colors.heading,
+                                }"
+                            >
+                                {{ item.label }}
+                            </p>
+                            <p
+                                v-if="item.subtitle.length"
+                                class="text-sm"
+                                :style="{
+                                    color: designTokens.colors.textMuted,
+                                }"
+                            >
+                                {{ item.subtitle }}
+                            </p>
+                            <p
+                                v-if="item.description.length"
+                                class="mt-1.5 text-base leading-6"
+                                :style="{ color: designTokens.colors.text }"
+                            >
+                                {{ item.description }}
+                            </p>
                         </article>
                     </div>
 
@@ -3020,125 +4480,435 @@ onBeforeUnmount(() => {
                         <article
                             v-for="(item, faqIndex) in faqItems(block)"
                             :key="`${block.id}-faq-${item.id}`"
-                            class="border-b border-[#d7dde8] py-1.5"
+                            :data-testid="`public-faq-${block.id}-${item.id}`"
+                            class="border-b py-1.5"
+                            :style="{
+                                borderColor: designTokens.borders.default,
+                            }"
                         >
-                            <button :data-testid="`faq-toggle-${block.id}-${faqIndex}`" type="button" class="flex w-full items-center justify-between gap-3 text-left" @click="toggleFaqItem(currentStage.id, block, faqIndex)">
-                                <p v-if="item.label.length" class="text-sm font-semibold text-[#08152b]">{{ item.label }}</p>
-                                <span v-if="(block.faq_detail ?? 'arrow') !== 'none'" class="text-xs font-semibold text-[#8fb45c]">{{ faqDetailLabel(block, faqIndex, isFaqItemOpen(currentStage.id, block, faqIndex)) }}</span>
+                            <button
+                                :data-testid="`faq-toggle-${block.id}-${faqIndex}`"
+                                type="button"
+                                class="flex w-full items-center justify-between gap-3 text-left"
+                                @click="
+                                    toggleFaqItem(
+                                        currentStage.id,
+                                        block,
+                                        faqIndex,
+                                    )
+                                "
+                            >
+                                <p
+                                    v-if="item.label.length"
+                                    class="text-sm font-semibold"
+                                    :style="{
+                                        color: designTokens.colors.heading,
+                                    }"
+                                >
+                                    {{ item.label }}
+                                </p>
+                                <span
+                                    v-if="
+                                        (block.faq_detail ?? 'arrow') !== 'none'
+                                    "
+                                    class="text-xs font-semibold"
+                                    :style="{
+                                        color: designTokens.colors.primary,
+                                    }"
+                                    >{{
+                                        faqDetailLabel(
+                                            block,
+                                            faqIndex,
+                                            isFaqItemOpen(
+                                                currentStage.id,
+                                                block,
+                                                faqIndex,
+                                            ),
+                                        )
+                                    }}</span
+                                >
                             </button>
-                            <p v-if="isFaqItemOpen(currentStage.id, block, faqIndex) && item.description.length" class="mt-1 text-sm leading-6 text-[#54637a]">{{ item.description }}</p>
+                            <p
+                                v-if="
+                                    isFaqItemOpen(
+                                        currentStage.id,
+                                        block,
+                                        faqIndex,
+                                    ) && item.description.length
+                                "
+                                class="mt-1 text-sm leading-6"
+                                :style="{ color: designTokens.colors.text }"
+                            >
+                                {{ item.description }}
+                            </p>
                         </article>
                     </div>
 
-                    <div v-else-if="block.type === 'metrics' && metricItems(block).length" :data-testid="`public-metrics-${block.id}`" class="grid gap-2 sm:grid-cols-3">
+                    <div
+                        v-else-if="
+                            block.type === 'metrics' &&
+                            metricItems(block).length
+                        "
+                        :data-testid="`public-metrics-${block.id}`"
+                        class="grid gap-2 sm:grid-cols-3"
+                    >
                         <article
                             v-for="item in metricItems(block)"
                             :key="`${block.id}-metric-${item.id}`"
                             :data-testid="`public-metric-${block.id}-${item.id}`"
-                            class="rounded-2xl border border-[#d7dde8] bg-white px-3 py-3 text-[#08152b]"
+                            class="min-w-0 overflow-hidden rounded-2xl border px-3 py-3"
+                            :style="{
+                                backgroundColor: designTokens.surfaces.muted,
+                                borderColor: designTokens.borders.default,
+                                color: designTokens.colors.heading,
+                            }"
                         >
-                            <p v-if="item.value.length" class="text-[1.55rem] font-semibold leading-none">{{ item.value }}</p>
-                            <p v-if="item.label.length" class="text-sm font-semibold" :class="item.value.length ? 'mt-2' : ''">{{ item.label }}</p>
-                            <p v-if="item.description.length" class="text-xs leading-5 text-[#607089]" :class="item.value.length || item.label.length ? 'mt-1' : ''">{{ item.description }}</p>
+                            <p
+                                v-if="item.value.length"
+                                class="text-[1.55rem] leading-none font-semibold wrap-anywhere"
+                            >
+                                {{ item.value }}
+                            </p>
+                            <p
+                                v-if="item.label.length"
+                                class="text-sm font-semibold wrap-anywhere"
+                                :class="item.value.length ? 'mt-2' : ''"
+                            >
+                                {{ item.label }}
+                            </p>
+                            <p
+                                v-if="item.description.length"
+                                class="text-xs leading-5 wrap-anywhere"
+                                :style="{ color: designTokens.colors.text }"
+                                :class="
+                                    item.value.length || item.label.length
+                                        ? 'mt-1'
+                                        : ''
+                                "
+                            >
+                                {{ item.description }}
+                            </p>
                         </article>
                     </div>
 
-                    <div v-else-if="block.type === 'before_after'" class="grid gap-2 sm:grid-cols-2">
+                    <div
+                        v-else-if="block.type === 'before_after'"
+                        class="grid gap-2 sm:grid-cols-2"
+                    >
                         <article
                             v-for="item in beforeAfterItems(block)"
                             :key="`${block.id}-before-after-${item.label}`"
-                            class="rounded-xl border border-[#d7dde8] bg-white px-3 py-2.5 text-[#08152b]"
+                            :data-testid="`public-before-after-${block.id}-${item.label}`"
+                            class="rounded-xl border px-3 py-2.5"
+                            :style="{
+                                backgroundColor: designTokens.surfaces.muted,
+                                borderColor: designTokens.borders.default,
+                                color: designTokens.colors.heading,
+                            }"
                         >
-                            <p class="text-xs uppercase tracking-wide text-[#6f8bb8]">{{ item.label }}</p>
-                            <p class="mt-1 text-sm leading-6 text-[#54637a]">{{ item.value }}</p>
+                            <p
+                                class="text-xs tracking-wide uppercase"
+                                :style="{
+                                    color: designTokens.colors.primary,
+                                }"
+                            >
+                                {{ item.label }}
+                            </p>
+                            <p
+                                class="mt-1 text-sm leading-6"
+                                :style="{ color: designTokens.colors.text }"
+                            >
+                                {{ item.value }}
+                            </p>
                         </article>
                     </div>
 
-                    <ul v-else-if="block.type === 'arguments'" class="space-y-2">
+                    <ul
+                        v-else-if="block.type === 'arguments'"
+                        class="space-y-2"
+                    >
                         <li
-                            v-for="(option, optionIndex) in argumentItems(block)"
+                            v-for="(option, optionIndex) in argumentItems(
+                                block,
+                            )"
                             :key="`${block.id}-argument-${optionIndex}`"
-                            class="flex items-center gap-2 rounded-xl border border-[#d7dde8] bg-white px-3 py-2 text-[#08152b]"
+                            :data-testid="`public-argument-${block.id}-${optionIndex}`"
+                            class="flex items-center gap-2 rounded-xl border px-3 py-2"
+                            :style="{
+                                backgroundColor: designTokens.surfaces.muted,
+                                borderColor: designTokens.borders.default,
+                                color: designTokens.colors.text,
+                            }"
                         >
-                            <span class="text-[#4f8fff]">*</span>
-                            <span class="text-sm leading-6 text-[#1f2a3d]">{{ option }}</span>
+                            <span
+                                :style="{
+                                    color: designTokens.colors.primary,
+                                }"
+                                >*</span
+                            >
+                            <span class="text-sm leading-6">{{ option }}</span>
                         </li>
                     </ul>
 
                     <button
                         v-else-if="block.type === 'price'"
+                        :data-testid="`public-price-${block.id}`"
                         type="button"
                         class="w-full rounded-xl border px-2.5 py-1.5 text-left transition"
-                        :class="block.price_style === 'dark'
-                            ? 'border-[#355d9f] bg-[#0b274f] text-white'
-                            : block.price_style === 'light'
-                                ? 'border-[#d5deed] bg-[#f7f9fe] text-[#0d1a31]'
-                                : 'border-[#6faa2a] bg-[#eef8e5] text-[#0d1a31]'"
-                        :disabled="(block.price_mode ?? 'illustrative') === 'redirect' && !safeTrim(block.price_link).length"
-                        :title="(block.price_mode ?? 'illustrative') === 'redirect' ? 'Abrir link do plano' : undefined"
-                        :style="{ cursor: (block.price_mode ?? 'illustrative') === 'redirect' ? 'pointer' : 'default' }"
+                        :class="
+                            block.price_style === 'dark'
+                                ? 'border-[#355d9f] bg-[#0b274f] text-white'
+                                : block.price_style === 'light'
+                                  ? 'border-[#d5deed] bg-[#f7f9fe] text-[#0d1a31]'
+                                  : ''
+                        "
+                        :disabled="
+                            (block.price_mode ?? 'illustrative') ===
+                                'redirect' && !safeTrim(block.price_link).length
+                        "
+                        :title="
+                            (block.price_mode ?? 'illustrative') === 'redirect'
+                                ? 'Abrir link do plano'
+                                : undefined
+                        "
+                        :style="priceCardStyle(block)"
                         @click="handlePriceClick(block)"
                     >
-                        <div :class="(block.price_layout ?? 'horizontal') === 'vertical' ? 'space-y-2' : 'flex items-center justify-between gap-3'">
-                            <p v-if="block.price_title?.trim().length" class="text-lg font-semibold">{{ block.price_title }}</p>
-                            <div class="rounded-lg px-2 py-1" :class="block.price_style === 'dark' ? 'bg-[#13386f]' : 'bg-[#e9edf3]'">
-                                <p v-if="block.price_prefix?.trim().length" class="text-xs text-[#5f6875]">{{ block.price_prefix }}</p>
-                                <p v-if="block.price_value?.trim().length" class="text-xl font-semibold" :class="block.price_style === 'dark' ? 'text-white' : 'text-[#0a1224]'">{{ block.price_value }}</p>
-                                <p v-if="block.price_suffix?.trim().length" class="text-sm text-[#5f6875]">{{ block.price_suffix }}</p>
+                        <div
+                            :class="
+                                (block.price_layout ?? 'horizontal') ===
+                                'vertical'
+                                    ? 'space-y-2'
+                                    : 'flex items-center justify-between gap-3'
+                            "
+                        >
+                            <p
+                                v-if="block.price_title?.trim().length"
+                                class="text-lg font-semibold"
+                            >
+                                {{ block.price_title }}
+                            </p>
+                            <div
+                                class="rounded-lg px-2 py-1"
+                                :class="
+                                    block.price_style === 'dark'
+                                        ? 'bg-[#13386f]'
+                                        : block.price_style === 'light'
+                                          ? 'bg-[#e9edf3]'
+                                          : ''
+                                "
+                                :style="priceValuePanelStyle(block)"
+                            >
+                                <p
+                                    v-if="block.price_prefix?.trim().length"
+                                    class="text-xs"
+                                    :style="{
+                                        color: priceMutedTextColor(block),
+                                    }"
+                                >
+                                    {{ block.price_prefix }}
+                                </p>
+                                <p
+                                    v-if="block.price_value?.trim().length"
+                                    class="text-xl font-semibold"
+                                    :class="
+                                        block.price_style === 'dark'
+                                            ? 'text-white'
+                                            : block.price_style === 'light'
+                                              ? 'text-[#0a1224]'
+                                              : ''
+                                    "
+                                    :style="
+                                        (block.price_style ?? 'theme') ===
+                                        'theme'
+                                            ? {
+                                                  color: designTokens.colors
+                                                      .heading,
+                                              }
+                                            : undefined
+                                    "
+                                >
+                                    {{ block.price_value }}
+                                </p>
+                                <p
+                                    v-if="block.price_suffix?.trim().length"
+                                    class="text-sm"
+                                    :style="{
+                                        color: priceMutedTextColor(block),
+                                    }"
+                                >
+                                    {{ block.price_suffix }}
+                                </p>
                             </div>
                         </div>
-                        <p v-if="block.price_badge_text?.trim().length" class="mt-1 text-xs font-medium text-[#4f8a19]">{{ block.price_badge_text }}</p>
+                        <p
+                            v-if="block.price_badge_text?.trim().length"
+                            class="mt-1 text-xs font-medium"
+                            :style="{
+                                color: designTokens.states.success,
+                            }"
+                        >
+                            {{ block.price_badge_text }}
+                        </p>
                     </button>
 
                     <div
-                        v-else-if="block.type === 'carousel' && carouselItems(block).length"
+                        v-else-if="
+                            block.type === 'carousel' &&
+                            carouselItems(block).length
+                        "
                         :data-testid="`public-carousel-${block.id}`"
                         class="rounded-xl border p-2"
-                        :class="block.carousel_border_type === 'strong'
-                            ? 'border-[#d7dde8] bg-white'
-                            : block.carousel_border_type === 'subtle'
-                                ? 'border-[#e7ecf5] bg-[#fbfcff]'
-                                : 'border-transparent bg-transparent'"
+                        :style="carouselContainerStyle(block)"
                     >
-                        <div v-if="carouselShowsImage(block) && safeTrim(currentCarouselItem(currentStage.id, block)?.image).length" :data-testid="`public-carousel-media-${block.id}`" class="rounded-2xl bg-[#bfd3b2] p-1">
-                            <div class="aspect-[4/3] w-full rounded-2xl bg-[#bfd3b2]">
+                        <div
+                            v-if="
+                                carouselShowsImage(block) &&
+                                safeTrim(
+                                    currentCarouselItem(currentStage.id, block)
+                                        ?.image,
+                                ).length
+                            "
+                            :data-testid="`public-carousel-media-${block.id}`"
+                            class="rounded-2xl border p-1"
+                            :style="{
+                                backgroundColor: designTokens.surfaces.muted,
+                                borderColor: designTokens.borders.default,
+                            }"
+                        >
+                            <div
+                                class="aspect-[4/3] w-full rounded-2xl"
+                                :style="{
+                                    backgroundColor:
+                                        designTokens.surfaces.muted,
+                                }"
+                            >
                                 <img
-                                    v-if="safeTrim(currentCarouselItem(currentStage.id, block)?.image).length"
-                                    :src="sanitizeStoredAssetUrl(currentCarouselItem(currentStage.id, block)?.image) ?? undefined"
+                                    v-if="
+                                        safeTrim(
+                                            currentCarouselItem(
+                                                currentStage.id,
+                                                block,
+                                            )?.image,
+                                        ).length
+                                    "
+                                    :src="
+                                        sanitizeStoredAssetUrl(
+                                            currentCarouselItem(
+                                                currentStage.id,
+                                                block,
+                                            )?.image,
+                                        ) ?? undefined
+                                    "
                                     alt="Imagem do slide"
                                     class="h-full w-full rounded-2xl object-cover"
                                 />
                             </div>
                         </div>
-                        <p v-if="carouselShowsDescription(block) && safeTrim(currentCarouselItem(currentStage.id, block)?.description).length" class="mt-2 text-center text-lg text-[#6b7689]">
-                            {{ currentCarouselItem(currentStage.id, block)?.description }}
+                        <p
+                            v-if="
+                                carouselShowsDescription(block) &&
+                                safeTrim(
+                                    currentCarouselItem(currentStage.id, block)
+                                        ?.description,
+                                ).length
+                            "
+                            :data-testid="`public-carousel-current-${block.id}`"
+                            class="mt-2 text-center text-lg"
+                            :style="{ color: designTokens.colors.text }"
+                        >
+                            {{
+                                currentCarouselItem(currentStage.id, block)
+                                    ?.description
+                            }}
                         </p>
-                        <div v-if="block.carousel_pagination !== false && carouselItems(block).length > 1" class="mt-2 flex items-center justify-center gap-2">
+                        <div
+                            v-if="
+                                block.carousel_pagination !== false &&
+                                carouselItems(block).length > 1
+                            "
+                            class="mt-2 flex items-center justify-center gap-2"
+                        >
                             <button
-                                v-for="(item, itemIndex) in carouselItems(block)"
+                                v-for="(item, itemIndex) in carouselItems(
+                                    block,
+                                )"
                                 :key="`${block.id}-carousel-dot-${item.id}`"
                                 :data-testid="`carousel-dot-${block.id}-${itemIndex}`"
                                 type="button"
                                 class="rounded-full transition"
-                                :class="itemIndex === currentCarouselIndex(currentStage.id, block) ? 'h-2.5 w-2.5 bg-[#6faa2a]' : 'h-1.5 w-1.5 bg-[#b4c39e]'"
-                                @click="setCarouselIndex(currentStage.id, block, itemIndex)"
+                                :class="
+                                    itemIndex ===
+                                    currentCarouselIndex(currentStage.id, block)
+                                        ? 'h-2.5 w-2.5'
+                                        : 'h-1.5 w-1.5'
+                                "
+                                :style="{
+                                    backgroundColor:
+                                        itemIndex ===
+                                        currentCarouselIndex(
+                                            currentStage.id,
+                                            block,
+                                        )
+                                            ? designTokens.colors.primary
+                                            : designTokens.borders.default,
+                                }"
+                                @click="
+                                    setCarouselIndex(
+                                        currentStage.id,
+                                        block,
+                                        itemIndex,
+                                    )
+                                "
                             />
                         </div>
                     </div>
 
-
-                    <div v-else-if="isOptionsComponentType(block.type)" :class="optionsListClass(block)">
+                    <div
+                        v-else-if="isOptionsComponentType(block.type)"
+                        :class="optionsListClass(block)"
+                    >
                         <div
                             v-if="hasOptionsIntroContent(block)"
                             :data-testid="`public-options-intro-${block.id}`"
                             class="mb-2 border sm:col-span-2"
-                            :class="[optionsCardRadiusClass(block), optionsCardSpacingClass(block), optionsCardToneClass(block, false), optionsCardShadowClass(block)]"
+                            :class="[
+                                optionsCardRadiusClass(block),
+                                optionsCardSpacingClass(block),
+                                optionsCardToneClass(block, false),
+                                optionsCardShadowClass(block),
+                            ]"
                         >
-                            <p v-if="(block.options_intro_title ?? '').trim().length" class="text-center text-xl font-semibold text-white">{{ block.options_intro_title }}</p>
-                            <p v-if="(block.options_intro_description ?? '').trim().length" class="text-center text-sm text-[#c8ddff]" :class="(block.options_intro_title ?? '').trim().length ? 'mt-2' : ''">{{ block.options_intro_description }}</p>
+                            <p
+                                v-if="
+                                    (block.options_intro_title ?? '').trim()
+                                        .length
+                                "
+                                class="text-center text-xl font-semibold text-white"
+                            >
+                                {{ block.options_intro_title }}
+                            </p>
+                            <p
+                                v-if="
+                                    (
+                                        block.options_intro_description ?? ''
+                                    ).trim().length
+                                "
+                                class="text-center text-sm text-[#c8ddff]"
+                                :class="
+                                    (block.options_intro_title ?? '').trim()
+                                        .length
+                                        ? 'mt-2'
+                                        : ''
+                                "
+                            >
+                                {{ block.options_intro_description }}
+                            </p>
                         </div>
                         <button
-                            v-for="(optionItem, optionIndex) in optionsDisplayItems(block)"
+                            v-for="(
+                                optionItem, optionIndex
+                            ) in optionsDisplayItems(block)"
                             :key="`${optionItem.label}-${optionIndex}`"
                             type="button"
                             class="border"
@@ -3150,36 +4920,76 @@ onBeforeUnmount(() => {
                                 optionsCardMinWidthClass(block),
                                 optionsCardToneClass(
                                     block,
-                                    Array.isArray(getAnswer(currentStage.id, block.id))
-                                        ? (getAnswer(currentStage.id, block.id) as string[]).includes(optionItem.label)
-                                        : getAnswer(currentStage.id, block.id) === optionItem.label,
+                                    Array.isArray(
+                                        getAnswer(currentStage.id, block.id),
+                                    )
+                                        ? (
+                                              getAnswer(
+                                                  currentStage.id,
+                                                  block.id,
+                                              ) as string[]
+                                          ).includes(optionItem.label)
+                                        : getAnswer(
+                                              currentStage.id,
+                                              block.id,
+                                          ) === optionItem.label,
                                 ),
                             ]"
-                            @click="handleOptionSelection(currentStage.id, block, optionItem.label, optionItem.destination)"
+                            @click="
+                                handleOptionSelection(
+                                    currentStage.id,
+                                    block,
+                                    optionItem.label,
+                                    optionItem.destination,
+                                )
+                            "
                         >
                             <div :class="optionsBodyClass(block)">
                                 <span
-                                    v-if="normalizeDetailValue(block.options_detail) !== 'none'"
+                                    v-if="
+                                        normalizeDetailValue(
+                                            block.options_detail,
+                                        ) !== 'none'
+                                    "
                                     :data-testid="`option-detail-${block.id}-${optionIndex}`"
                                     class="inline-flex shrink-0 items-center justify-center text-xs font-semibold text-[#1b2333]"
                                     :class="[
                                         optionsDetailWrapClass(block),
                                         optionsDetailBadgeClass(block),
-                                        normalizeDetailValue(block.options_detail) !== 'checkout' ? 'bg-[#d2d8e4]' : '',
+                                        normalizeDetailValue(
+                                            block.options_detail,
+                                        ) !== 'checkout'
+                                            ? 'bg-[#d2d8e4]'
+                                            : '',
                                         optionsDetailTextClass(block),
                                     ]"
                                 >
-                                    {{ optionsDetailLabel(block, optionItem, optionIndex) }}
+                                    {{
+                                        optionsDetailLabel(
+                                            block,
+                                            optionItem,
+                                            optionIndex,
+                                        )
+                                    }}
                                 </span>
                                 <div
-                                    v-if="optionsShouldRenderImage(block, optionItem)"
+                                    v-if="
+                                        optionsShouldRenderImage(
+                                            block,
+                                            optionItem,
+                                        )
+                                    "
                                     :data-testid="`option-image-${block.id}-${optionIndex}`"
                                     class="shrink-0"
                                     :class="optionsMediaOrderClass(block)"
                                 >
                                     <div :class="optionsImageWrapClass(block)">
                                         <img
-                                            :src="sanitizeStoredAssetUrl(optionItem.image_url) ?? undefined"
+                                            :src="
+                                                sanitizeStoredAssetUrl(
+                                                    optionItem.image_url,
+                                                ) ?? undefined
+                                            "
                                             alt="Imagem da opcao"
                                             class="h-full w-full object-cover"
                                         />
@@ -3187,7 +4997,13 @@ onBeforeUnmount(() => {
                                 </div>
                                 <span
                                     class="block min-w-0 flex-1 text-white"
-                                    :class="[optionTextAlignClass(block), optionsLabelOrderClass(block), block.options_layout === 'grid_1' ? 'text-[1.02rem] leading-7' : 'leading-6']"
+                                    :class="[
+                                        optionTextAlignClass(block),
+                                        optionsLabelOrderClass(block),
+                                        block.options_layout === 'grid_1'
+                                            ? 'text-[1.02rem] leading-7'
+                                            : 'leading-6',
+                                    ]"
                                 >
                                     {{ optionItem.label }}
                                 </span>
@@ -3201,12 +5017,25 @@ onBeforeUnmount(() => {
                         type="button"
                         class="inline-flex w-full items-center justify-center rounded-xl border border-transparent py-3 text-lg font-medium transition disabled:opacity-(--funnel-disabled-opacity)"
                         :class="[
-                            block.button_action === 'open_link' && !block.button_link ? 'opacity-90' : '',
-                            block.button_color_style === 'dark' ? 'bg-[#06183a] text-white' : '',
-                            block.button_color_style === 'light' ? 'bg-[#d8e7ff] text-[#082252]' : '',
-                            block.button_animated ? 'hover:translate-y-[-1px] hover:brightness-110' : '',
-                            block.button_elevated ? 'shadow-[0_10px_24px_rgba(20,86,193,0.45)]' : '',
-                            block.button_sticky_footer ? 'sticky bottom-3 z-[1]' : '',
+                            block.button_action === 'open_link' &&
+                            !block.button_link
+                                ? 'opacity-90'
+                                : '',
+                            block.button_color_style === 'dark'
+                                ? 'bg-[#06183a] text-white'
+                                : '',
+                            block.button_color_style === 'light'
+                                ? 'bg-[#d8e7ff] text-[#082252]'
+                                : '',
+                            block.button_animated
+                                ? 'hover:translate-y-[-1px] hover:brightness-110'
+                                : '',
+                            block.button_elevated
+                                ? 'shadow-[0_10px_24px_rgba(20,86,193,0.45)]'
+                                : '',
+                            block.button_sticky_footer
+                                ? 'sticky bottom-3 z-[1]'
+                                : '',
                         ]"
                         :style="publicThemeButtonStyle(block)"
                         @click="handleBlockButtonClick(block)"
@@ -3221,13 +5050,15 @@ onBeforeUnmount(() => {
                         :style="{ height: `${spacerHeight(block)}px` }"
                     />
 
-                    <p v-if="fieldErrors[answerKey(currentStage.id, block.id)]" class="mt-1 text-xs" :style="{ color: designTokens.states.danger }">
+                    <p
+                        v-if="fieldErrors[answerKey(currentStage.id, block.id)]"
+                        class="mt-1 text-xs"
+                        :style="{ color: designTokens.states.danger }"
+                    >
                         {{ fieldErrors[answerKey(currentStage.id, block.id)] }}
                     </p>
                 </div>
             </div>
-
         </div>
     </div>
 </template>
-

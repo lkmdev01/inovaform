@@ -1,18 +1,29 @@
 <script setup lang="ts">
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     BookOpen,
     ChevronDown,
+    CircleHelp,
     CircleUserRound,
+    Eye,
     ListTree,
     Palette,
-    Play,
     Settings,
     Share2,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import FunnelController from '@/actions/App/Http/Controllers/FunnelController';
-import profile from '@/routes/profile';
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { show as showPublicFunnel } from '@/routes/funnels/public';
 
 type StageBlock = {
     id?: string;
@@ -61,13 +72,29 @@ type Funnel = {
 };
 
 type DesignTokens = {
-    colors: { primary: string; onPrimary: string; heading: string; text: string; textMuted: string };
+    colors: {
+        primary: string;
+        onPrimary: string;
+        heading: string;
+        text: string;
+        textMuted: string;
+    };
     typography: { family: 'modern' | 'clean' | 'serif' };
     brand: { logoUrl: string; showLogo: boolean };
     surfaces: { page: string; card: string; muted: string };
     borders: { default: string; strong: string; focus: string };
-    states: { success: string; warning: string; danger: string; disabledOpacity: number };
-    components: { fieldBackground: string; fieldText: string; primaryButtonBackground: string; primaryButtonText: string };
+    states: {
+        success: string;
+        warning: string;
+        danger: string;
+        disabledOpacity: number;
+    };
+    components: {
+        fieldBackground: string;
+        fieldText: string;
+        primaryButtonBackground: string;
+        primaryButtonText: string;
+    };
 };
 
 type DesignSettings = {
@@ -79,6 +106,7 @@ type DesignSettings = {
     showLogo: boolean;
     showProgress: boolean;
     allowBack: boolean;
+    colorTheme: ColorThemeId;
     accentColor: string;
     pageColor: string;
     cardColor: string;
@@ -98,9 +126,286 @@ type DesignSettings = {
     tokens: DesignTokens;
 };
 
+type ColorThemeId =
+    | 'inovaform'
+    | 'ocean'
+    | 'emerald'
+    | 'aurora'
+    | 'solar'
+    | 'snow'
+    | 'ruby'
+    | 'carbon'
+    | 'sand'
+    | 'lavender'
+    | 'custom';
+
+type ColorThemePreset = {
+    id: Exclude<ColorThemeId, 'custom'>;
+    name: string;
+    description: string;
+    accentColor: string;
+    pageColor: string;
+    cardColor: string;
+    headingColor: string;
+    textColor: string;
+    buttonColor: string;
+    buttonTextColor: string;
+    textMuted: string;
+    mutedSurface: string;
+    borderColor: string;
+    strongBorderColor: string;
+    focusColor: string;
+    fieldBackground: string;
+    fieldText: string;
+    successColor: string;
+    warningColor: string;
+    dangerColor: string;
+};
+
+type CustomDomainStatus = {
+    status:
+        | 'not_configured'
+        | 'checking_disabled'
+        | 'pending_dns'
+        | 'tls_pending'
+        | 'ready';
+    label: string;
+    message: string;
+    dns_ready: boolean;
+    tls_ready: boolean;
+    expected_target: string | null;
+    checked_at: string | null;
+};
+
+type PublicationAction = 'preserve' | 'publish' | 'unpublish';
+
+const colorThemePresets: ColorThemePreset[] = [
+    {
+        id: 'inovaform',
+        name: 'Inovaform',
+        description: 'Azul profundo e tecnológico',
+        accentColor: '#3d8bff',
+        pageColor: '#050d22',
+        cardColor: '#0b1a3a',
+        headingColor: '#f8fbff',
+        textColor: '#a8bfeb',
+        buttonColor: '#12356f',
+        buttonTextColor: '#e8f2ff',
+        textMuted: '#7894c5',
+        mutedSurface: '#102348',
+        borderColor: '#2f538f',
+        strongBorderColor: '#3d8bff',
+        focusColor: '#3d8bff',
+        fieldBackground: '#0b274f',
+        fieldText: '#f8fbff',
+        successColor: '#22c55e',
+        warningColor: '#f59e0b',
+        dangerColor: '#f43f5e',
+    },
+    {
+        id: 'ocean',
+        name: 'Oceano',
+        description: 'Ciano vibrante e profundo',
+        accentColor: '#22d3ee',
+        pageColor: '#042f3e',
+        cardColor: '#083344',
+        headingColor: '#ecfeff',
+        textColor: '#a5f3fc',
+        buttonColor: '#0e7490',
+        buttonTextColor: '#ecfeff',
+        textMuted: '#67e8f9',
+        mutedSurface: '#164e63',
+        borderColor: '#155e75',
+        strongBorderColor: '#06b6d4',
+        focusColor: '#22d3ee',
+        fieldBackground: '#0e3a4a',
+        fieldText: '#ecfeff',
+        successColor: '#34d399',
+        warningColor: '#fbbf24',
+        dangerColor: '#fb7185',
+    },
+    {
+        id: 'emerald',
+        name: 'Esmeralda',
+        description: 'Verde elegante e acolhedor',
+        accentColor: '#34d399',
+        pageColor: '#052e2b',
+        cardColor: '#064e3b',
+        headingColor: '#ecfdf5',
+        textColor: '#a7f3d0',
+        buttonColor: '#047857',
+        buttonTextColor: '#ecfdf5',
+        textMuted: '#6ee7b7',
+        mutedSurface: '#065f46',
+        borderColor: '#047857',
+        strongBorderColor: '#10b981',
+        focusColor: '#34d399',
+        fieldBackground: '#073f35',
+        fieldText: '#ecfdf5',
+        successColor: '#22c55e',
+        warningColor: '#fbbf24',
+        dangerColor: '#fb7185',
+    },
+    {
+        id: 'aurora',
+        name: 'Aurora',
+        description: 'Roxo expressivo e moderno',
+        accentColor: '#c084fc',
+        pageColor: '#1e1038',
+        cardColor: '#2e1065',
+        headingColor: '#faf5ff',
+        textColor: '#ddd6fe',
+        buttonColor: '#7c3aed',
+        buttonTextColor: '#faf5ff',
+        textMuted: '#c4b5fd',
+        mutedSurface: '#3b1670',
+        borderColor: '#6d28d9',
+        strongBorderColor: '#a855f7',
+        focusColor: '#c084fc',
+        fieldBackground: '#35156a',
+        fieldText: '#faf5ff',
+        successColor: '#4ade80',
+        warningColor: '#fbbf24',
+        dangerColor: '#fb7185',
+    },
+    {
+        id: 'solar',
+        name: 'Solar',
+        description: 'Âmbar quente e marcante',
+        accentColor: '#f59e0b',
+        pageColor: '#2b1605',
+        cardColor: '#451a03',
+        headingColor: '#fffbeb',
+        textColor: '#fde68a',
+        buttonColor: '#b45309',
+        buttonTextColor: '#fffbeb',
+        textMuted: '#fcd34d',
+        mutedSurface: '#5b2407',
+        borderColor: '#92400e',
+        strongBorderColor: '#d97706',
+        focusColor: '#f59e0b',
+        fieldBackground: '#3a1d08',
+        fieldText: '#fffbeb',
+        successColor: '#4ade80',
+        warningColor: '#fbbf24',
+        dangerColor: '#fb7185',
+    },
+    {
+        id: 'snow',
+        name: 'Neve',
+        description: 'Claro, limpo e objetivo',
+        accentColor: '#2563eb',
+        pageColor: '#f1f5f9',
+        cardColor: '#ffffff',
+        headingColor: '#0f172a',
+        textColor: '#334155',
+        buttonColor: '#2563eb',
+        buttonTextColor: '#ffffff',
+        textMuted: '#64748b',
+        mutedSurface: '#e2e8f0',
+        borderColor: '#cbd5e1',
+        strongBorderColor: '#3b82f6',
+        focusColor: '#2563eb',
+        fieldBackground: '#f8fafc',
+        fieldText: '#0f172a',
+        successColor: '#16a34a',
+        warningColor: '#d97706',
+        dangerColor: '#e11d48',
+    },
+    {
+        id: 'ruby',
+        name: 'Rubi',
+        description: 'Vinho sofisticado e intenso',
+        accentColor: '#fb7185',
+        pageColor: '#2a0e16',
+        cardColor: '#4c1022',
+        headingColor: '#fff1f2',
+        textColor: '#fecdd3',
+        buttonColor: '#be123c',
+        buttonTextColor: '#fff1f2',
+        textMuted: '#fda4af',
+        mutedSurface: '#65152d',
+        borderColor: '#9f1239',
+        strongBorderColor: '#e11d48',
+        focusColor: '#fb7185',
+        fieldBackground: '#3a111d',
+        fieldText: '#fff1f2',
+        successColor: '#4ade80',
+        warningColor: '#fbbf24',
+        dangerColor: '#f43f5e',
+    },
+    {
+        id: 'carbon',
+        name: 'Carbono',
+        description: 'Monocromático e minimalista',
+        accentColor: '#e2e8f0',
+        pageColor: '#09090b',
+        cardColor: '#18181b',
+        headingColor: '#fafafa',
+        textColor: '#d4d4d8',
+        buttonColor: '#f4f4f5',
+        buttonTextColor: '#18181b',
+        textMuted: '#a1a1aa',
+        mutedSurface: '#27272a',
+        borderColor: '#3f3f46',
+        strongBorderColor: '#71717a',
+        focusColor: '#d4d4d8',
+        fieldBackground: '#27272a',
+        fieldText: '#fafafa',
+        successColor: '#22c55e',
+        warningColor: '#f59e0b',
+        dangerColor: '#f43f5e',
+    },
+    {
+        id: 'sand',
+        name: 'Areia',
+        description: 'Claro, natural e acolhedor',
+        accentColor: '#ea580c',
+        pageColor: '#fff7ed',
+        cardColor: '#fffbeb',
+        headingColor: '#431407',
+        textColor: '#7c2d12',
+        buttonColor: '#c2410c',
+        buttonTextColor: '#ffffff',
+        textMuted: '#9a3412',
+        mutedSurface: '#fed7aa',
+        borderColor: '#fdba74',
+        strongBorderColor: '#f97316',
+        focusColor: '#ea580c',
+        fieldBackground: '#fffaf0',
+        fieldText: '#431407',
+        successColor: '#16a34a',
+        warningColor: '#d97706',
+        dangerColor: '#e11d48',
+    },
+    {
+        id: 'lavender',
+        name: 'Lavanda',
+        description: 'Suave, criativo e delicado',
+        accentColor: '#8b5cf6',
+        pageColor: '#f5f3ff',
+        cardColor: '#ffffff',
+        headingColor: '#2e1065',
+        textColor: '#5b21b6',
+        buttonColor: '#7c3aed',
+        buttonTextColor: '#ffffff',
+        textMuted: '#6d28d9',
+        mutedSurface: '#ede9fe',
+        borderColor: '#ddd6fe',
+        strongBorderColor: '#8b5cf6',
+        focusColor: '#7c3aed',
+        fieldBackground: '#faf5ff',
+        fieldText: '#2e1065',
+        successColor: '#16a34a',
+        warningColor: '#d97706',
+        dangerColor: '#e11d48',
+    },
+];
+
 const props = defineProps<{
     funnel: Funnel;
     designSettings: DesignSettings;
+    customDomainStatus: CustomDomainStatus;
     permissions: {
         canEdit: boolean;
         canShare: boolean;
@@ -109,14 +414,39 @@ const props = defineProps<{
     };
 }>();
 
-function normalizeDateTimeLocalValue(value: string | null | undefined): string | null {
+function normalizeDateTimeLocalValue(
+    value: string | null | undefined,
+): string | null {
     const trimmed = (value ?? '').trim();
 
     if (trimmed === '') {
         return null;
     }
 
-    return trimmed.replace('Z', '').slice(0, 16);
+    const hasExplicitTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(trimmed);
+    const date = new Date(hasExplicitTimezone ? trimmed : `${trimmed}Z`);
+
+    if (Number.isNaN(date.getTime())) {
+        return trimmed.slice(0, 16);
+    }
+
+    const pad = (number: number): string => String(number).padStart(2, '0');
+
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function serializeDateTimeLocalValue(
+    value: string | null | undefined,
+): string | null {
+    const trimmed = (value ?? '').trim();
+
+    if (trimmed === '') {
+        return null;
+    }
+
+    const date = new Date(trimmed);
+
+    return Number.isNaN(date.getTime()) ? trimmed : date.toISOString();
 }
 
 const page = usePage<{ flash?: { status?: string } }>();
@@ -130,6 +460,7 @@ const defaultDesignSettings: DesignSettings = {
     showLogo: true,
     showProgress: true,
     allowBack: true,
+    colorTheme: 'inovaform',
     accentColor: '#3d8bff',
     pageColor: '#050d22',
     cardColor: '#0b1a3a',
@@ -147,27 +478,85 @@ const defaultDesignSettings: DesignSettings = {
     unavailableDescription: 'Este funil nao esta disponivel no momento.',
     expiresAt: null,
     tokens: {
-        colors: { primary: '#3d8bff', onPrimary: '#e8f2ff', heading: '#f8fbff', text: '#a8bfeb', textMuted: '#7894c5' },
+        colors: {
+            primary: '#3d8bff',
+            onPrimary: '#e8f2ff',
+            heading: '#f8fbff',
+            text: '#a8bfeb',
+            textMuted: '#7894c5',
+        },
         typography: { family: 'modern' },
         brand: { logoUrl: '', showLogo: true },
         surfaces: { page: '#050d22', card: '#0b1a3a', muted: '#102348' },
         borders: { default: '#2f538f', strong: '#3d8bff', focus: '#3d8bff' },
-        states: { success: '#22c55e', warning: '#f59e0b', danger: '#f43f5e', disabledOpacity: 0.55 },
-        components: { fieldBackground: '#0b274f', fieldText: '#f8fbff', primaryButtonBackground: 'linear-gradient(135deg, #2563eb, #06b6d4)', primaryButtonText: '#e8f2ff' },
+        states: {
+            success: '#22c55e',
+            warning: '#f59e0b',
+            danger: '#f43f5e',
+            disabledOpacity: 0.55,
+        },
+        components: {
+            fieldBackground: '#0b274f',
+            fieldText: '#f8fbff',
+            primaryButtonBackground:
+                'linear-gradient(135deg, #2563eb, #06b6d4)',
+            primaryButtonText: '#e8f2ff',
+        },
     },
 };
 
-const settings = ref<DesignSettings>({
+const initialSettings: DesignSettings = {
     ...defaultDesignSettings,
     ...props.designSettings,
-    expiresAt: normalizeDateTimeLocalValue(props.designSettings.expiresAt ?? null),
-});
-const publishedState = ref(props.funnel.is_active);
+    colorTheme: props.designSettings.colorTheme ?? 'custom',
+    expiresAt: normalizeDateTimeLocalValue(
+        props.designSettings.expiresAt ?? null,
+    ),
+    tokens: {
+        colors: {
+            ...defaultDesignSettings.tokens.colors,
+            ...props.designSettings.tokens.colors,
+        },
+        typography: {
+            ...defaultDesignSettings.tokens.typography,
+            ...props.designSettings.tokens.typography,
+        },
+        brand: {
+            ...defaultDesignSettings.tokens.brand,
+            ...props.designSettings.tokens.brand,
+        },
+        surfaces: {
+            ...defaultDesignSettings.tokens.surfaces,
+            ...props.designSettings.tokens.surfaces,
+        },
+        borders: {
+            ...defaultDesignSettings.tokens.borders,
+            ...props.designSettings.tokens.borders,
+        },
+        states: {
+            ...defaultDesignSettings.tokens.states,
+            ...props.designSettings.tokens.states,
+        },
+        components: {
+            ...defaultDesignSettings.tokens.components,
+            ...props.designSettings.tokens.components,
+        },
+    },
+};
 
-const openPanel = ref<'general' | 'header' | 'colors' | 'typography' | 'publication'>('general');
+const settings = ref<DesignSettings>(initialSettings);
+const publishedState = ref(props.funnel.is_active);
+const isConfirmingUnpublish = ref(false);
+const isRefreshingDomainStatus = ref(false);
+
+const openPanel = ref<
+    'general' | 'header' | 'colors' | 'typography' | 'publication'
+>('general');
 
 const orderedStages = computed(() => {
-    return props.funnel.stages.slice().sort((first, second) => first.stage_order - second.stage_order);
+    return props.funnel.stages
+        .slice()
+        .sort((first, second) => first.stage_order - second.stage_order);
 });
 
 const previewStages = computed(() => {
@@ -202,11 +591,19 @@ const previewCardClass = computed(() => {
 });
 
 const previewCardRadius = computed(() => {
-    return settings.value.radius === 'small' ? '20px' : settings.value.radius === 'medium' ? '28px' : '36px';
+    return settings.value.radius === 'small'
+        ? '20px'
+        : settings.value.radius === 'medium'
+          ? '28px'
+          : '36px';
 });
 
 const controlRadius = computed(() => {
-    return settings.value.radius === 'small' ? '12px' : settings.value.radius === 'medium' ? '16px' : '22px';
+    return settings.value.radius === 'small'
+        ? '12px'
+        : settings.value.radius === 'medium'
+          ? '16px'
+          : '22px';
 });
 
 const actionsAlignClass = computed(() => {
@@ -262,13 +659,13 @@ const fontClass = computed(() => {
 });
 
 const previewThemeStyle = computed(() => ({
-    '--funnel-primary': settings.value.tokens.colors.primary,
-    '--funnel-on-primary': settings.value.tokens.colors.onPrimary,
-    '--funnel-heading': settings.value.tokens.colors.heading,
-    '--funnel-text': settings.value.tokens.colors.text,
+    '--funnel-primary': settings.value.accentColor,
+    '--funnel-on-primary': settings.value.buttonTextColor,
+    '--funnel-heading': settings.value.headingColor,
+    '--funnel-text': settings.value.textColor,
     '--funnel-text-muted': settings.value.tokens.colors.textMuted,
-    '--funnel-page': settings.value.tokens.surfaces.page,
-    '--funnel-surface': settings.value.tokens.surfaces.card,
+    '--funnel-page': settings.value.pageColor,
+    '--funnel-surface': settings.value.cardColor,
     '--funnel-surface-muted': settings.value.tokens.surfaces.muted,
     '--funnel-border': settings.value.tokens.borders.default,
     '--funnel-border-strong': settings.value.tokens.borders.strong,
@@ -278,14 +675,70 @@ const previewThemeStyle = computed(() => ({
     '--funnel-danger': settings.value.tokens.states.danger,
     '--funnel-field-bg': settings.value.tokens.components.fieldBackground,
     '--funnel-field-text': settings.value.tokens.components.fieldText,
-    '--funnel-button-bg': settings.value.tokens.components.primaryButtonBackground,
-    '--funnel-button-text': settings.value.tokens.components.primaryButtonText,
-    backgroundColor: settings.value.tokens.surfaces.page,
+    '--funnel-button-bg': settings.value.buttonColor,
+    '--funnel-button-text': settings.value.buttonTextColor,
+    backgroundColor: settings.value.pageColor,
 }));
 
 const panelSectionClass = 'border-b border-[#1f3258] bg-[#071433]/80 p-5';
 const fieldClass =
     'w-full rounded-xl border border-[#2d4f89] bg-[#0a1e45] px-4 py-3 text-[#dceaff] outline-none transition placeholder:text-[#6f8fca] focus:border-[#4f8fff]';
+
+function selectColorTheme(themeId: ColorThemeId): void {
+    if (!props.permissions.canEdit) {
+        return;
+    }
+
+    settings.value.colorTheme = themeId;
+
+    if (themeId === 'custom') {
+        return;
+    }
+
+    const theme = colorThemePresets.find((preset) => preset.id === themeId);
+
+    if (!theme) {
+        return;
+    }
+
+    settings.value.accentColor = theme.accentColor;
+    settings.value.pageColor = theme.pageColor;
+    settings.value.cardColor = theme.cardColor;
+    settings.value.headingColor = theme.headingColor;
+    settings.value.textColor = theme.textColor;
+    settings.value.buttonColor = theme.buttonColor;
+    settings.value.buttonTextColor = theme.buttonTextColor;
+
+    Object.assign(settings.value.tokens.colors, {
+        primary: theme.accentColor,
+        onPrimary: theme.buttonTextColor,
+        heading: theme.headingColor,
+        text: theme.textColor,
+        textMuted: theme.textMuted,
+    });
+    Object.assign(settings.value.tokens.surfaces, {
+        page: theme.pageColor,
+        card: theme.cardColor,
+        muted: theme.mutedSurface,
+    });
+    Object.assign(settings.value.tokens.borders, {
+        default: theme.borderColor,
+        strong: theme.strongBorderColor,
+        focus: theme.focusColor,
+    });
+    Object.assign(settings.value.tokens.states, {
+        success: theme.successColor,
+        warning: theme.warningColor,
+        danger: theme.dangerColor,
+    });
+    Object.assign(settings.value.tokens.components, {
+        fieldBackground: theme.fieldBackground,
+        fieldText: theme.fieldText,
+        primaryButtonBackground: theme.buttonColor,
+        primaryButtonText: theme.buttonTextColor,
+    });
+}
+
 const saveForm = useForm({
     custom_domain: props.funnel.custom_domain ?? '',
     design_settings: settings.value as DesignSettings,
@@ -293,6 +746,61 @@ const saveForm = useForm({
 });
 
 const flashStatus = computed(() => page.props.flash?.status ?? '');
+const publicationTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    'Fuso local do navegador';
+const domainStatusToneClass = computed(() => {
+    if (props.customDomainStatus.status === 'ready') {
+        return 'border-emerald-400/40 bg-emerald-400/10 text-emerald-100';
+    }
+
+    if (
+        props.customDomainStatus.status === 'pending_dns' ||
+        props.customDomainStatus.status === 'tls_pending'
+    ) {
+        return 'border-amber-400/40 bg-amber-400/10 text-amber-100';
+    }
+
+    return 'border-[#2d4f89] bg-[#0a1e45] text-[#dceaff]';
+});
+
+function designFieldError(field: string): string | undefined {
+    return (saveForm.errors as Record<string, string | undefined>)[
+        `design_settings.${field}`
+    ];
+}
+
+function formatDomainCheckedAt(value: string | null): string {
+    if (!value) {
+        return '';
+    }
+
+    const date = new Date(value);
+
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR');
+}
+
+function refreshDomainStatus(): void {
+    if (!props.funnel.custom_domain || isRefreshingDomainStatus.value) {
+        return;
+    }
+
+    isRefreshingDomainStatus.value = true;
+
+    router.get(
+        FunnelController.design(props.funnel.id).url,
+        { refresh_domain: 1 },
+        {
+            only: ['customDomainStatus'],
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+            onFinish: () => {
+                isRefreshingDomainStatus.value = false;
+            },
+        },
+    );
+}
 
 function hexToRgba(hex: string, alpha: number): string {
     const clean = hex.replace('#', '');
@@ -309,7 +817,9 @@ function hexToRgba(hex: string, alpha: number): string {
 }
 
 function isOptionsComponentType(type?: string): boolean {
-    return ['options', 'multiple_choice', 'single_choice', 'yes_no'].includes(type ?? '');
+    return ['options', 'multiple_choice', 'single_choice', 'yes_no'].includes(
+        type ?? '',
+    );
 }
 
 function stagePreviewBlocks(stage: FunnelStage): StageBlock[] {
@@ -374,7 +884,9 @@ function stageInputPlaceholder(block: StageBlock): string {
     return 'Digite aqui...';
 }
 
-function stageOptionItems(block: StageBlock): Array<{ id: string; label: string }> {
+function stageOptionItems(
+    block: StageBlock,
+): Array<{ id: string; label: string }> {
     if (Array.isArray(block.option_items) && block.option_items.length > 0) {
         return block.option_items.map((item, index) => ({
             id: item.id ?? `${block.id ?? 'block'}-${index}`,
@@ -417,7 +929,7 @@ function stageProgress(index: number): number {
     return Math.round(((index + 1) / total) * 100);
 }
 
-function saveDesign(isPublishing = false): void {
+function saveDesign(publicationAction: PublicationAction = 'preserve'): void {
     if (!props.permissions.canEdit) {
         return;
     }
@@ -431,21 +943,37 @@ function saveDesign(isPublishing = false): void {
     settings.value.tokens.brand.showLogo = settings.value.showLogo;
     settings.value.tokens.surfaces.page = settings.value.pageColor;
     settings.value.tokens.surfaces.card = settings.value.cardColor;
-    settings.value.tokens.components.primaryButtonBackground = settings.value.buttonColor;
-    settings.value.tokens.components.primaryButtonText = settings.value.buttonTextColor;
+    settings.value.tokens.components.primaryButtonBackground =
+        settings.value.buttonColor;
+    settings.value.tokens.components.primaryButtonText =
+        settings.value.buttonTextColor;
 
-    saveForm.custom_domain = (saveForm.custom_domain ?? '').trim().toLowerCase();
-    saveForm.design_settings = { ...settings.value };
-    saveForm.is_active = isPublishing ? true : publishedState.value;
+    const nextPublishedState =
+        publicationAction === 'publish'
+            ? true
+            : publicationAction === 'unpublish'
+              ? false
+              : publishedState.value;
+
+    saveForm.custom_domain = (saveForm.custom_domain ?? '')
+        .trim()
+        .toLowerCase();
+    saveForm.design_settings = {
+        ...settings.value,
+        expiresAt: serializeDateTimeLocalValue(settings.value.expiresAt),
+    };
+    saveForm.is_active = nextPublishedState;
 
     saveForm.submit(FunnelController.updateDesign(props.funnel.id), {
         preserveScroll: true,
         preserveState: true,
         replace: true,
         onSuccess: () => {
-            if (isPublishing) {
-                publishedState.value = true;
-            }
+            publishedState.value = nextPublishedState;
+            isConfirmingUnpublish.value = false;
+        },
+        onError: () => {
+            openPanel.value = 'publication';
         },
     });
 }
@@ -464,69 +992,204 @@ const previewLogoUrl = computed(() => {
         <header class="border-b border-[#1e3157] bg-[#071430] px-4 py-3">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
-                    <Link href="/dashboard" class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2f4f8c] bg-[#081b3c] text-base font-bold text-white">
+                    <Link
+                        href="/dashboard"
+                        class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2f4f8c] bg-[#081b3c] text-base font-bold text-white"
+                    >
                         IN
                     </Link>
                     <div>
-                        <p class="text-lg font-semibold text-white">{{ props.funnel.name }}</p>
-                        <p class="text-sm text-[#88a8df]">... / {{ props.funnel.slug }}</p>
+                        <p class="text-lg font-semibold text-white">
+                            {{ props.funnel.name }}
+                        </p>
+                        <p class="text-sm text-[#88a8df]">
+                            ... / {{ props.funnel.slug }}
+                        </p>
                     </div>
-                    <div v-if="props.permissions.role === 'viewer'" class="rounded-full border border-[#4e6eaa] bg-[#163463] px-2.5 py-1 text-xs text-[#d4e5ff]">
+                    <div
+                        v-if="props.permissions.role === 'viewer'"
+                        class="rounded-full border border-[#4e6eaa] bg-[#163463] px-2.5 py-1 text-xs text-[#d4e5ff]"
+                    >
                         Somente leitura
                     </div>
                 </div>
 
-                <nav class="flex items-center gap-1.5 rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm">
-                    <Link :href="FunnelController.builder(props.funnel.id).url" class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]">
-                        <span class="inline-flex items-center gap-1"><BookOpen class="size-4" /> Construtor</span>
+                <nav
+                    class="flex items-center gap-1.5 rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm"
+                >
+                    <Link
+                        :href="FunnelController.builder(props.funnel.id).url"
+                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><BookOpen class="size-4" /> Construtor</span
+                        >
                     </Link>
-                    <Link :href="FunnelController.flow(props.funnel.id).url" class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]">
-                        <span class="inline-flex items-center gap-1"><ListTree class="size-4" /> Fluxo</span>
+                    <Link
+                        :href="FunnelController.flow(props.funnel.id).url"
+                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><ListTree class="size-4" /> Fluxo</span
+                        >
                     </Link>
-                    <button class="rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white">
-                        <span class="inline-flex items-center gap-1"><Palette class="size-4" /> Design</span>
+                    <button
+                        class="rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><Palette class="size-4" /> Design</span
+                        >
                     </button>
-                    <Link :href="FunnelController.leads(props.funnel.id).url" class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]">
-                        <span class="inline-flex items-center gap-1"><CircleUserRound class="size-4" /> Leads</span>
+                    <Link
+                        v-if="props.permissions.canManageLeads"
+                        :href="FunnelController.leads(props.funnel.id).url"
+                        data-testid="leads-nav-link"
+                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><CircleUserRound class="size-4" /> Leads</span
+                        >
                     </Link>
+                    <button
+                        v-else
+                        type="button"
+                        disabled
+                        data-testid="leads-nav-restricted"
+                        title="Leads disponíveis apenas para proprietários e editores"
+                        class="cursor-not-allowed rounded-md px-3.5 py-1.5 text-[#607da8] opacity-70"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><CircleUserRound class="size-4" /> Leads</span
+                        >
+                        <span class="sr-only"
+                            >Acesso disponível apenas para proprietários e
+                            editores</span
+                        >
+                    </button>
                 </nav>
 
                 <div class="flex items-center gap-1.5">
-                    <Link :href="profile.edit().url" class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]">
+                    <span
+                        data-testid="publication-status"
+                        class="rounded-full border px-2.5 py-1 text-xs font-semibold"
+                        :class="
+                            publishedState
+                                ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200'
+                                : 'border-amber-400/40 bg-amber-400/10 text-amber-200'
+                        "
+                    >
+                        {{ publishedState ? 'Publicado' : 'Rascunho' }}
+                    </span>
+                    <Link
+                        :href="FunnelController.settings(props.funnel.id).url"
+                        aria-label="Configurações do funil"
+                        title="Configurações do funil"
+                        data-testid="funnel-settings-button"
+                        class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]"
+                    >
                         <Settings class="size-4" />
                     </Link>
-                    <button :disabled="!props.permissions.canShare" class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff] disabled:opacity-40">
+                    <button
+                        :disabled="!props.permissions.canShare"
+                        class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff] disabled:opacity-40"
+                    >
                         <Share2 class="size-4" />
                     </button>
-                    <Link :href="`/f/${props.funnel.slug}`" class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]">
-                        <Play class="size-4" />
-                    </Link>
+                    <a
+                        :href="showPublicFunnel(props.funnel.slug).url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Ver resultado do funil"
+                        title="Ver resultado do funil"
+                        data-testid="funnel-preview-button"
+                        class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]"
+                    >
+                        <Eye class="size-4" />
+                    </a>
                     <button
-                        :disabled="!props.permissions.canEdit || saveForm.processing"
+                        :disabled="
+                            !props.permissions.canEdit || saveForm.processing
+                        "
                         class="rounded-md border border-[#3860a7] bg-[#0a2c61] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                        @click="saveDesign(false)"
+                        @click="saveDesign()"
                     >
                         Salvar
                     </button>
                     <button
-                        :disabled="!props.permissions.canEdit || saveForm.processing"
+                        v-if="!publishedState"
+                        :disabled="
+                            !props.permissions.canEdit || saveForm.processing
+                        "
                         class="rounded-md bg-linear-to-r from-[#1d5fd2] to-[#3f8dff] px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-                        @click="saveDesign(true)"
+                        @click="saveDesign('publish')"
                     >
                         Publicar
                     </button>
-                    <span v-if="saveForm.processing" class="text-xs text-[#9ebbf0]">Salvando...</span>
-                    <span v-else-if="flashStatus === 'design-saved'" class="text-xs text-emerald-300">Design salvo</span>
-                    <span v-else-if="flashStatus === 'funnel-published'" class="text-xs text-emerald-300">Funil publicado</span>
+                    <button
+                        v-else-if="!isConfirmingUnpublish"
+                        :disabled="
+                            !props.permissions.canEdit || saveForm.processing
+                        "
+                        class="rounded-md border border-rose-400/50 bg-rose-500/10 px-3 py-1.5 text-sm font-medium text-rose-200 disabled:opacity-50"
+                        @click="isConfirmingUnpublish = true"
+                    >
+                        Despublicar
+                    </button>
+                    <template v-else>
+                        <button
+                            :disabled="saveForm.processing"
+                            class="rounded-md border border-[#3860a7] bg-[#081b39] px-2.5 py-1.5 text-xs text-[#b6cdff] disabled:opacity-50"
+                            @click="isConfirmingUnpublish = false"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            :disabled="saveForm.processing"
+                            class="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                            @click="saveDesign('unpublish')"
+                        >
+                            Confirmar despublicação
+                        </button>
+                    </template>
+                    <span
+                        v-if="saveForm.processing"
+                        class="text-xs text-[#9ebbf0]"
+                        >Salvando...</span
+                    >
+                    <span
+                        v-else-if="flashStatus === 'design-saved'"
+                        class="text-xs text-emerald-300"
+                        >Design salvo</span
+                    >
+                    <span
+                        v-else-if="flashStatus === 'funnel-published'"
+                        class="text-xs text-emerald-300"
+                        >Funil publicado</span
+                    >
+                    <span
+                        v-else-if="flashStatus === 'funnel-unpublished'"
+                        class="text-xs text-amber-300"
+                        >Funil despublicado</span
+                    >
                 </div>
             </div>
         </header>
 
-        <main class="grid h-[calc(100vh-69px)] grid-cols-[1fr_470px] overflow-hidden">
-            <section class="overflow-y-auto border-r border-[#1f3258] bg-linear-to-b from-[#06112a] via-[#071530] to-[#050d20]">
+        <main
+            class="grid h-[calc(100vh-69px)] min-h-0 grid-cols-[1fr_470px] overflow-hidden"
+        >
+            <section
+                class="overflow-y-auto border-r border-[#1f3258] bg-linear-to-b from-[#06112a] via-[#071530] to-[#050d20]"
+            >
                 <div
+                    data-testid="design-preview-theme"
                     class="mx-auto flex min-h-full w-full flex-col gap-12 px-6 py-12"
-                    :class="[previewWrapperClass, settings.alignment === 'center' ? 'items-center' : 'items-start']"
+                    :class="[
+                        previewWrapperClass,
+                        settings.alignment === 'center'
+                            ? 'items-center'
+                            : 'items-start',
+                    ]"
                     :style="previewThemeStyle"
                 >
                     <article
@@ -541,46 +1204,109 @@ const previewLogoUrl = computed(() => {
                         }"
                     >
                         <div class="px-4 py-4">
-                            <div class="mb-3 flex items-center justify-between text-xs text-[#95b4ea]">
-                        <div v-if="settings.showLogo" class="flex items-center gap-2">
-                            <img v-if="previewLogoUrl" :src="previewLogoUrl" alt="Logo do funil" class="h-7 w-auto max-w-28 object-contain" />
-                            <template v-else>
-                                <span class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[#2f4f8c] bg-[#081b3c] text-[11px] font-semibold text-white">IN</span>
-                                <span>Inovaform</span>
-                            </template>
-                        </div>
+                            <div
+                                class="mb-3 flex items-center justify-between text-xs text-[#95b4ea]"
+                            >
+                                <div
+                                    v-if="settings.showLogo"
+                                    class="flex items-center gap-2"
+                                >
+                                    <img
+                                        v-if="previewLogoUrl"
+                                        :src="previewLogoUrl"
+                                        alt="Logo do funil"
+                                        class="h-7 w-auto max-w-28 object-contain"
+                                    />
+                                    <template v-else>
+                                        <span
+                                            class="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[#2f4f8c] bg-[#081b3c] text-[11px] font-semibold text-white"
+                                            >IN</span
+                                        >
+                                        <span>Inovaform</span>
+                                    </template>
+                                </div>
                                 <span
                                     class="rounded-full border px-2 py-1"
                                     :style="{
-                                        borderColor: hexToRgba(settings.accentColor, 0.45),
-                                        backgroundColor: hexToRgba(settings.accentColor, 0.18),
+                                        borderColor: hexToRgba(
+                                            settings.accentColor,
+                                            0.45,
+                                        ),
+                                        backgroundColor: hexToRgba(
+                                            settings.accentColor,
+                                            0.18,
+                                        ),
                                         borderRadius: controlRadius,
                                     }"
                                 >
                                     Etapa {{ stageIndex + 1 }}
                                 </span>
                             </div>
-                            <div v-if="settings.allowBack" class="mb-3 text-sm text-[#8fb1eb]">&#8592; Voltar</div>
-                            <div v-if="settings.showProgress" class="h-2 overflow-hidden rounded-full bg-[#16366f]">
-                                <div class="h-full rounded-full transition-all" :style="{ width: `${stageProgress(stageIndex)}%`, backgroundColor: settings.accentColor }" />
+                            <div
+                                v-if="settings.allowBack"
+                                class="mb-3 text-sm text-[#8fb1eb]"
+                            >
+                                &#8592; Voltar
+                            </div>
+                            <div
+                                v-if="settings.showProgress"
+                                class="h-2 overflow-hidden rounded-full bg-[#16366f]"
+                            >
+                                <div
+                                    class="h-full rounded-full transition-all"
+                                    :style="{
+                                        width: `${stageProgress(stageIndex)}%`,
+                                        backgroundColor: settings.accentColor,
+                                    }"
+                                />
                             </div>
                         </div>
 
-                        <div class="px-6 pb-7 pt-4" :class="contentGapClass">
+                        <div class="px-6 pt-4 pb-7" :class="contentGapClass">
                             <div class="space-y-3" :class="actionsAlignClass">
-                                <template v-for="block in stagePreviewBlocks(stage)" :key="block.id ?? `${stage.id}-${block.type}`">
+                                <template
+                                    v-for="block in stagePreviewBlocks(stage)"
+                                    :key="
+                                        block.id ?? `${stage.id}-${block.type}`
+                                    "
+                                >
                                     <div
-                                        v-if="['text', 'email', 'phone', 'number', 'date', 'height', 'weight', 'address'].includes(block.type ?? '')"
+                                        v-if="
+                                            [
+                                                'text',
+                                                'email',
+                                                'phone',
+                                                'number',
+                                                'date',
+                                                'height',
+                                                'weight',
+                                                'address',
+                                            ].includes(block.type ?? '')
+                                        "
                                         class="w-full"
                                     >
-                                        <p v-if="block.label" class="mb-1.5 text-sm" :style="{ color: settings.textColor }">{{ block.label }}</p>
+                                        <p
+                                            v-if="block.label"
+                                            class="mb-1.5 text-sm"
+                                            :style="{
+                                                color: settings.textColor,
+                                            }"
+                                        >
+                                            {{ block.label }}
+                                        </p>
                                         <div
                                             class="w-full border px-4 text-left transition"
                                             :class="optionClass"
                                             :style="{
                                                 color: settings.textColor,
-                                                backgroundColor: hexToRgba(settings.accentColor, 0.08),
-                                                borderColor: hexToRgba(settings.accentColor, 0.28),
+                                                backgroundColor: hexToRgba(
+                                                    settings.accentColor,
+                                                    0.08,
+                                                ),
+                                                borderColor: hexToRgba(
+                                                    settings.accentColor,
+                                                    0.28,
+                                                ),
                                                 borderRadius: controlRadius,
                                             }"
                                         >
@@ -592,15 +1318,36 @@ const previewLogoUrl = computed(() => {
                                         v-else-if="block.type === 'textarea'"
                                         class="w-full"
                                     >
-                                        <p v-if="block.label" class="mb-1.5 text-sm" :style="{ color: settings.textColor }">{{ block.label }}</p>
+                                        <p
+                                            v-if="block.label"
+                                            class="mb-1.5 text-sm"
+                                            :style="{
+                                                color: settings.textColor,
+                                            }"
+                                        >
+                                            {{ block.label }}
+                                        </p>
                                         <div
                                             class="w-full border px-4 text-left transition"
                                             :class="optionClass"
                                             :style="{
-                                                minHeight: settings.elementSize === 'compact' ? '88px' : settings.elementSize === 'large' ? '130px' : '108px',
+                                                minHeight:
+                                                    settings.elementSize ===
+                                                    'compact'
+                                                        ? '88px'
+                                                        : settings.elementSize ===
+                                                            'large'
+                                                          ? '130px'
+                                                          : '108px',
                                                 color: settings.textColor,
-                                                backgroundColor: hexToRgba(settings.accentColor, 0.08),
-                                                borderColor: hexToRgba(settings.accentColor, 0.28),
+                                                backgroundColor: hexToRgba(
+                                                    settings.accentColor,
+                                                    0.08,
+                                                ),
+                                                borderColor: hexToRgba(
+                                                    settings.accentColor,
+                                                    0.28,
+                                                ),
                                                 borderRadius: controlRadius,
                                             }"
                                         >
@@ -608,16 +1355,29 @@ const previewLogoUrl = computed(() => {
                                         </div>
                                     </div>
 
-                                    <div v-else-if="isOptionsComponentType(block.type)" class="w-full space-y-3">
+                                    <div
+                                        v-else-if="
+                                            isOptionsComponentType(block.type)
+                                        "
+                                        class="w-full space-y-3"
+                                    >
                                         <div
-                                            v-for="item in stageOptionItems(block)"
+                                            v-for="item in stageOptionItems(
+                                                block,
+                                            )"
                                             :key="item.id"
                                             class="w-full border text-left transition"
                                             :class="optionClass"
                                             :style="{
                                                 color: settings.headingColor,
-                                                backgroundColor: hexToRgba(settings.accentColor, 0.1),
-                                                borderColor: hexToRgba(settings.accentColor, 0.35),
+                                                backgroundColor: hexToRgba(
+                                                    settings.accentColor,
+                                                    0.1,
+                                                ),
+                                                borderColor: hexToRgba(
+                                                    settings.accentColor,
+                                                    0.35,
+                                                ),
                                                 borderRadius: controlRadius,
                                             }"
                                         >
@@ -626,45 +1386,99 @@ const previewLogoUrl = computed(() => {
                                     </div>
 
                                     <div
-                                        v-else-if="block.type === 'content_text' && stageBlockMarkup(block) !== ''"
+                                        v-else-if="
+                                            block.type === 'content_text' &&
+                                            stageBlockMarkup(block) !== ''
+                                        "
                                         class="w-full text-left [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:text-xl [&_h3]:font-semibold [&_p]:mt-2 [&_p]:leading-relaxed"
                                         :style="{ color: settings.textColor }"
                                         v-html="stageBlockMarkup(block)"
                                     />
 
                                     <div
-                                        v-else-if="block.type === 'image' || block.type === 'video' || block.type === 'audio'"
+                                        v-else-if="
+                                            block.type === 'image' ||
+                                            block.type === 'video' ||
+                                            block.type === 'audio'
+                                        "
                                         class="flex w-full items-center justify-center border text-sm"
                                         :class="optionClass"
                                         :style="{
-                                            minHeight: settings.elementSize === 'compact' ? '120px' : settings.elementSize === 'large' ? '200px' : '160px',
+                                            minHeight:
+                                                settings.elementSize ===
+                                                'compact'
+                                                    ? '120px'
+                                                    : settings.elementSize ===
+                                                        'large'
+                                                      ? '200px'
+                                                      : '160px',
                                             color: settings.textColor,
-                                            backgroundColor: hexToRgba(settings.accentColor, 0.08),
-                                            borderColor: hexToRgba(settings.accentColor, 0.28),
+                                            backgroundColor: hexToRgba(
+                                                settings.accentColor,
+                                                0.08,
+                                            ),
+                                            borderColor: hexToRgba(
+                                                settings.accentColor,
+                                                0.28,
+                                            ),
                                             borderRadius: controlRadius,
                                         }"
                                     >
-                                        {{ block.type === 'image' ? 'Preview de imagem' : block.type === 'video' ? 'Preview de video' : 'Preview de audio' }}
+                                        {{
+                                            block.type === 'image'
+                                                ? 'Preview de imagem'
+                                                : block.type === 'video'
+                                                  ? 'Preview de video'
+                                                  : 'Preview de audio'
+                                        }}
                                     </div>
 
                                     <div
-                                        v-else-if="['attention', 'alert', 'notification', 'timer', 'loading', 'level', 'price'].includes(block.type ?? '')"
+                                        v-else-if="
+                                            [
+                                                'attention',
+                                                'alert',
+                                                'notification',
+                                                'timer',
+                                                'loading',
+                                                'level',
+                                                'price',
+                                            ].includes(block.type ?? '')
+                                        "
                                         class="w-full border text-left transition"
                                         :class="optionClass"
                                         :style="{
                                             color: settings.headingColor,
-                                            backgroundColor: hexToRgba(settings.accentColor, 0.1),
-                                            borderColor: hexToRgba(settings.accentColor, 0.35),
+                                            backgroundColor: hexToRgba(
+                                                settings.accentColor,
+                                                0.1,
+                                            ),
+                                            borderColor: hexToRgba(
+                                                settings.accentColor,
+                                                0.35,
+                                            ),
                                             borderRadius: controlRadius,
                                         }"
                                     >
-                                        {{ block.label || stageInputPlaceholder(block) }}
+                                        {{
+                                            block.label ||
+                                            stageInputPlaceholder(block)
+                                        }}
                                     </div>
 
                                     <button
                                         v-else-if="block.type === 'button'"
                                         class="w-full px-4 font-semibold transition"
-                                        :class="[buttonClass, stageButtonClass(block), block.button_animated ? 'animate-pulse' : '', block.button_elevated ? 'shadow-[0_20px_35px_rgba(23,74,178,0.32)]' : '']"
+                                        :class="[
+                                            buttonClass,
+                                            stageButtonClass(block),
+                                            block.button_animated
+                                                ? 'animate-pulse'
+                                                : '',
+                                            block.button_elevated
+                                                ? 'shadow-[0_20px_35px_rgba(23,74,178,0.32)]'
+                                                : '',
+                                        ]"
                                         :style="{ borderRadius: controlRadius }"
                                     >
                                         {{ block.label || 'Continuar' }}
@@ -676,47 +1490,89 @@ const previewLogoUrl = computed(() => {
                 </div>
             </section>
 
-            <aside class="h-full overflow-hidden bg-[#06122e]">
+            <aside
+                data-testid="design-settings-panel"
+                class="h-full min-h-0 [scrollbar-gutter:stable] overflow-y-auto overscroll-contain bg-[#06122e]"
+            >
                 <section :class="panelSectionClass">
-                    <button class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]" @click="openPanel = 'general'">
+                    <button
+                        class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]"
+                        @click="openPanel = 'general'"
+                    >
                         <span>GERAL</span>
-                        <ChevronDown class="size-4 transition" :class="openPanel === 'general' ? 'rotate-180' : ''" />
+                        <ChevronDown
+                            class="size-4 transition"
+                            :class="openPanel === 'general' ? 'rotate-180' : ''"
+                        />
                     </button>
-                    <div v-show="openPanel === 'general'" class="mt-4 space-y-4">
+                    <div
+                        v-show="openPanel === 'general'"
+                        class="mt-4 space-y-4"
+                    >
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Alinhamento</label>
-                            <select v-model="settings.alignment" :disabled="!props.permissions.canEdit" :class="fieldClass">
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Alinhamento</label
+                            >
+                            <select
+                                v-model="settings.alignment"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                            >
                                 <option value="center">Centralizado</option>
                                 <option value="left">Esquerda</option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Largura principal</label>
-                            <select v-model="settings.width" :disabled="!props.permissions.canEdit" :class="fieldClass">
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Largura principal</label
+                            >
+                            <select
+                                v-model="settings.width"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                            >
                                 <option value="small">Pequeno</option>
                                 <option value="medium">Medio</option>
                                 <option value="large">Grande</option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Tamanho dos elementos</label>
-                            <select v-model="settings.elementSize" :disabled="!props.permissions.canEdit" :class="fieldClass">
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Tamanho dos elementos</label
+                            >
+                            <select
+                                v-model="settings.elementSize"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                            >
                                 <option value="compact">Compacto</option>
                                 <option value="default">Padrao</option>
                                 <option value="large">Grande</option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Espacamento</label>
-                            <select v-model="settings.spacing" :disabled="!props.permissions.canEdit" :class="fieldClass">
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Espacamento</label
+                            >
+                            <select
+                                v-model="settings.spacing"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                            >
                                 <option value="compact">Compacto</option>
                                 <option value="default">Padrao</option>
                                 <option value="large">Amplo</option>
                             </select>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Bordas/Cantos</label>
-                            <select v-model="settings.radius" :disabled="!props.permissions.canEdit" :class="fieldClass">
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Bordas/Cantos</label
+                            >
+                            <select
+                                v-model="settings.radius"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                            >
                                 <option value="small">Suave</option>
                                 <option value="medium">Medio</option>
                                 <option value="large">Arredondado</option>
@@ -726,158 +1582,909 @@ const previewLogoUrl = computed(() => {
                 </section>
 
                 <section :class="panelSectionClass">
-                    <button class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]" @click="openPanel = openPanel === 'header' ? 'general' : 'header'">
+                    <button
+                        class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]"
+                        @click="
+                            openPanel =
+                                openPanel === 'header' ? 'general' : 'header'
+                        "
+                    >
                         <span>HEADER</span>
-                        <ChevronDown class="size-4 transition" :class="openPanel === 'header' ? 'rotate-180' : ''" />
+                        <ChevronDown
+                            class="size-4 transition"
+                            :class="openPanel === 'header' ? 'rotate-180' : ''"
+                        />
                     </button>
                     <div v-show="openPanel === 'header'" class="mt-4 space-y-3">
-                        <label class="flex items-center justify-between rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]">
+                        <label
+                            class="flex items-center justify-between rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]"
+                        >
                             Mostrar logo
-                            <input v-model="settings.showLogo" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#3d8bff]" />
+                            <input
+                                v-model="settings.showLogo"
+                                :disabled="!props.permissions.canEdit"
+                                type="checkbox"
+                                class="h-4 w-4 accent-[#3d8bff]"
+                            />
                         </label>
-                        <label class="flex items-center justify-between rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]">
+                        <label
+                            class="flex items-center justify-between rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]"
+                        >
                             Mostrar progresso
-                            <input v-model="settings.showProgress" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#3d8bff]" />
+                            <input
+                                v-model="settings.showProgress"
+                                :disabled="!props.permissions.canEdit"
+                                type="checkbox"
+                                class="h-4 w-4 accent-[#3d8bff]"
+                            />
                         </label>
-                        <label class="flex items-center justify-between rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]">
+                        <label
+                            class="flex items-center justify-between rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]"
+                        >
                             Permitir voltar
-                            <input v-model="settings.allowBack" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#3d8bff]" />
+                            <input
+                                v-model="settings.allowBack"
+                                :disabled="!props.permissions.canEdit"
+                                type="checkbox"
+                                class="h-4 w-4 accent-[#3d8bff]"
+                            />
                         </label>
                     </div>
                 </section>
 
-                <section :class="panelSectionClass">
-                    <button class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]" @click="openPanel = openPanel === 'publication' ? 'general' : 'publication'">
+                <section v-if="false" :class="panelSectionClass">
+                    <button
+                        class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]"
+                        @click="
+                            openPanel =
+                                openPanel === 'publication'
+                                    ? 'general'
+                                    : 'publication'
+                        "
+                    >
                         <span>PUBLICACAO</span>
-                        <ChevronDown class="size-4 transition" :class="openPanel === 'publication' ? 'rotate-180' : ''" />
+                        <ChevronDown
+                            class="size-4 transition"
+                            :class="
+                                openPanel === 'publication' ? 'rotate-180' : ''
+                            "
+                        />
                     </button>
-                    <div v-show="openPanel === 'publication'" class="mt-4 space-y-4">
-                        <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Dominio personalizado</label>
-                            <input v-model="saveForm.custom_domain" :disabled="!props.permissions.canEdit" :class="fieldClass" placeholder="quiz.seudominio.com" />
-                            <p class="mt-1 text-xs text-[#6f8fca]">Aponte o dominio para a aplicacao e publique o funil.</p>
-                            <p v-if="saveForm.errors.custom_domain" class="mt-1 text-xs text-rose-300">{{ saveForm.errors.custom_domain }}</p>
+                    <div
+                        v-show="openPanel === 'publication'"
+                        class="mt-4 space-y-4"
+                    >
+                        <div
+                            data-testid="custom-domain-status"
+                            class="rounded-xl border p-4"
+                            :class="domainStatusToneClass"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold">
+                                        {{ props.customDomainStatus.label }}
+                                    </p>
+                                    <p
+                                        class="mt-1 text-xs leading-5 opacity-80"
+                                    >
+                                        {{ props.customDomainStatus.message }}
+                                    </p>
+                                </div>
+                                <span
+                                    class="mt-1 size-2.5 shrink-0 rounded-full"
+                                    :class="
+                                        props.customDomainStatus.status ===
+                                        'ready'
+                                            ? 'bg-emerald-400'
+                                            : props.customDomainStatus
+                                                    .status === 'pending_dns' ||
+                                                props.customDomainStatus
+                                                    .status === 'tls_pending'
+                                              ? 'bg-amber-400'
+                                              : 'bg-slate-400'
+                                    "
+                                />
+                            </div>
+                            <div
+                                v-if="props.funnel.custom_domain"
+                                class="mt-3 flex flex-wrap gap-2 text-[11px]"
+                            >
+                                <span
+                                    class="rounded-full border border-current/20 px-2 py-1"
+                                    >DNS:
+                                    {{
+                                        props.customDomainStatus.dns_ready
+                                            ? 'validado'
+                                            : 'pendente'
+                                    }}</span
+                                >
+                                <span
+                                    class="rounded-full border border-current/20 px-2 py-1"
+                                    >HTTPS:
+                                    {{
+                                        props.customDomainStatus.tls_ready
+                                            ? 'validado'
+                                            : 'pendente'
+                                    }}</span
+                                >
+                            </div>
+                            <p
+                                v-if="props.customDomainStatus.expected_target"
+                                class="mt-3 text-[11px] opacity-75"
+                            >
+                                Destino esperado:
+                                <code class="font-mono">{{
+                                    props.customDomainStatus.expected_target
+                                }}</code>
+                            </p>
+                            <div
+                                v-if="props.funnel.custom_domain"
+                                class="mt-3 flex items-center justify-between gap-3 border-t border-current/15 pt-3"
+                            >
+                                <span class="text-[10px] opacity-60">
+                                    {{
+                                        formatDomainCheckedAt(
+                                            props.customDomainStatus.checked_at,
+                                        )
+                                            ? `Verificado em ${formatDomainCheckedAt(props.customDomainStatus.checked_at)}`
+                                            : 'Aguardando verificação'
+                                    }}
+                                </span>
+                                <button
+                                    type="button"
+                                    :disabled="isRefreshingDomainStatus"
+                                    class="text-[11px] font-semibold underline underline-offset-2 disabled:opacity-50"
+                                    @click="refreshDomainStatus"
+                                >
+                                    {{
+                                        isRefreshingDomainStatus
+                                            ? 'Verificando...'
+                                            : 'Verificar novamente'
+                                    }}
+                                </button>
+                            </div>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Logo do funil</label>
-                            <input v-model="settings.logoUrl" :disabled="!props.permissions.canEdit" :class="fieldClass" placeholder="https://..." />
+                            <div class="mb-1 flex items-center gap-1.5">
+                                <label class="block text-sm text-[#88a8df]"
+                                    >Domínio personalizado</label
+                                >
+                                <Dialog>
+                                    <DialogTrigger as-child>
+                                        <button
+                                            type="button"
+                                            data-testid="custom-domain-help-trigger"
+                                            aria-label="Como configurar um domínio personalizado"
+                                            class="inline-flex size-6 items-center justify-center rounded-full text-[#7fa6e9] transition hover:bg-[#163467] hover:text-white focus-visible:ring-2 focus-visible:ring-[#4d8eff] focus-visible:outline-none"
+                                        >
+                                            <CircleHelp
+                                                class="size-4"
+                                                aria-hidden="true"
+                                            />
+                                        </button>
+                                    </DialogTrigger>
+                                    <DialogContent
+                                        data-testid="custom-domain-help-dialog"
+                                        class="max-h-[calc(100vh-2rem)] overflow-y-auto border-[#2b4f87] bg-[#081733] text-[#dceaff] sm:max-w-xl"
+                                    >
+                                        <DialogHeader class="pr-7 text-left">
+                                            <DialogTitle
+                                                class="text-xl text-white"
+                                                >Como conectar seu
+                                                domínio</DialogTitle
+                                            >
+                                            <DialogDescription
+                                                class="leading-6 text-[#9ebbf0]"
+                                            >
+                                                A configuração é feita no painel
+                                                da empresa onde o domínio foi
+                                                comprado ou onde o DNS é
+                                                gerenciado.
+                                            </DialogDescription>
+                                        </DialogHeader>
+
+                                        <ol class="space-y-4 text-sm">
+                                            <li class="flex gap-3">
+                                                <span
+                                                    class="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#1b4d99] font-semibold text-white"
+                                                    >1</span
+                                                >
+                                                <div>
+                                                    <p
+                                                        class="font-semibold text-white"
+                                                    >
+                                                        Escolha um subdomínio
+                                                    </p>
+                                                    <p
+                                                        class="mt-1 leading-5 text-[#9ebbf0]"
+                                                    >
+                                                        Use algo como
+                                                        <code
+                                                            class="rounded bg-[#102855] px-1.5 py-0.5 font-mono text-[#dceaff]"
+                                                            >quiz.suaempresa.com.br</code
+                                                        >. Não inclua
+                                                        <code class="font-mono"
+                                                            >https://</code
+                                                        >, barras ou caminhos.
+                                                    </p>
+                                                </div>
+                                            </li>
+                                            <li class="flex gap-3">
+                                                <span
+                                                    class="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#1b4d99] font-semibold text-white"
+                                                    >2</span
+                                                >
+                                                <div class="min-w-0 flex-1">
+                                                    <p
+                                                        class="font-semibold text-white"
+                                                    >
+                                                        Crie um registro no DNS
+                                                    </p>
+                                                    <p
+                                                        class="mt-1 leading-5 text-[#9ebbf0]"
+                                                    >
+                                                        No Registro.br,
+                                                        Cloudflare, GoDaddy ou
+                                                        outro provedor,
+                                                        adicione:
+                                                    </p>
+                                                    <dl
+                                                        class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-lg border border-[#294d85] bg-[#0b2048] p-3 text-xs"
+                                                    >
+                                                        <dt
+                                                            class="text-[#7fa6e9]"
+                                                        >
+                                                            Tipo
+                                                        </dt>
+                                                        <dd
+                                                            class="font-mono text-white"
+                                                        >
+                                                            CNAME
+                                                        </dd>
+                                                        <dt
+                                                            class="text-[#7fa6e9]"
+                                                        >
+                                                            Nome
+                                                        </dt>
+                                                        <dd
+                                                            class="font-mono text-white"
+                                                        >
+                                                            quiz
+                                                        </dd>
+                                                        <dt
+                                                            class="text-[#7fa6e9]"
+                                                        >
+                                                            Destino
+                                                        </dt>
+                                                        <dd
+                                                            class="font-mono break-all text-white"
+                                                        >
+                                                            {{
+                                                                props
+                                                                    .customDomainStatus
+                                                                    .expected_target ||
+                                                                'fornecido pela equipe Inovaform'
+                                                            }}
+                                                        </dd>
+                                                        <dt
+                                                            class="text-[#7fa6e9]"
+                                                        >
+                                                            TTL
+                                                        </dt>
+                                                        <dd
+                                                            class="font-mono text-white"
+                                                        >
+                                                            Automático ou padrão
+                                                        </dd>
+                                                    </dl>
+                                                </div>
+                                            </li>
+                                            <li class="flex gap-3">
+                                                <span
+                                                    class="flex size-7 shrink-0 items-center justify-center rounded-full bg-[#1b4d99] font-semibold text-white"
+                                                    >3</span
+                                                >
+                                                <div>
+                                                    <p
+                                                        class="font-semibold text-white"
+                                                    >
+                                                        Salve e verifique
+                                                    </p>
+                                                    <p
+                                                        class="mt-1 leading-5 text-[#9ebbf0]"
+                                                    >
+                                                        Informe o domínio nesta
+                                                        tela, clique em Salvar e
+                                                        depois em Verificar
+                                                        novamente. A propagação
+                                                        do DNS pode levar alguns
+                                                        minutos e, em alguns
+                                                        provedores, até 48
+                                                        horas.
+                                                    </p>
+                                                </div>
+                                            </li>
+                                        </ol>
+
+                                        <div
+                                            class="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs leading-5 text-amber-100"
+                                        >
+                                            Recomendamos usar um subdomínio.
+                                            Alterar os registros principais do
+                                            seu site pode deixá-lo indisponível.
+                                        </div>
+
+                                        <DialogFooter>
+                                            <DialogClose as-child>
+                                                <button
+                                                    type="button"
+                                                    data-testid="custom-domain-help-close"
+                                                    class="rounded-lg bg-[#2f76df] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#3d8bff] focus-visible:ring-2 focus-visible:ring-[#70a7ff] focus-visible:outline-none"
+                                                >
+                                                    Entendi
+                                                </button>
+                                            </DialogClose>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
+                            <input
+                                v-model="saveForm.custom_domain"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                maxlength="255"
+                                autocapitalize="none"
+                                spellcheck="false"
+                                placeholder="quiz.seudominio.com"
+                            />
+                            <p class="mt-1 text-xs text-[#6f8fca]">
+                                Aponte o dominio para a aplicacao e publique o
+                                funil.
+                            </p>
+                            <p
+                                v-if="saveForm.errors.custom_domain"
+                                class="mt-1 text-xs text-rose-300"
+                            >
+                                {{ saveForm.errors.custom_domain }}
+                            </p>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Favicon do funil</label>
-                            <input v-model="settings.faviconUrl" :disabled="!props.permissions.canEdit" :class="fieldClass" placeholder="https://..." />
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Logo do funil</label
+                            >
+                            <input
+                                v-model="settings.logoUrl"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                placeholder="https://..."
+                            />
+                            <p
+                                v-if="designFieldError('logoUrl')"
+                                class="mt-1 text-xs text-rose-300"
+                            >
+                                {{ designFieldError('logoUrl') }}
+                            </p>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">SEO title</label>
-                            <input v-model="settings.seoTitle" :disabled="!props.permissions.canEdit" :class="fieldClass" placeholder="Titulo para mecanismos de busca" />
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Favicon do funil</label
+                            >
+                            <input
+                                v-model="settings.faviconUrl"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                placeholder="https://..."
+                            />
+                            <p
+                                v-if="designFieldError('faviconUrl')"
+                                class="mt-1 text-xs text-rose-300"
+                            >
+                                {{ designFieldError('faviconUrl') }}
+                            </p>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">SEO description</label>
-                            <textarea v-model="settings.seoDescription" :disabled="!props.permissions.canEdit" :class="fieldClass" rows="3" placeholder="Descricao curta para compartilhamento e busca" />
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >SEO title</label
+                            >
+                            <input
+                                v-model="settings.seoTitle"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                maxlength="120"
+                                placeholder="Titulo para mecanismos de busca"
+                            />
+                            <div
+                                class="mt-1 flex items-center justify-between gap-3 text-xs"
+                            >
+                                <p
+                                    v-if="designFieldError('seoTitle')"
+                                    class="text-rose-300"
+                                >
+                                    {{ designFieldError('seoTitle') }}
+                                </p>
+                                <span class="ml-auto text-[#6f8fca]"
+                                    >{{
+                                        (settings.seoTitle ?? '').length
+                                    }}/120</span
+                                >
+                            </div>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">SEO image</label>
-                            <input v-model="settings.seoImageUrl" :disabled="!props.permissions.canEdit" :class="fieldClass" placeholder="https://..." />
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >SEO description</label
+                            >
+                            <textarea
+                                v-model="settings.seoDescription"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                maxlength="180"
+                                rows="3"
+                                placeholder="Descricao curta para compartilhamento e busca"
+                            />
+                            <div
+                                class="mt-1 flex items-center justify-between gap-3 text-xs"
+                            >
+                                <p
+                                    v-if="designFieldError('seoDescription')"
+                                    class="text-rose-300"
+                                >
+                                    {{ designFieldError('seoDescription') }}
+                                </p>
+                                <span class="ml-auto text-[#6f8fca]"
+                                    >{{
+                                        (settings.seoDescription ?? '').length
+                                    }}/180</span
+                                >
+                            </div>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Expira em</label>
-                            <input v-model="settings.expiresAt" :disabled="!props.permissions.canEdit" :class="fieldClass" type="datetime-local" />
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >SEO image</label
+                            >
+                            <input
+                                v-model="settings.seoImageUrl"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                placeholder="https://..."
+                            />
+                            <p
+                                v-if="designFieldError('seoImageUrl')"
+                                class="mt-1 text-xs text-rose-300"
+                            >
+                                {{ designFieldError('seoImageUrl') }}
+                            </p>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Titulo da pagina indisponivel</label>
-                            <input v-model="settings.unavailableTitle" :disabled="!props.permissions.canEdit" :class="fieldClass" />
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Expira em</label
+                            >
+                            <input
+                                v-model="settings.expiresAt"
+                                data-testid="publication-expires-at"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                type="datetime-local"
+                            />
+                            <p class="mt-1 text-xs text-[#6f8fca]">
+                                Horário em {{ publicationTimezone }}. Ao salvar,
+                                será convertido para UTC.
+                            </p>
+                            <p
+                                v-if="designFieldError('expiresAt')"
+                                class="mt-1 text-xs text-rose-300"
+                            >
+                                {{ designFieldError('expiresAt') }}
+                            </p>
                         </div>
                         <div>
-                            <label class="mb-1 block text-sm text-[#88a8df]">Descricao da pagina indisponivel</label>
-                            <textarea v-model="settings.unavailableDescription" :disabled="!props.permissions.canEdit" :class="fieldClass" rows="3" />
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Titulo da pagina indisponivel</label
+                            >
+                            <input
+                                v-model="settings.unavailableTitle"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                maxlength="120"
+                            />
+                            <p
+                                v-if="designFieldError('unavailableTitle')"
+                                class="mt-1 text-xs text-rose-300"
+                            >
+                                {{ designFieldError('unavailableTitle') }}
+                            </p>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm text-[#88a8df]"
+                                >Descricao da pagina indisponivel</label
+                            >
+                            <textarea
+                                v-model="settings.unavailableDescription"
+                                :disabled="!props.permissions.canEdit"
+                                :class="fieldClass"
+                                maxlength="300"
+                                rows="3"
+                            />
+                            <p
+                                v-if="
+                                    designFieldError('unavailableDescription')
+                                "
+                                class="mt-1 text-xs text-rose-300"
+                            >
+                                {{ designFieldError('unavailableDescription') }}
+                            </p>
                         </div>
                     </div>
                 </section>
 
                 <section :class="panelSectionClass">
-                    <button class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]" @click="openPanel = openPanel === 'colors' ? 'general' : 'colors'">
+                    <button
+                        class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]"
+                        @click="
+                            openPanel =
+                                openPanel === 'colors' ? 'general' : 'colors'
+                        "
+                    >
                         <span>CORES</span>
-                        <ChevronDown class="size-4 transition" :class="openPanel === 'colors' ? 'rotate-180' : ''" />
+                        <ChevronDown
+                            class="size-4 transition"
+                            :class="openPanel === 'colors' ? 'rotate-180' : ''"
+                        />
                     </button>
-                    <div v-show="openPanel === 'colors'" class="mt-4 grid grid-cols-2 gap-3">
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Destaque
-                            <input v-model="settings.accentColor" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Fundo
-                            <input v-model="settings.pageColor" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Card
-                            <input v-model="settings.cardColor" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Titulo
-                            <input v-model="settings.headingColor" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Texto
-                            <input v-model="settings.textColor" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Botao
-                            <input v-model="settings.buttonColor" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Texto botao
-                            <input v-model="settings.buttonTextColor" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Superficie suave
-                            <input v-model="settings.tokens.surfaces.muted" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Texto suave
-                            <input v-model="settings.tokens.colors.textMuted" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Borda
-                            <input v-model="settings.tokens.borders.default" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Foco
-                            <input v-model="settings.tokens.borders.focus" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Sucesso
-                            <input v-model="settings.tokens.states.success" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Alerta
-                            <input v-model="settings.tokens.states.warning" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Erro
-                            <input v-model="settings.tokens.states.danger" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
-                        <label class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]">
-                            Campo
-                            <input v-model="settings.tokens.components.fieldBackground" :disabled="!props.permissions.canEdit" type="color" class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0" />
-                        </label>
+                    <div v-show="openPanel === 'colors'" class="mt-4 space-y-4">
+                        <p class="text-xs leading-5 text-[#88a8df]">
+                            Escolha uma identidade pronta ou use o modo
+                            personalizado para ajustar cada cor.
+                        </p>
+
+                        <div
+                            class="grid grid-cols-2 gap-3"
+                            data-testid="color-theme-options"
+                        >
+                            <button
+                                v-for="theme in colorThemePresets"
+                                :key="theme.id"
+                                type="button"
+                                :data-testid="`color-theme-${theme.id}`"
+                                :aria-pressed="settings.colorTheme === theme.id"
+                                :disabled="!props.permissions.canEdit"
+                                class="group rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                                :class="
+                                    settings.colorTheme === theme.id
+                                        ? 'border-[#5b9cff] bg-[#102b5a] ring-1 ring-[#5b9cff]/40'
+                                        : 'border-[#244579] bg-[#0a1e45] hover:border-[#3b6caf] hover:bg-[#0d234d]'
+                                "
+                                @click="selectColorTheme(theme.id)"
+                            >
+                                <span
+                                    class="mb-3 flex h-8 overflow-hidden rounded-lg border border-white/15"
+                                >
+                                    <span
+                                        class="flex-1"
+                                        :style="{
+                                            backgroundColor: theme.pageColor,
+                                        }"
+                                    />
+                                    <span
+                                        class="flex-1"
+                                        :style="{
+                                            backgroundColor: theme.cardColor,
+                                        }"
+                                    />
+                                    <span
+                                        class="flex-1"
+                                        :style="{
+                                            backgroundColor: theme.accentColor,
+                                        }"
+                                    />
+                                    <span
+                                        class="flex-1"
+                                        :style="{
+                                            backgroundColor: theme.headingColor,
+                                        }"
+                                    />
+                                </span>
+                                <span
+                                    class="flex items-center justify-between gap-2"
+                                >
+                                    <span
+                                        class="text-sm font-semibold text-[#e3eeff]"
+                                        >{{ theme.name }}</span
+                                    >
+                                    <span
+                                        v-if="settings.colorTheme === theme.id"
+                                        class="rounded-full bg-[#3d8bff] px-2 py-0.5 text-[10px] font-semibold text-white"
+                                        >Ativo</span
+                                    >
+                                </span>
+                                <span
+                                    class="mt-1 block text-[11px] leading-4 text-[#7898cf]"
+                                    >{{ theme.description }}</span
+                                >
+                            </button>
+
+                            <button
+                                type="button"
+                                data-testid="color-theme-custom"
+                                :aria-pressed="settings.colorTheme === 'custom'"
+                                :disabled="!props.permissions.canEdit"
+                                class="col-span-2 flex items-center gap-3 rounded-xl border p-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60"
+                                :class="
+                                    settings.colorTheme === 'custom'
+                                        ? 'border-[#5b9cff] bg-[#102b5a] ring-1 ring-[#5b9cff]/40'
+                                        : 'border-[#244579] bg-[#0a1e45] hover:border-[#3b6caf] hover:bg-[#0d234d]'
+                                "
+                                @click="selectColorTheme('custom')"
+                            >
+                                <span
+                                    class="size-11 shrink-0 rounded-lg border border-white/15 bg-[conic-gradient(from_45deg,#3d8bff,#c084fc,#f43f5e,#f59e0b,#34d399,#22d3ee,#3d8bff)]"
+                                />
+                                <span class="min-w-0 flex-1">
+                                    <span
+                                        class="flex items-center justify-between gap-2"
+                                    >
+                                        <span
+                                            class="text-sm font-semibold text-[#e3eeff]"
+                                            >Personalizado</span
+                                        >
+                                        <span
+                                            v-if="
+                                                settings.colorTheme === 'custom'
+                                            "
+                                            class="rounded-full bg-[#3d8bff] px-2 py-0.5 text-[10px] font-semibold text-white"
+                                            >Ativo</span
+                                        >
+                                    </span>
+                                    <span
+                                        class="mt-1 block text-[11px] leading-4 text-[#7898cf]"
+                                        >Controle individual de toda a
+                                        paleta</span
+                                    >
+                                </span>
+                            </button>
+                        </div>
+
+                        <div
+                            v-if="settings.colorTheme === 'custom'"
+                            class="grid grid-cols-2 gap-3 border-t border-[#244579] pt-4"
+                            data-testid="custom-color-controls"
+                        >
+                            <div class="col-span-2">
+                                <p class="text-sm font-semibold text-[#e3eeff]">
+                                    Paleta personalizada
+                                </p>
+                                <p class="mt-1 text-xs text-[#7898cf]">
+                                    Ajuste os tokens sem alterar os outros
+                                    temas.
+                                </p>
+                            </div>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Destaque
+                                <input
+                                    v-model="settings.accentColor"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Fundo
+                                <input
+                                    v-model="settings.pageColor"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Card
+                                <input
+                                    v-model="settings.cardColor"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Titulo
+                                <input
+                                    v-model="settings.headingColor"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Texto
+                                <input
+                                    v-model="settings.textColor"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Botao
+                                <input
+                                    v-model="settings.buttonColor"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Texto botao
+                                <input
+                                    v-model="settings.buttonTextColor"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Superficie suave
+                                <input
+                                    v-model="settings.tokens.surfaces.muted"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Texto suave
+                                <input
+                                    v-model="settings.tokens.colors.textMuted"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Borda
+                                <input
+                                    v-model="settings.tokens.borders.default"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Foco
+                                <input
+                                    v-model="settings.tokens.borders.focus"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Sucesso
+                                <input
+                                    v-model="settings.tokens.states.success"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Alerta
+                                <input
+                                    v-model="settings.tokens.states.warning"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Erro
+                                <input
+                                    v-model="settings.tokens.states.danger"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                            <label
+                                class="rounded-xl border border-[#244579] bg-[#0a1e45] p-3 text-xs text-[#88a8df]"
+                            >
+                                Campo
+                                <input
+                                    v-model="
+                                        settings.tokens.components
+                                            .fieldBackground
+                                    "
+                                    :disabled="!props.permissions.canEdit"
+                                    type="color"
+                                    class="mt-2 h-9 w-full rounded border-0 bg-transparent p-0"
+                                />
+                            </label>
+                        </div>
                     </div>
                 </section>
 
                 <section :class="panelSectionClass">
-                    <button class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]" @click="openPanel = openPanel === 'typography' ? 'general' : 'typography'">
+                    <button
+                        class="flex w-full items-center justify-between text-left text-base font-semibold text-[#e3eeff]"
+                        @click="
+                            openPanel =
+                                openPanel === 'typography'
+                                    ? 'general'
+                                    : 'typography'
+                        "
+                    >
                         <span>TIPOGRAFIA</span>
-                        <ChevronDown class="size-4 transition" :class="openPanel === 'typography' ? 'rotate-180' : ''" />
+                        <ChevronDown
+                            class="size-4 transition"
+                            :class="
+                                openPanel === 'typography' ? 'rotate-180' : ''
+                            "
+                        />
                     </button>
-                    <div v-show="openPanel === 'typography'" class="mt-4 space-y-3">
-                        <label class="flex items-center gap-3 rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]">
-                            <input v-model="settings.fontStyle" :disabled="!props.permissions.canEdit" type="radio" value="modern" class="accent-[#3d8bff]" />
+                    <div
+                        v-show="openPanel === 'typography'"
+                        class="mt-4 space-y-3"
+                    >
+                        <label
+                            class="flex items-center gap-3 rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]"
+                        >
+                            <input
+                                v-model="settings.fontStyle"
+                                :disabled="!props.permissions.canEdit"
+                                type="radio"
+                                value="modern"
+                                class="accent-[#3d8bff]"
+                            />
                             Sora (Moderno)
                         </label>
-                        <label class="flex items-center gap-3 rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]">
-                            <input v-model="settings.fontStyle" :disabled="!props.permissions.canEdit" type="radio" value="clean" class="accent-[#3d8bff]" />
+                        <label
+                            class="flex items-center gap-3 rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]"
+                        >
+                            <input
+                                v-model="settings.fontStyle"
+                                :disabled="!props.permissions.canEdit"
+                                type="radio"
+                                value="clean"
+                                class="accent-[#3d8bff]"
+                            />
                             Sans limpo
                         </label>
-                        <label class="flex items-center gap-3 rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]">
-                            <input v-model="settings.fontStyle" :disabled="!props.permissions.canEdit" type="radio" value="serif" class="accent-[#3d8bff]" />
+                        <label
+                            class="flex items-center gap-3 rounded-xl border border-[#244579] bg-[#0a1e45] px-4 py-3 text-sm text-[#d7e7ff]"
+                        >
+                            <input
+                                v-model="settings.fontStyle"
+                                :disabled="!props.permissions.canEdit"
+                                type="radio"
+                                value="serif"
+                                class="accent-[#3d8bff]"
+                            />
                             Serif classico
                         </label>
                     </div>
@@ -886,4 +2493,3 @@ const previewLogoUrl = computed(() => {
         </main>
     </div>
 </template>
-

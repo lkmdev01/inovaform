@@ -9,7 +9,6 @@ import {
     Check,
     CircleUserRound,
     Eye,
-    EyeOff,
     FormInput,
     ListTree,
     MoreVertical,
@@ -23,11 +22,11 @@ import {
     Trash2,
     Undo2,
 } from 'lucide-vue-next';
-import { computed, onBeforeUnmount, onMounted, ref, watch  } from 'vue';
-import type {ComponentPublicInstance} from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import FunnelController from '@/actions/App/Http/Controllers/FunnelController';
 import { sanitizeStoredAssetUrl } from '@/lib/media';
-import profile from '@/routes/profile';
+import { show as showPublicFunnel } from '@/routes/funnels/public';
 
 type StageHeaderSettings = {
     show_logo: boolean;
@@ -93,7 +92,13 @@ type NotificationVariation = {
 type DisplayRule = {
     id: string;
     source_block_id: string;
-    operator: 'filled' | 'empty' | 'equals' | 'not_equals' | 'contains_any' | 'contains_all';
+    operator:
+        | 'filled'
+        | 'empty'
+        | 'equals'
+        | 'not_equals'
+        | 'contains_any'
+        | 'contains_all';
     value: string;
 };
 
@@ -143,6 +148,7 @@ type StageBlock = {
     carousel_layout?: 'image_text' | 'image_only' | 'text_only';
     carousel_pagination?: boolean;
     carousel_autoplay?: boolean;
+    carousel_autoplay_seconds?: number;
     carousel_border_type?: 'none' | 'subtle' | 'strong';
     image_ratio?: 'auto' | '16:9' | '4:3' | '1:1';
     image_fit?: 'cover' | 'contain';
@@ -160,7 +166,14 @@ type StageBlock = {
     notification_title?: string;
     notification_description?: string;
     notification_avatar_url?: string;
-    notification_position?: 'default' | 'top_left' | 'top_center' | 'top_right' | 'bottom_left' | 'bottom_center' | 'bottom_right';
+    notification_position?:
+        | 'default'
+        | 'top_left'
+        | 'top_center'
+        | 'top_right'
+        | 'bottom_left'
+        | 'bottom_center'
+        | 'bottom_right';
     notification_duration_seconds?: number;
     notification_interval_seconds?: number;
     notification_style?: 'white' | 'dark' | 'blue';
@@ -291,6 +304,7 @@ const props = defineProps<{
     funnel: Funnel;
     permissions: {
         canEdit: boolean;
+        canManageLeads: boolean;
     };
 }>();
 
@@ -305,13 +319,19 @@ const phoneMaskOptions: Array<{ value: 'br' | 'us' | 'eu'; label: string }> = [
     { value: 'us', label: '(999) 999-9999 (Estados Unidos)' },
     { value: 'eu', label: '+00 000 000 0000 (Europa)' },
 ];
-const numberMaskOptions: Array<{ value: 'decimal' | 'real' | 'dollar' | 'euro'; label: string }> = [
+const numberMaskOptions: Array<{
+    value: 'decimal' | 'real' | 'dollar' | 'euro';
+    label: string;
+}> = [
     { value: 'decimal', label: 'Decimal' },
     { value: 'real', label: 'Real (R$)' },
     { value: 'dollar', label: 'Dolar ($)' },
     { value: 'euro', label: 'Euro (€)' },
 ];
-const videoRatioOptions: Array<{ value: '16:9' | '4:3' | '1:1'; label: string }> = [
+const videoRatioOptions: Array<{
+    value: '16:9' | '4:3' | '1:1';
+    label: string;
+}> = [
     { value: '16:9', label: '16:9 (Padrao)' },
     { value: '4:3', label: '4:3' },
     { value: '1:1', label: '1:1' },
@@ -323,35 +343,54 @@ const audioThemeOptions: Array<{ value: 'light' | 'dark'; label: string }> = [
     { value: 'light', label: 'Claro' },
     { value: 'dark', label: 'Escuro' },
 ];
-const attentionStyleOptions: Array<{ value: 'red' | 'amber' | 'blue'; label: string }> = [
+const attentionStyleOptions: Array<{
+    value: 'red' | 'amber' | 'blue';
+    label: string;
+}> = [
     { value: 'red', label: 'Vermelho' },
     { value: 'amber', label: 'Amarelo' },
     { value: 'blue', label: 'Azul' },
 ];
-const attentionPaddingOptions: Array<{ value: 'compact' | 'default' | 'comfortable'; label: string }> = [
+const attentionPaddingOptions: Array<{
+    value: 'compact' | 'default' | 'comfortable';
+    label: string;
+}> = [
     { value: 'compact', label: 'Compacta' },
     { value: 'default', label: 'Padrao' },
     { value: 'comfortable', label: 'Confortavel' },
 ];
 
-const notificationStyleOptions: Array<{ value: 'white' | 'dark' | 'blue'; label: string }> = [
+const notificationStyleOptions: Array<{
+    value: 'white' | 'dark' | 'blue';
+    label: string;
+}> = [
     { value: 'white', label: 'Branco' },
     { value: 'dark', label: 'Escuro' },
     { value: 'blue', label: 'Azul' },
 ];
-const timerStyleOptions: Array<{ value: 'red' | 'amber' | 'blue'; label: string }> = [
+const timerStyleOptions: Array<{
+    value: 'red' | 'amber' | 'blue';
+    label: string;
+}> = [
     { value: 'red', label: 'Vermelho' },
     { value: 'amber', label: 'Amarelo' },
     { value: 'blue', label: 'Azul' },
 ];
-const levelColorOptions: Array<{ value: 'theme' | 'blue' | 'green' | 'red'; label: string }> = [
+const levelColorOptions: Array<{
+    value: 'theme' | 'blue' | 'green' | 'red';
+    label: string;
+}> = [
     { value: 'theme', label: 'Tema' },
     { value: 'blue', label: 'Azul' },
     { value: 'green', label: 'Verde' },
     { value: 'red', label: 'Vermelho' },
 ];
 
-const blockCatalog: Array<{ type: StageBlockType; label: string; category: 'form' | 'quiz' | 'media' | 'argument' | 'personalization' }> = [
+const blockCatalog: Array<{
+    type: StageBlockType;
+    label: string;
+    category: 'form' | 'quiz' | 'media' | 'argument' | 'personalization';
+}> = [
     { type: 'text', label: 'Campo', category: 'form' },
     { type: 'email', label: 'E-mail', category: 'form' },
     { type: 'phone', label: 'Telefone', category: 'form' },
@@ -387,7 +426,11 @@ const blockCatalog: Array<{ type: StageBlockType; label: string; category: 'form
 ];
 
 function createClientId(): string {
-    if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    if (
+        typeof globalThis !== 'undefined' &&
+        globalThis.crypto &&
+        typeof globalThis.crypto.randomUUID === 'function'
+    ) {
         return globalThis.crypto.randomUUID();
     }
 
@@ -424,19 +467,23 @@ function createBlankOptionItems(count = 1): OptionItem[] {
     }));
 }
 
-function normalizeCarouselItems(sourceItems: OptionItem[] | undefined, sourceOptions: string[] | undefined): OptionItem[] {
+function normalizeCarouselItems(
+    sourceItems: OptionItem[] | undefined,
+    sourceOptions: string[] | undefined,
+): OptionItem[] {
     if (Array.isArray(sourceItems) && sourceItems.length > 0) {
         return sourceItems.map((item) => {
             const imageUrl = safeTrim(item.value) || safeTrim(item.image_url);
 
             return {
                 id: item.id ?? createClientId(),
-                label: item.label?.trim() ?? '',
+                label: item.label ?? '',
                 value: imageUrl,
                 image_url: imageUrl,
-                description: (item.description ?? item.destination ?? item.label ?? '').trim(),
+                description:
+                    item.description ?? item.destination ?? item.label ?? '',
                 points: 0,
-                destination: (item.description ?? item.destination ?? '').trim(),
+                destination: item.description ?? item.destination ?? '',
             };
         });
     }
@@ -456,15 +503,20 @@ function normalizeCarouselItems(sourceItems: OptionItem[] | undefined, sourceOpt
     return [];
 }
 
-function normalizeMetricItems(sourceItems: OptionItem[] | undefined, sourceOptions: string[] | undefined): OptionItem[] {
+function normalizeMetricItems(
+    sourceItems: OptionItem[] | undefined,
+    sourceOptions: string[] | undefined,
+): OptionItem[] {
     if (Array.isArray(sourceItems) && sourceItems.length > 0) {
         return sourceItems.map((item) => ({
             id: item.id ?? createClientId(),
-            label: item.label?.trim() ?? '',
-            value: item.value?.trim() ?? '',
-            description: item.description?.trim() ?? item.destination?.trim() ?? '',
-            points: Number.isFinite(Number(item.points)) ? Number(item.points) : 0,
-            destination: item.destination?.trim() ?? item.description?.trim() ?? '',
+            label: item.label ?? '',
+            value: item.value ?? '',
+            description: item.description ?? item.destination ?? '',
+            points: Number.isFinite(Number(item.points))
+                ? Number(item.points)
+                : 0,
+            destination: item.destination ?? item.description ?? '',
         }));
     }
 
@@ -482,15 +534,18 @@ function normalizeMetricItems(sourceItems: OptionItem[] | undefined, sourceOptio
     return [];
 }
 
-function normalizeFaqItems(sourceItems: OptionItem[] | undefined, sourceOptions: string[] | undefined): OptionItem[] {
+function normalizeFaqItems(
+    sourceItems: OptionItem[] | undefined,
+    sourceOptions: string[] | undefined,
+): OptionItem[] {
     if (Array.isArray(sourceItems) && sourceItems.length > 0) {
         return sourceItems.map((item) => ({
             id: item.id ?? createClientId(),
-            label: item.label?.trim() ?? '',
-            description: (item.description ?? item.destination ?? '').trim(),
+            label: item.label ?? '',
+            description: item.description ?? item.destination ?? '',
             points: 0,
             value: '',
-            destination: (item.description ?? item.destination ?? '').trim(),
+            destination: item.description ?? item.destination ?? '',
         }));
     }
 
@@ -508,20 +563,39 @@ function normalizeFaqItems(sourceItems: OptionItem[] | undefined, sourceOptions:
     return [];
 }
 
-function normalizeTestimonialItems(sourceItems: OptionItem[] | undefined, sourceOptions: string[] | undefined): OptionItem[] {
+function normalizeTestimonialItems(
+    sourceItems: OptionItem[] | undefined,
+    sourceOptions: string[] | undefined,
+): OptionItem[] {
     if (Array.isArray(sourceItems) && sourceItems.length > 0) {
         return sourceItems.map((item) => {
-            const handle = (item.subtitle ?? item.value ?? '').trim();
-            const description = (item.description ?? item.destination ?? '').trim();
+            const handle = item.subtitle ?? item.value ?? '';
+            const description = item.description ?? item.destination ?? '';
             const parsedRating = Number(item.rating ?? item.points ?? 5);
 
             return {
                 id: item.id ?? createClientId(),
-                label: item.label?.trim() ?? '',
+                label: item.label ?? '',
                 subtitle: handle,
                 description,
-                rating: Math.max(1, Math.min(5, Math.round(Number.isFinite(parsedRating) ? parsedRating : 5))),
-                points: Math.max(1, Math.min(5, Math.round(Number.isFinite(parsedRating) ? parsedRating : 5))),
+                rating: Math.max(
+                    1,
+                    Math.min(
+                        5,
+                        Math.round(
+                            Number.isFinite(parsedRating) ? parsedRating : 5,
+                        ),
+                    ),
+                ),
+                points: Math.max(
+                    1,
+                    Math.min(
+                        5,
+                        Math.round(
+                            Number.isFinite(parsedRating) ? parsedRating : 5,
+                        ),
+                    ),
+                ),
                 value: handle,
                 destination: description,
             };
@@ -541,8 +615,20 @@ function normalizeTestimonialItems(sourceItems: OptionItem[] | undefined, source
                 label: name,
                 subtitle: handle,
                 description,
-                rating: Math.max(1, Math.min(5, Math.round(Number.isFinite(rating) ? rating : 5))),
-                points: Math.max(1, Math.min(5, Math.round(Number.isFinite(rating) ? rating : 5))),
+                rating: Math.max(
+                    1,
+                    Math.min(
+                        5,
+                        Math.round(Number.isFinite(rating) ? rating : 5),
+                    ),
+                ),
+                points: Math.max(
+                    1,
+                    Math.min(
+                        5,
+                        Math.round(Number.isFinite(rating) ? rating : 5),
+                    ),
+                ),
                 value: handle,
                 destination: description,
             };
@@ -552,14 +638,18 @@ function normalizeTestimonialItems(sourceItems: OptionItem[] | undefined, source
     return [];
 }
 
-function createNotificationVariations(withSampleValues = false): NotificationVariation[] {
+function createNotificationVariations(
+    withSampleValues = false,
+): NotificationVariation[] {
     return [
         {
             id: createClientId(),
             value1: withSampleValues ? 'Joao' : '',
             value2: withSampleValues ? 'Instagram' : '',
             value3: withSampleValues ? '3' : '',
-            value4: withSampleValues ? 'https://cdn.example.com/avatar-joao.png' : '',
+            value4: withSampleValues
+                ? 'https://cdn.example.com/avatar-joao.png'
+                : '',
         },
     ];
 }
@@ -576,7 +666,10 @@ function defaultNotificationAvatarUrl(): string {
     return '@4';
 }
 
-function replaceNotificationTokens(template: string, variation?: NotificationVariation): string {
+function replaceNotificationTokens(
+    template: string,
+    variation?: NotificationVariation,
+): string {
     const activeVariation = variation ?? createNotificationVariations()[0];
 
     return template
@@ -591,7 +684,9 @@ function notificationTitleText(block: StageBlock): string {
 }
 
 function notificationDescriptionText(block: StageBlock): string {
-    return safeTrim(block.notification_description) || safeTrim(block.placeholder);
+    return (
+        safeTrim(block.notification_description) || safeTrim(block.placeholder)
+    );
 }
 
 function notificationFieldContainsToken(value: string | undefined): boolean {
@@ -599,22 +694,33 @@ function notificationFieldContainsToken(value: string | undefined): boolean {
 }
 
 function notificationUsesVariationTokens(block: StageBlock): boolean {
-    return notificationFieldContainsToken(block.notification_title)
-        || notificationFieldContainsToken(block.notification_description)
-        || notificationFieldContainsToken(block.notification_avatar_url);
+    return (
+        notificationFieldContainsToken(block.notification_title) ||
+        notificationFieldContainsToken(block.notification_description) ||
+        notificationFieldContainsToken(block.notification_avatar_url)
+    );
 }
 
 function notificationHasFilledVariations(block: StageBlock): boolean {
     return (block.notification_variations ?? []).some((variation) => {
-        return safeTrim(variation.value1) !== ''
-            || safeTrim(variation.value2) !== ''
-            || safeTrim(variation.value3) !== ''
-            || safeTrim(variation.value4) !== '';
+        return (
+            safeTrim(variation.value1) !== '' ||
+            safeTrim(variation.value2) !== '' ||
+            safeTrim(variation.value3) !== '' ||
+            safeTrim(variation.value4) !== ''
+        );
     });
 }
 
-function insertNotificationToken(field: 'title' | 'description', token: '@1' | '@2' | '@3' | '@4'): void {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'notification') {
+function insertNotificationToken(
+    field: 'title' | 'description',
+    token: '@1' | '@2' | '@3' | '@4',
+): void {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'notification'
+    ) {
         return;
     }
 
@@ -628,21 +734,34 @@ function insertNotificationToken(field: 'title' | 'description', token: '@1' | '
 }
 
 function insertNotificationAvatarToken(token: '@1' | '@2' | '@3' | '@4'): void {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'notification') {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'notification'
+    ) {
         return;
     }
 
     selectedBlock.value.notification_avatar_url = `${selectedBlock.value.notification_avatar_url ?? ''}${token}`;
 }
 
-function notificationAvatarUrl(block: StageBlock, variation?: NotificationVariation): string | null {
-    const resolvedUrl = replaceNotificationTokens(safeTrim(block.notification_avatar_url), variation);
+function notificationAvatarUrl(
+    block: StageBlock,
+    variation?: NotificationVariation,
+): string | null {
+    const resolvedUrl = replaceNotificationTokens(
+        safeTrim(block.notification_avatar_url),
+        variation,
+    );
 
     return sanitizeStoredAssetUrl(resolvedUrl);
 }
 
 function notificationTimeBadge(block: StageBlock): string {
-    const intervalSeconds = Math.max(1, Number(block.notification_interval_seconds ?? 2));
+    const intervalSeconds = Math.max(
+        1,
+        Number(block.notification_interval_seconds ?? 2),
+    );
 
     if (intervalSeconds <= 3) {
         return 'Agora mesmo';
@@ -699,7 +818,11 @@ function parseLegacyTimerSeconds(value: string | undefined): number {
     }
 
     const parts = raw.split(':');
-    if (parts.length === 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+    if (
+        parts.length === 2 &&
+        /^\d+$/.test(parts[0]) &&
+        /^\d+$/.test(parts[1])
+    ) {
         return Math.max(0, Number(parts[0]) * 60 + Number(parts[1]));
     }
 
@@ -707,8 +830,13 @@ function parseLegacyTimerSeconds(value: string | undefined): number {
 }
 
 function timerDisplayText(block: StageBlock): string {
-    const template = safeTrim(block.timer_text) || safeTrim(block.placeholder) || (safeTrim(block.label) ? `${safeTrim(block.label)} [time]` : '');
-    const seconds = Number(block.timer_seconds ?? parseLegacyTimerSeconds(block.placeholder));
+    const template =
+        safeTrim(block.timer_text) ||
+        safeTrim(block.placeholder) ||
+        (safeTrim(block.label) ? `${safeTrim(block.label)} [time]` : '');
+    const seconds = Number(
+        block.timer_seconds ?? parseLegacyTimerSeconds(block.placeholder),
+    );
     const timeToken = formatTimerValue(seconds);
 
     if (template.length === 0) {
@@ -719,7 +847,10 @@ function timerDisplayText(block: StageBlock): string {
 }
 
 function loadingPreviewProgress(block: StageBlock): number {
-    return Math.max(0, Math.min(100, Math.round(Number(block.loading_start_seconds ?? 0))));
+    return Math.max(
+        0,
+        Math.min(100, Math.round(Number(block.loading_start_seconds ?? 0))),
+    );
 }
 
 function notificationHasFloatingPosition(block: StageBlock): boolean {
@@ -807,7 +938,10 @@ function notificationDescriptionClass(block: StageBlock): string {
 }
 
 function levelProgress(block: StageBlock): number {
-    return Math.max(0, Math.min(100, Math.round(Number(block.level_percentage ?? 0))));
+    return Math.max(
+        0,
+        Math.min(100, Math.round(Number(block.level_percentage ?? 0))),
+    );
 }
 
 function levelBarColorClass(block: StageBlock): string {
@@ -873,7 +1007,9 @@ function defaultOptionsDetail(type: StageBlockType): 'checkout' | 'none' {
     return type === 'yes_no' ? 'none' : 'checkout';
 }
 
-function normalizeDetailValue(value: StageBlock['options_detail']): 'checkout' | 'arrow' | 'points' | 'value' | 'none' {
+function normalizeDetailValue(
+    value: StageBlock['options_detail'],
+): 'checkout' | 'arrow' | 'points' | 'value' | 'none' {
     if (value === 'none') {
         return 'none';
     }
@@ -915,146 +1051,439 @@ const localStages = ref<StageDraft[]>(
             title: stage.meta?.builder?.title ?? defaultStageTitle,
             subtitle: stage.meta?.builder?.subtitle ?? defaultStageSubtitle,
             buttonText: stage.meta?.builder?.button_text ?? defaultButtonText,
-            stageButtonAction: stage.meta?.builder?.stage_button_action ?? 'next_stage',
-            stageButtonTargetStageOrder: stage.meta?.builder?.stage_button_target_stage_order ?? 'next',
+            stageButtonAction:
+                stage.meta?.builder?.stage_button_action ?? 'next_stage',
+            stageButtonTargetStageOrder:
+                stage.meta?.builder?.stage_button_target_stage_order ?? 'next',
             stageButtonLink: stage.meta?.builder?.stage_button_link ?? '',
-            stageButtonOpenNewTab: stage.meta?.builder?.stage_button_open_new_tab ?? false,
-            stageButtonColorStyle: stage.meta?.builder?.stage_button_color_style ?? 'theme',
-            stageButtonAnimated: stage.meta?.builder?.stage_button_animated ?? false,
-            stageButtonElevated: stage.meta?.builder?.stage_button_elevated ?? false,
-            stageButtonStickyFooter: stage.meta?.builder?.stage_button_sticky_footer ?? false,
-            blocks: stage.meta?.builder?.blocks?.map((block) => ({
-                id: block.id ?? createClientId(),
-                type: normalizeLegacyBlockType(block.type),
-                label: block.label,
-                placeholder: block.placeholder,
-                required: block.required ?? false,
-                options: block.options,
-                option_items: isOptionsComponentType(block.type)
-                    ? ((block.option_items?.length ?? 0) > 0
-                        ? (block.option_items ?? []).map((item, index) => ({
-                            id: item.id ?? createClientId(),
-                            label: item.label ?? '',
-                            points: Number.isFinite(Number(item.points)) ? Number(item.points) : index + 1,
-                            value: item.value ?? String.fromCharCode(65 + (index % 26)),
-                            destination: item.destination ?? 'next_stage',
-                            image_url: item.image_url ?? '',
-                        }))
-                        : createOptionItems(block.options ?? defaultOptionsLabels(block.type)))
-                    : block.type === 'testimonials'
-                        ? normalizeTestimonialItems(block.option_items, block.options)
-                        : block.type === 'faq'
-                            ? normalizeFaqItems(block.option_items, block.options)
+            stageButtonOpenNewTab:
+                stage.meta?.builder?.stage_button_open_new_tab ?? false,
+            stageButtonColorStyle:
+                stage.meta?.builder?.stage_button_color_style ?? 'theme',
+            stageButtonAnimated:
+                stage.meta?.builder?.stage_button_animated ?? false,
+            stageButtonElevated:
+                stage.meta?.builder?.stage_button_elevated ?? false,
+            stageButtonStickyFooter:
+                stage.meta?.builder?.stage_button_sticky_footer ?? false,
+            blocks:
+                stage.meta?.builder?.blocks?.map((block) => ({
+                    id: block.id ?? createClientId(),
+                    type: normalizeLegacyBlockType(block.type),
+                    label: block.label,
+                    placeholder: block.placeholder,
+                    required: block.required ?? false,
+                    options: block.options,
+                    option_items: isOptionsComponentType(block.type)
+                        ? (block.option_items?.length ?? 0) > 0
+                            ? (block.option_items ?? []).map((item, index) => ({
+                                  id: item.id ?? createClientId(),
+                                  label: item.label ?? '',
+                                  points: Number.isFinite(Number(item.points))
+                                      ? Number(item.points)
+                                      : index + 1,
+                                  value:
+                                      item.value ??
+                                      String.fromCharCode(65 + (index % 26)),
+                                  destination: item.destination ?? 'next_stage',
+                                  image_url: item.image_url ?? '',
+                              }))
+                            : createOptionItems(
+                                  block.options ??
+                                      defaultOptionsLabels(block.type),
+                              )
+                        : block.type === 'testimonials'
+                          ? normalizeTestimonialItems(
+                                block.option_items,
+                                block.options,
+                            )
+                          : block.type === 'faq'
+                            ? normalizeFaqItems(
+                                  block.option_items,
+                                  block.options,
+                              )
                             : block.type === 'carousel'
-                                ? normalizeCarouselItems(block.option_items, block.options)
-                                : block.type === 'metrics'
-                                    ? normalizeMetricItems(block.option_items, block.options)
-                                    : undefined,
-                options_intro_type: isOptionsComponentType(block.type) ? (block.options_intro_type ?? 'text') : undefined,
-                options_intro_title: isOptionsComponentType(block.type) ? (block.options_intro_title ?? '') : undefined,
-                options_intro_description: isOptionsComponentType(block.type) ? (block.options_intro_description ?? '') : undefined,
-                options_required_selection: isOptionsComponentType(block.type) ? (block.options_required_selection ?? true) : undefined,
-                options_allow_multiple: isOptionsComponentType(block.type) ? (block.options_allow_multiple ?? defaultOptionsAllowMultiple(block.type)) : undefined,
-                options_disable_auto_follow: isOptionsComponentType(block.type) ? (block.options_disable_auto_follow ?? false) : undefined,
-                options_style: isOptionsComponentType(block.type) ? (block.options_style ?? 'simple') : undefined,
-                options_transparent_image: isOptionsComponentType(block.type) ? (block.options_transparent_image ?? true) : undefined,
-                options_layout: isOptionsComponentType(block.type) ? (block.options_layout ?? 'grid_2') : undefined,
-                options_orientation: isOptionsComponentType(block.type) ? (block.options_orientation ?? 'vertical') : undefined,
-                options_image_ratio: isOptionsComponentType(block.type) ? (block.options_image_ratio ?? '1:1') : undefined,
-                options_disposition: isOptionsComponentType(block.type) ? (block.options_disposition ?? 'image_text') : undefined,
-                options_detail: isOptionsComponentType(block.type) ? (block.options_detail ? normalizeDetailValue(block.options_detail) : defaultOptionsDetail(block.type)) : undefined,
-                options_detail_position: isOptionsComponentType(block.type) ? (block.options_detail_position ?? 'start') : undefined,
-                options_border_size: (isOptionsComponentType(block.type) || block.type === 'testimonials') ? (block.options_border_size ?? 'small') : undefined,
-                options_shadow: (isOptionsComponentType(block.type) || block.type === 'testimonials') ? (block.options_shadow ?? 'none') : undefined,
-                options_spacing: (isOptionsComponentType(block.type) || block.type === 'testimonials') ? (block.options_spacing ?? 'simple') : undefined,
-                testimonials_layout: block.type === 'testimonials' ? (block.testimonials_layout ?? 'list') : undefined,
-                faq_first_active: block.type === 'faq' ? (block.faq_first_active ?? true) : undefined,
-                faq_detail: block.type === 'faq' ? (block.faq_detail ?? 'arrow') : undefined,
-                price_title: block.type === 'price' ? (block.price_title ?? block.label ?? '') : undefined,
-                price_prefix: block.type === 'price' ? (block.price_prefix ?? '') : undefined,
-                price_value: block.type === 'price' ? (block.price_value ?? '') : undefined,
-                price_suffix: block.type === 'price' ? (block.price_suffix ?? '') : undefined,
-                price_badge_text: block.type === 'price' ? (block.price_badge_text ?? '') : undefined,
-                price_mode: block.type === 'price' ? (block.price_mode ?? 'illustrative') : undefined,
-                price_layout: block.type === 'price' ? (block.price_layout ?? 'horizontal') : undefined,
-                price_style: block.type === 'price' ? (block.price_style ?? 'theme') : undefined,
-                price_link: block.type === 'price' ? (block.price_link ?? '') : undefined,
-                carousel_layout: block.type === 'carousel' ? (block.carousel_layout ?? 'image_text') : undefined,
-                carousel_pagination: block.type === 'carousel' ? (block.carousel_pagination ?? true) : undefined,
-                carousel_autoplay: block.type === 'carousel' ? (block.carousel_autoplay ?? false) : undefined,
-                carousel_border_type: block.type === 'carousel' ? (block.carousel_border_type ?? 'none') : undefined,
-                image_ratio: block.type === 'image' ? (block.image_ratio ?? 'auto') : undefined,
-                image_fit: block.type === 'image' ? (block.image_fit ?? 'cover') : undefined,
-                image_radius: block.type === 'image' ? (block.image_radius ?? 'medium') : undefined,
-                image_frame: block.type === 'image' ? (block.image_frame ?? 'subtle') : undefined,
-                video_ratio: block.type === 'video' ? (block.video_ratio ?? '16:9') : undefined,
-                audio_sender: block.type === 'audio' ? (block.audio_sender ?? '') : undefined,
-                audio_src: block.type === 'audio' ? (block.audio_src ?? '') : undefined,
-                audio_avatar_url: block.type === 'audio' ? (block.audio_avatar_url ?? '') : undefined,
-                audio_model: block.type === 'audio' ? (block.audio_model ?? 'whatsapp') : undefined,
-                audio_theme: block.type === 'audio' ? (block.audio_theme ?? 'light') : undefined,
-                attention_style: block.type === 'attention' ? (block.attention_style ?? 'red') : undefined,
-                attention_emphasis: block.type === 'attention' ? (block.attention_emphasis ?? false) : undefined,
-                attention_padding: block.type === 'attention' ? (block.attention_padding ?? 'default') : undefined,
-                notification_title: block.type === 'notification' ? (block.notification_title ?? '') : undefined,
-                notification_description: block.type === 'notification' ? (block.notification_description ?? '') : undefined,
-                notification_avatar_url: block.type === 'notification' ? (block.notification_avatar_url ?? '') : undefined,
-                notification_position: block.type === 'notification' ? (block.notification_position ?? 'default') : undefined,
-                notification_duration_seconds: block.type === 'notification' ? Number(block.notification_duration_seconds ?? 5) : undefined,
-                notification_interval_seconds: block.type === 'notification' ? Number(block.notification_interval_seconds ?? 2) : undefined,
-                notification_style: block.type === 'notification' ? (block.notification_style ?? 'white') : undefined,
-                notification_size: block.type === 'notification' ? (block.notification_size ?? 'default') : undefined,
-                notification_variant: block.type === 'notification' ? (block.notification_variant ?? 'social') : undefined,
-                notification_variations: block.type === 'notification'
-                    ? ((block.notification_variations?.length ?? 0) > 0 ? (block.notification_variations ?? []) : createNotificationVariations()).map((variation) => ({
-                        id: variation.id ?? createClientId(),
-                        value1: variation.value1 ?? '',
-                        value2: variation.value2 ?? '',
-                        value3: variation.value3 ?? '',
-                        value4: variation.value4 ?? '',
-                    }))
-                    : undefined,
-                timer_seconds: block.type === 'timer' ? Number(block.timer_seconds ?? parseLegacyTimerSeconds(block.placeholder)) : undefined,
-                timer_text: block.type === 'timer' ? (block.timer_text ?? block.placeholder ?? '') : undefined,
-                timer_style: block.type === 'timer' ? (block.timer_style ?? 'red') : undefined,
-                loading_start_seconds: block.type === 'loading' ? Number(block.loading_start_seconds ?? 0) : undefined,
-                loading_duration_seconds: block.type === 'loading' ? Number(block.loading_duration_seconds ?? 5) : undefined,
-                loading_navigation_action: block.type === 'loading' ? (block.loading_navigation_action ?? 'none') : undefined,
-                loading_target_stage_order: block.type === 'loading' ? (block.loading_target_stage_order ?? 'next') : undefined,
-                loading_link: block.type === 'loading' ? (block.loading_link ?? '') : undefined,
-                loading_show_title: block.type === 'loading' ? (block.loading_show_title ?? true) : undefined,
-                loading_show_progress: block.type === 'loading' ? (block.loading_show_progress ?? true) : undefined,
-                level_title: block.type === 'level' ? (block.level_title ?? block.label ?? '') : undefined,
-                level_subtitle: block.type === 'level' ? (block.level_subtitle ?? block.placeholder ?? '') : undefined,
-                level_percentage: block.type === 'level' ? Math.max(0, Math.min(100, Number(block.level_percentage ?? 75))) : undefined,
-                level_indicator_text: block.type === 'level' ? (block.level_indicator_text ?? '') : undefined,
-                level_legends: block.type === 'level' ? (block.level_legends ?? '') : undefined,
-                level_show_meter: block.type === 'level' ? (block.level_show_meter ?? true) : undefined,
-                level_show_progress: block.type === 'level' ? (block.level_show_progress ?? true) : undefined,
-                level_type: block.type === 'level' ? (block.level_type ?? 'line') : undefined,
-                level_color: block.type === 'level' ? (block.level_color ?? 'theme') : undefined,
-                phone_mask: block.type === 'phone' ? (block.phone_mask ?? 'br') : undefined,
-                number_mask: block.type === 'number' ? (block.number_mask ?? 'decimal') : undefined,
-                height_mode: block.type === 'height' ? (block.height_mode ?? 'ruler') : undefined,
-                weight_mode: block.type === 'weight' ? (block.weight_mode ?? 'ruler') : undefined,
-                button_action: block.button_action ?? 'next_stage',
-                button_target_stage_order: block.button_target_stage_order ?? 'next',
-                button_link: block.button_link,
-                button_open_new_tab: block.button_open_new_tab ?? true,
-                button_color_style: block.button_color_style ?? 'theme',
-                button_animated: block.button_animated ?? false,
-                button_elevated: block.button_elevated ?? false,
-                button_sticky_footer: block.button_sticky_footer ?? false,
-                label_style: block.label_style ?? 'default',
-                text_align: block.text_align ?? 'text-left',
-                width_percent: Number(block.width_percent ?? 100),
-                align_horizontal: block.align_horizontal ?? 'start',
-                align_vertical: block.align_vertical ?? 'start',
-                show_after_seconds: block.show_after_seconds ?? null,
-                display_rule_mode: block.display_rule_mode ?? 'all',
-                display_rules: normalizeDisplayRules(block.display_rules),
-                display_rule_groups: normalizeDisplayRuleGroups(block.display_rule_groups, block.display_rules, block.display_rule_mode),
-            })) ?? [],
+                              ? normalizeCarouselItems(
+                                    block.option_items,
+                                    block.options,
+                                )
+                              : block.type === 'metrics'
+                                ? normalizeMetricItems(
+                                      block.option_items,
+                                      block.options,
+                                  )
+                                : undefined,
+                    options_intro_type: isOptionsComponentType(block.type)
+                        ? (block.options_intro_type ?? 'text')
+                        : undefined,
+                    options_intro_title: isOptionsComponentType(block.type)
+                        ? (block.options_intro_title ?? '')
+                        : undefined,
+                    options_intro_description: isOptionsComponentType(
+                        block.type,
+                    )
+                        ? (block.options_intro_description ?? '')
+                        : undefined,
+                    options_required_selection: isOptionsComponentType(
+                        block.type,
+                    )
+                        ? (block.options_required_selection ?? true)
+                        : undefined,
+                    options_allow_multiple: isOptionsComponentType(block.type)
+                        ? (block.options_allow_multiple ??
+                          defaultOptionsAllowMultiple(block.type))
+                        : undefined,
+                    options_disable_auto_follow: isOptionsComponentType(
+                        block.type,
+                    )
+                        ? (block.options_disable_auto_follow ?? false)
+                        : undefined,
+                    options_style: isOptionsComponentType(block.type)
+                        ? (block.options_style ?? 'simple')
+                        : undefined,
+                    options_transparent_image: isOptionsComponentType(
+                        block.type,
+                    )
+                        ? (block.options_transparent_image ?? true)
+                        : undefined,
+                    options_layout: isOptionsComponentType(block.type)
+                        ? (block.options_layout ?? 'grid_2')
+                        : undefined,
+                    options_orientation: isOptionsComponentType(block.type)
+                        ? (block.options_orientation ?? 'vertical')
+                        : undefined,
+                    options_image_ratio: isOptionsComponentType(block.type)
+                        ? (block.options_image_ratio ?? '1:1')
+                        : undefined,
+                    options_disposition: isOptionsComponentType(block.type)
+                        ? (block.options_disposition ?? 'image_text')
+                        : undefined,
+                    options_detail: isOptionsComponentType(block.type)
+                        ? block.options_detail
+                            ? normalizeDetailValue(block.options_detail)
+                            : defaultOptionsDetail(block.type)
+                        : undefined,
+                    options_detail_position: isOptionsComponentType(block.type)
+                        ? (block.options_detail_position ?? 'start')
+                        : undefined,
+                    options_border_size:
+                        isOptionsComponentType(block.type) ||
+                        block.type === 'testimonials'
+                            ? (block.options_border_size ?? 'small')
+                            : undefined,
+                    options_shadow:
+                        isOptionsComponentType(block.type) ||
+                        block.type === 'testimonials'
+                            ? (block.options_shadow ?? 'none')
+                            : undefined,
+                    options_spacing:
+                        isOptionsComponentType(block.type) ||
+                        block.type === 'testimonials'
+                            ? (block.options_spacing ?? 'simple')
+                            : undefined,
+                    testimonials_layout:
+                        block.type === 'testimonials'
+                            ? (block.testimonials_layout ?? 'list')
+                            : undefined,
+                    faq_first_active:
+                        block.type === 'faq'
+                            ? (block.faq_first_active ?? true)
+                            : undefined,
+                    faq_detail:
+                        block.type === 'faq'
+                            ? (block.faq_detail ?? 'arrow')
+                            : undefined,
+                    price_title:
+                        block.type === 'price'
+                            ? (block.price_title ?? block.label ?? '')
+                            : undefined,
+                    price_prefix:
+                        block.type === 'price'
+                            ? (block.price_prefix ?? '')
+                            : undefined,
+                    price_value:
+                        block.type === 'price'
+                            ? (block.price_value ?? '')
+                            : undefined,
+                    price_suffix:
+                        block.type === 'price'
+                            ? (block.price_suffix ?? '')
+                            : undefined,
+                    price_badge_text:
+                        block.type === 'price'
+                            ? (block.price_badge_text ?? '')
+                            : undefined,
+                    price_mode:
+                        block.type === 'price'
+                            ? (block.price_mode ?? 'illustrative')
+                            : undefined,
+                    price_layout:
+                        block.type === 'price'
+                            ? (block.price_layout ?? 'horizontal')
+                            : undefined,
+                    price_style:
+                        block.type === 'price'
+                            ? (block.price_style ?? 'theme')
+                            : undefined,
+                    price_link:
+                        block.type === 'price'
+                            ? (block.price_link ?? '')
+                            : undefined,
+                    carousel_layout:
+                        block.type === 'carousel'
+                            ? (block.carousel_layout ?? 'image_text')
+                            : undefined,
+                    carousel_pagination:
+                        block.type === 'carousel'
+                            ? (block.carousel_pagination ?? true)
+                            : undefined,
+                    carousel_autoplay:
+                        block.type === 'carousel'
+                            ? (block.carousel_autoplay ?? false)
+                            : undefined,
+                    carousel_autoplay_seconds:
+                        block.type === 'carousel'
+                            ? Math.max(
+                                  1,
+                                  Math.min(
+                                      60,
+                                      Number(
+                                          block.carousel_autoplay_seconds ?? 3,
+                                      ),
+                                  ),
+                              )
+                            : undefined,
+                    carousel_border_type:
+                        block.type === 'carousel'
+                            ? (block.carousel_border_type ?? 'none')
+                            : undefined,
+                    image_ratio:
+                        block.type === 'image'
+                            ? (block.image_ratio ?? 'auto')
+                            : undefined,
+                    image_fit:
+                        block.type === 'image'
+                            ? (block.image_fit ?? 'cover')
+                            : undefined,
+                    image_radius:
+                        block.type === 'image'
+                            ? (block.image_radius ?? 'medium')
+                            : undefined,
+                    image_frame:
+                        block.type === 'image'
+                            ? (block.image_frame ?? 'subtle')
+                            : undefined,
+                    video_ratio:
+                        block.type === 'video'
+                            ? (block.video_ratio ?? '16:9')
+                            : undefined,
+                    audio_sender:
+                        block.type === 'audio'
+                            ? (block.audio_sender ?? '')
+                            : undefined,
+                    audio_src:
+                        block.type === 'audio'
+                            ? (block.audio_src ?? '')
+                            : undefined,
+                    audio_avatar_url:
+                        block.type === 'audio'
+                            ? (block.audio_avatar_url ?? '')
+                            : undefined,
+                    audio_model:
+                        block.type === 'audio'
+                            ? (block.audio_model ?? 'whatsapp')
+                            : undefined,
+                    audio_theme:
+                        block.type === 'audio'
+                            ? (block.audio_theme ?? 'light')
+                            : undefined,
+                    attention_style:
+                        block.type === 'attention'
+                            ? (block.attention_style ?? 'red')
+                            : undefined,
+                    attention_emphasis:
+                        block.type === 'attention'
+                            ? (block.attention_emphasis ?? false)
+                            : undefined,
+                    attention_padding:
+                        block.type === 'attention'
+                            ? (block.attention_padding ?? 'default')
+                            : undefined,
+                    notification_title:
+                        block.type === 'notification'
+                            ? (block.notification_title ?? '')
+                            : undefined,
+                    notification_description:
+                        block.type === 'notification'
+                            ? (block.notification_description ?? '')
+                            : undefined,
+                    notification_avatar_url:
+                        block.type === 'notification'
+                            ? (block.notification_avatar_url ?? '')
+                            : undefined,
+                    notification_position:
+                        block.type === 'notification'
+                            ? (block.notification_position ?? 'default')
+                            : undefined,
+                    notification_duration_seconds:
+                        block.type === 'notification'
+                            ? Number(block.notification_duration_seconds ?? 5)
+                            : undefined,
+                    notification_interval_seconds:
+                        block.type === 'notification'
+                            ? Number(block.notification_interval_seconds ?? 2)
+                            : undefined,
+                    notification_style:
+                        block.type === 'notification'
+                            ? (block.notification_style ?? 'white')
+                            : undefined,
+                    notification_size:
+                        block.type === 'notification'
+                            ? (block.notification_size ?? 'default')
+                            : undefined,
+                    notification_variant:
+                        block.type === 'notification'
+                            ? (block.notification_variant ?? 'social')
+                            : undefined,
+                    notification_variations:
+                        block.type === 'notification'
+                            ? ((block.notification_variations?.length ?? 0) > 0
+                                  ? (block.notification_variations ?? [])
+                                  : createNotificationVariations()
+                              ).map((variation) => ({
+                                  id: variation.id ?? createClientId(),
+                                  value1: variation.value1 ?? '',
+                                  value2: variation.value2 ?? '',
+                                  value3: variation.value3 ?? '',
+                                  value4: variation.value4 ?? '',
+                              }))
+                            : undefined,
+                    timer_seconds:
+                        block.type === 'timer'
+                            ? Number(
+                                  block.timer_seconds ??
+                                      parseLegacyTimerSeconds(
+                                          block.placeholder,
+                                      ),
+                              )
+                            : undefined,
+                    timer_text:
+                        block.type === 'timer'
+                            ? (block.timer_text ?? block.placeholder ?? '')
+                            : undefined,
+                    timer_style:
+                        block.type === 'timer'
+                            ? (block.timer_style ?? 'red')
+                            : undefined,
+                    loading_start_seconds:
+                        block.type === 'loading'
+                            ? Number(block.loading_start_seconds ?? 0)
+                            : undefined,
+                    loading_duration_seconds:
+                        block.type === 'loading'
+                            ? Number(block.loading_duration_seconds ?? 5)
+                            : undefined,
+                    loading_navigation_action:
+                        block.type === 'loading'
+                            ? (block.loading_navigation_action ?? 'none')
+                            : undefined,
+                    loading_target_stage_order:
+                        block.type === 'loading'
+                            ? (block.loading_target_stage_order ?? 'next')
+                            : undefined,
+                    loading_link:
+                        block.type === 'loading'
+                            ? (block.loading_link ?? '')
+                            : undefined,
+                    loading_show_title:
+                        block.type === 'loading'
+                            ? (block.loading_show_title ?? true)
+                            : undefined,
+                    loading_show_progress:
+                        block.type === 'loading'
+                            ? (block.loading_show_progress ?? true)
+                            : undefined,
+                    level_title:
+                        block.type === 'level'
+                            ? (block.level_title ?? block.label ?? '')
+                            : undefined,
+                    level_subtitle:
+                        block.type === 'level'
+                            ? (block.level_subtitle ?? block.placeholder ?? '')
+                            : undefined,
+                    level_percentage:
+                        block.type === 'level'
+                            ? Math.max(
+                                  0,
+                                  Math.min(
+                                      100,
+                                      Number(block.level_percentage ?? 75),
+                                  ),
+                              )
+                            : undefined,
+                    level_indicator_text:
+                        block.type === 'level'
+                            ? (block.level_indicator_text ?? '')
+                            : undefined,
+                    level_legends:
+                        block.type === 'level'
+                            ? (block.level_legends ?? '')
+                            : undefined,
+                    level_show_meter:
+                        block.type === 'level'
+                            ? (block.level_show_meter ?? true)
+                            : undefined,
+                    level_show_progress:
+                        block.type === 'level'
+                            ? (block.level_show_progress ?? true)
+                            : undefined,
+                    level_type:
+                        block.type === 'level'
+                            ? (block.level_type ?? 'line')
+                            : undefined,
+                    level_color:
+                        block.type === 'level'
+                            ? (block.level_color ?? 'theme')
+                            : undefined,
+                    phone_mask:
+                        block.type === 'phone'
+                            ? (block.phone_mask ?? 'br')
+                            : undefined,
+                    number_mask:
+                        block.type === 'number'
+                            ? (block.number_mask ?? 'decimal')
+                            : undefined,
+                    height_mode:
+                        block.type === 'height'
+                            ? (block.height_mode ?? 'ruler')
+                            : undefined,
+                    weight_mode:
+                        block.type === 'weight'
+                            ? (block.weight_mode ?? 'ruler')
+                            : undefined,
+                    button_action: block.button_action ?? 'next_stage',
+                    button_target_stage_order:
+                        block.button_target_stage_order ?? 'next',
+                    button_link: block.button_link,
+                    button_open_new_tab: block.button_open_new_tab ?? true,
+                    button_color_style: block.button_color_style ?? 'theme',
+                    button_animated: block.button_animated ?? false,
+                    button_elevated: block.button_elevated ?? false,
+                    button_sticky_footer: block.button_sticky_footer ?? false,
+                    label_style: block.label_style ?? 'default',
+                    text_align: block.text_align ?? 'text-left',
+                    width_percent: Number(block.width_percent ?? 100),
+                    align_horizontal: block.align_horizontal ?? 'start',
+                    align_vertical: block.align_vertical ?? 'start',
+                    show_after_seconds: block.show_after_seconds ?? null,
+                    display_rule_mode: block.display_rule_mode ?? 'all',
+                    display_rules: normalizeDisplayRules(block.display_rules),
+                    display_rule_groups: normalizeDisplayRuleGroups(
+                        block.display_rule_groups,
+                        block.display_rules,
+                        block.display_rule_mode,
+                    ),
+                })) ?? [],
         })),
 );
 
@@ -1094,9 +1523,10 @@ localStages.value.forEach((stage) => {
 
 const selectedStageKey = ref(localStages.value[0]?.clientId ?? '');
 const activePanelTab = ref<'step' | 'appearance'>('step');
-const componentPanelTab = ref<'component' | 'appearance' | 'display'>('component');
+const componentPanelTab = ref<'component' | 'appearance' | 'display'>(
+    'component',
+);
 const openStageMenuKey = ref<string | null>(null);
-const isPreviewMode = ref(false);
 const copiedLink = ref(false);
 const draggedStageKey = ref<string | null>(null);
 const dragOverStageKey = ref<string | null>(null);
@@ -1115,9 +1545,11 @@ const introEditorTarget = ref<'title' | 'description' | null>(null);
 const introActiveElement = ref<HTMLElement | null>(null);
 const imageComponentTab = ref<'image' | 'url'>('image');
 const imagePickerInput = ref<HTMLInputElement | null>(null);
+const uploadingImageBlockId = ref<string | null>(null);
 const audioFileInput = ref<HTMLInputElement | null>(null);
 const carouselImageInput = ref<HTMLInputElement | null>(null);
 const carouselTargetItemId = ref<string | null>(null);
+const uploadingCarouselItemId = ref<string | null>(null);
 const audioElements = ref<Record<string, HTMLAudioElement | null>>({});
 const audioDurations = ref<Record<string, number>>({});
 const audioCurrentTimes = ref<Record<string, number>>({});
@@ -1131,7 +1563,9 @@ const historyStack = ref<BuilderStateSnapshot[]>([]);
 const historyIndex = ref(-1);
 const isRestoringHistory = ref(false);
 const autosaveStatus = ref<'idle' | 'saving' | 'saved' | 'error'>('idle');
-const pendingSaveRequest = ref<{ isPublishing: boolean; auto: boolean } | null>(null);
+const pendingSaveRequest = ref<{ isPublishing: boolean; auto: boolean } | null>(
+    null,
+);
 const actionToast = ref<{
     visible: boolean;
     message: string;
@@ -1150,10 +1584,18 @@ let reorderHighlightTimer: ReturnType<typeof setTimeout> | null = null;
 let notificationPreviewTimer: number | null = null;
 
 const currentStage = computed(() => {
-    return localStages.value.find((stage) => stage.clientId === selectedStageKey.value) ?? localStages.value[0] ?? null;
+    return (
+        localStages.value.find(
+            (stage) => stage.clientId === selectedStageKey.value,
+        ) ??
+        localStages.value[0] ??
+        null
+    );
 });
 
-const selectedStageStorageKey = computed(() => `builder:selected-stage:${props.funnel.id}`);
+const selectedStageStorageKey = computed(
+    () => `builder:selected-stage:${props.funnel.id}`,
+);
 
 function stageStorageValue(stage: StageDraft | null | undefined): string {
     if (!stage) {
@@ -1167,7 +1609,9 @@ function stageStorageValue(stage: StageDraft | null | undefined): string {
     return `client:${stage.clientId}`;
 }
 
-function findStageByStoredValue(storedStageKey: string | null): StageDraft | null {
+function findStageByStoredValue(
+    storedStageKey: string | null,
+): StageDraft | null {
     const normalizedKey = safeTrim(storedStageKey);
 
     if (normalizedKey.length === 0) {
@@ -1178,17 +1622,25 @@ function findStageByStoredValue(storedStageKey: string | null): StageDraft | nul
         const stageId = Number(normalizedKey.slice('stage:'.length));
 
         if (Number.isFinite(stageId)) {
-            return localStages.value.find((stage) => stage.id === stageId) ?? null;
+            return (
+                localStages.value.find((stage) => stage.id === stageId) ?? null
+            );
         }
     }
 
     if (normalizedKey.startsWith('client:')) {
         const clientId = normalizedKey.slice('client:'.length);
 
-        return localStages.value.find((stage) => stage.clientId === clientId) ?? null;
+        return (
+            localStages.value.find((stage) => stage.clientId === clientId) ??
+            null
+        );
     }
 
-    return localStages.value.find((stage) => stage.clientId === normalizedKey) ?? null;
+    return (
+        localStages.value.find((stage) => stage.clientId === normalizedKey) ??
+        null
+    );
 }
 
 const selectedBlock = computed(() => {
@@ -1196,7 +1648,11 @@ const selectedBlock = computed(() => {
         return null;
     }
 
-    return currentStage.value.blocks.find((entry) => entry.id === selectedBlockId.value) ?? null;
+    return (
+        currentStage.value.blocks.find(
+            (entry) => entry.id === selectedBlockId.value,
+        ) ?? null
+    );
 });
 
 const visibleCurrentStageBlocks = computed(() => {
@@ -1204,7 +1660,10 @@ const visibleCurrentStageBlocks = computed(() => {
 });
 
 const contentTextEditorElement = ref<HTMLElement | null>(null);
-const audioWaveHeights = [7, 10, 13, 16, 14, 12, 10, 8, 7, 9, 12, 15, 13, 10, 8, 7, 8, 10, 13, 16, 14, 12, 10, 8, 7];
+const audioWaveHeights = [
+    7, 10, 13, 16, 14, 12, 10, 8, 7, 9, 12, 15, 13, 10, 8, 7, 8, 10, 13, 16, 14,
+    12, 10, 8, 7,
+];
 
 function audioPreviewKey(stageClientId: string, blockId: string): string {
     return `${stageClientId}:${blockId}`;
@@ -1263,12 +1722,16 @@ async function toggleAudioPlayback(key: string): Promise<void> {
 
 function onAudioLoadedMetadata(key: string, event: Event): void {
     const element = event.target as HTMLAudioElement;
-    audioDurations.value[key] = Number.isFinite(element.duration) ? element.duration : 0;
+    audioDurations.value[key] = Number.isFinite(element.duration)
+        ? element.duration
+        : 0;
 }
 
 function onAudioTimeUpdate(key: string, event: Event): void {
     const element = event.target as HTMLAudioElement;
-    audioCurrentTimes.value[key] = Number.isFinite(element.currentTime) ? element.currentTime : 0;
+    audioCurrentTimes.value[key] = Number.isFinite(element.currentTime)
+        ? element.currentTime
+        : 0;
 }
 
 function onAudioPlay(key: string): void {
@@ -1335,7 +1798,10 @@ function seekAudio(key: string, event: MouseEvent): void {
     }
 
     const rect = target.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    const ratio = Math.min(
+        1,
+        Math.max(0, (event.clientX - rect.left) / rect.width),
+    );
     const duration = audioDurations.value[key] ?? element.duration ?? 0;
 
     if (!Number.isFinite(duration) || duration <= 0) {
@@ -1382,7 +1848,10 @@ function handleAudioKeyboard(key: string, event: KeyboardEvent): void {
     }
 }
 
-function openIntroInlineEditor(target: 'title' | 'description', event?: FocusEvent): void {
+function openIntroInlineEditor(
+    target: 'title' | 'description',
+    event?: FocusEvent,
+): void {
     if (!props.permissions.canEdit) {
         return;
     }
@@ -1396,8 +1865,14 @@ function closeIntroInlineEditor(): void {
     introActiveElement.value = null;
 }
 
-function syncIntroInlineText(event: Event, field: 'title' | 'description'): void {
-    if (!selectedBlock.value || !supportsRichTextPanel(selectedBlock.value.type)) {
+function syncIntroInlineText(
+    event: Event,
+    field: 'title' | 'description',
+): void {
+    if (
+        !selectedBlock.value ||
+        !supportsRichTextPanel(selectedBlock.value.type)
+    ) {
         return;
     }
 
@@ -1537,16 +2012,25 @@ function ensureContentTextMarkup(block: StageBlock | null): void {
     block.label = '';
 }
 
-function bindContentTextEditorElement(element: Element | ComponentPublicInstance | null): void {
+function bindContentTextEditorElement(
+    element: Element | ComponentPublicInstance | null,
+): void {
     if (element instanceof HTMLElement) {
         contentTextEditorElement.value = element;
-    } else if (element !== null && '$el' in element && element.$el instanceof HTMLElement) {
+    } else if (
+        element !== null &&
+        '$el' in element &&
+        element.$el instanceof HTMLElement
+    ) {
         contentTextEditorElement.value = element.$el;
     } else {
         contentTextEditorElement.value = null;
     }
 
-    if (contentTextEditorElement.value && selectedBlock.value?.type === 'content_text') {
+    if (
+        contentTextEditorElement.value &&
+        selectedBlock.value?.type === 'content_text'
+    ) {
         const markup = contentTextMarkup(selectedBlock.value);
 
         if (contentTextEditorElement.value.innerHTML !== markup) {
@@ -1556,15 +2040,24 @@ function bindContentTextEditorElement(element: Element | ComponentPublicInstance
 }
 
 function syncContentTextMarkupFromEditor(): void {
-    if (!selectedBlock.value || selectedBlock.value.type !== 'content_text' || !contentTextEditorElement.value) {
+    if (
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'content_text' ||
+        !contentTextEditorElement.value
+    ) {
         return;
     }
 
-    selectedBlock.value.placeholder = normalizeRichTextHtml(contentTextEditorElement.value.innerHTML);
+    selectedBlock.value.placeholder = normalizeRichTextHtml(
+        contentTextEditorElement.value.innerHTML,
+    );
     selectedBlock.value.label = '';
 }
 
-function syncContentTextMarkupForBlock(block: StageBlock | null, element: HTMLElement | null): void {
+function syncContentTextMarkupForBlock(
+    block: StageBlock | null,
+    element: HTMLElement | null,
+): void {
     if (!block || block.type !== 'content_text' || !element) {
         return;
     }
@@ -1579,12 +2072,19 @@ function flushActiveInlineEditors(): void {
     }
 
     if (selectedBlock.value.type === 'content_text') {
-        syncContentTextMarkupForBlock(selectedBlock.value, contentTextEditorElement.value);
+        syncContentTextMarkupForBlock(
+            selectedBlock.value,
+            contentTextEditorElement.value,
+        );
 
         return;
     }
 
-    if (!supportsRichTextPanel(selectedBlock.value.type) || !introActiveElement.value || introEditorTarget.value === null) {
+    if (
+        !supportsRichTextPanel(selectedBlock.value.type) ||
+        !introActiveElement.value ||
+        introEditorTarget.value === null
+    ) {
         return;
     }
 
@@ -1603,7 +2103,8 @@ function activateContentTextEditor(event?: FocusEvent): void {
     }
 
     introEditorTarget.value = 'description';
-    contentTextEditorElement.value = (event?.target as HTMLElement | null) ?? contentTextEditorElement.value;
+    contentTextEditorElement.value =
+        (event?.target as HTMLElement | null) ?? contentTextEditorElement.value;
     introActiveElement.value = contentTextEditorElement.value;
 }
 
@@ -1617,7 +2118,10 @@ function applyContentTextEditorCommand(command: string): void {
     syncContentTextMarkupFromEditor();
 }
 
-function applyContentTextEditorValueCommand(command: string, value: string): void {
+function applyContentTextEditorValueCommand(
+    command: string,
+    value: string,
+): void {
     if (!props.permissions.canEdit || !contentTextEditorElement.value) {
         return;
     }
@@ -1631,7 +2135,9 @@ function applyContentTextHeading(level: 'h1' | 'h2' | 'h3' | 'p'): void {
     applyContentTextEditorValueCommand('formatBlock', level.toUpperCase());
 }
 
-function applyContentTextAlignment(alignment: 'left' | 'center' | 'right'): void {
+function applyContentTextAlignment(
+    alignment: 'left' | 'center' | 'right',
+): void {
     if (alignment === 'left') {
         applyContentTextEditorCommand('justifyLeft');
         return;
@@ -1664,7 +2170,10 @@ function formatPastedRichText(value: string): string {
         .split(/\r?\n\r?\n/)
         .map((paragraph) => paragraph.trim())
         .filter((paragraph) => paragraph.length > 0)
-        .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\r?\n/g, '<br>')}</p>`)
+        .map(
+            (paragraph) =>
+                `<p>${escapeHtml(paragraph).replace(/\r?\n/g, '<br>')}</p>`,
+        )
         .join('');
 }
 
@@ -1677,7 +2186,8 @@ function handleContentTextPaste(event: ClipboardEvent): void {
 
     const plainText = event.clipboardData?.getData('text/plain') ?? '';
     const html = event.clipboardData?.getData('text/html') ?? '';
-    const nextMarkup = html.trim() !== '' ? html : formatPastedRichText(plainText);
+    const nextMarkup =
+        html.trim() !== '' ? html : formatPastedRichText(plainText);
 
     document.execCommand('insertHTML', false, nextMarkup);
     syncContentTextMarkupFromEditor();
@@ -1696,9 +2206,16 @@ function insertIntroLink(): void {
     applyIntroEditorValueCommand('createLink', url);
 }
 
-async function uploadMediaFile(file: File, kind: 'image' | 'audio'): Promise<string | null> {
+async function uploadMediaFile(
+    file: File,
+    kind: 'image' | 'audio',
+): Promise<string | null> {
     const currentCsrfToken = (): string | null => {
-        const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')?.trim() ?? '';
+        const token =
+            document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content')
+                ?.trim() ?? '';
 
         return token.length > 0 ? token : null;
     };
@@ -1732,14 +2249,18 @@ async function uploadMediaFile(file: File, kind: 'image' | 'audio'): Promise<str
             }
 
             const html = await response.text();
-            const match = html.match(/<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i);
+            const match = html.match(
+                /<meta\s+name=["']csrf-token["']\s+content=["']([^"']+)["']/i,
+            );
             const nextToken = match?.[1]?.trim() ?? '';
 
             if (nextToken.length === 0) {
                 return null;
             }
 
-            document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', nextToken);
+            document
+                .querySelector('meta[name="csrf-token"]')
+                ?.setAttribute('content', nextToken);
 
             return nextToken;
         } catch {
@@ -1759,7 +2280,10 @@ async function uploadMediaFile(file: File, kind: 'image' | 'audio'): Promise<str
         return formData;
     };
 
-    const sendUploadRequest = (csrfToken: string | null, xsrfToken: string | null): Promise<Response> => {
+    const sendUploadRequest = (
+        csrfToken: string | null,
+        xsrfToken: string | null,
+    ): Promise<Response> => {
         const headers: Record<string, string> = {
             'X-Requested-With': 'XMLHttpRequest',
             Accept: 'application/json',
@@ -1781,7 +2305,7 @@ async function uploadMediaFile(file: File, kind: 'image' | 'audio'): Promise<str
         });
     };
 
-    let csrfToken = currentCsrfToken() ?? await refreshCsrfToken();
+    let csrfToken = currentCsrfToken() ?? (await refreshCsrfToken());
     let xsrfToken = currentXsrfToken();
 
     if (!csrfToken && !xsrfToken) {
@@ -1804,7 +2328,9 @@ async function uploadMediaFile(file: File, kind: 'image' | 'audio'): Promise<str
 
         if (!response.ok) {
             if (response.status === 419) {
-                showActionToast('Sua sessao expirou para upload. Recarregue a pagina e tente novamente.');
+                showActionToast(
+                    'Sua sessao expirou para upload. Recarregue a pagina e tente novamente.',
+                );
 
                 return null;
             }
@@ -1814,7 +2340,7 @@ async function uploadMediaFile(file: File, kind: 'image' | 'audio'): Promise<str
             return null;
         }
 
-        const result = await response.json() as { url?: string };
+        const result = (await response.json()) as { url?: string };
 
         if (!result.url) {
             showActionToast('Falha ao processar o upload.');
@@ -1831,7 +2357,11 @@ async function uploadMediaFile(file: File, kind: 'image' | 'audio'): Promise<str
 }
 
 function triggerImageFilePicker(): void {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'image') {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'image'
+    ) {
         return;
     }
 
@@ -1843,7 +2373,11 @@ function setImageComponentTab(tab: 'image' | 'url'): void {
 }
 
 async function handleImageFileChange(event: Event): Promise<void> {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'image') {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'image'
+    ) {
         return;
     }
 
@@ -1853,17 +2387,30 @@ async function handleImageFileChange(event: Event): Promise<void> {
         return;
     }
 
-    const uploadedUrl = await uploadMediaFile(file, 'image');
-    if (uploadedUrl && selectedBlock.value?.type === 'image') {
-        selectedBlock.value.placeholder = uploadedUrl;
-        imageComponentTab.value = 'image';
-    }
+    const imageBlock = selectedBlock.value;
+    uploadingImageBlockId.value = imageBlock.id;
 
-    input.value = '';
+    try {
+        const uploadedUrl = await uploadMediaFile(file, 'image');
+        if (uploadedUrl) {
+            imageBlock.placeholder = uploadedUrl;
+            imageComponentTab.value = 'image';
+        }
+    } finally {
+        if (uploadingImageBlockId.value === imageBlock.id) {
+            uploadingImageBlockId.value = null;
+        }
+
+        input.value = '';
+    }
 }
 
 function triggerAudioFilePicker(): void {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'audio') {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'audio'
+    ) {
         return;
     }
 
@@ -1871,7 +2418,11 @@ function triggerAudioFilePicker(): void {
 }
 
 function triggerCarouselImagePicker(itemId: string): void {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'carousel') {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'carousel'
+    ) {
         return;
     }
 
@@ -1880,7 +2431,11 @@ function triggerCarouselImagePicker(itemId: string): void {
 }
 
 async function handleCarouselImageFileChange(event: Event): Promise<void> {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'carousel') {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'carousel'
+    ) {
         return;
     }
 
@@ -1894,21 +2449,36 @@ async function handleCarouselImageFileChange(event: Event): Promise<void> {
         return;
     }
 
-    const uploadedUrl = await uploadMediaFile(file, 'image');
-    if (uploadedUrl && selectedBlock.value?.type === 'carousel') {
-        const targetItem = selectedBlock.value.option_items?.find((item) => item.id === targetItemId);
-        if (targetItem) {
-            targetItem.value = uploadedUrl;
-            targetItem.image_url = uploadedUrl;
-        }
-    }
+    const carouselBlock = selectedBlock.value;
+    uploadingCarouselItemId.value = targetItemId;
 
-    input.value = '';
-    carouselTargetItemId.value = null;
+    try {
+        const uploadedUrl = await uploadMediaFile(file, 'image');
+        if (uploadedUrl) {
+            const targetItem = carouselBlock.option_items?.find(
+                (item) => item.id === targetItemId,
+            );
+            if (targetItem) {
+                targetItem.value = uploadedUrl;
+                targetItem.image_url = uploadedUrl;
+            }
+        }
+    } finally {
+        if (uploadingCarouselItemId.value === targetItemId) {
+            uploadingCarouselItemId.value = null;
+        }
+
+        input.value = '';
+        carouselTargetItemId.value = null;
+    }
 }
 
 async function handleAudioFileChange(event: Event): Promise<void> {
-    if (!props.permissions.canEdit || !selectedBlock.value || selectedBlock.value.type !== 'audio') {
+    if (
+        !props.permissions.canEdit ||
+        !selectedBlock.value ||
+        selectedBlock.value.type !== 'audio'
+    ) {
         return;
     }
 
@@ -1931,7 +2501,8 @@ function toggleOptionItemSettings(itemId: string): void {
         return;
     }
 
-    expandedOptionItemId.value = expandedOptionItemId.value === itemId ? null : itemId;
+    expandedOptionItemId.value =
+        expandedOptionItemId.value === itemId ? null : itemId;
 }
 
 function onOptionItemDragStart(itemId: string): void {
@@ -1943,7 +2514,11 @@ function onOptionItemDragStart(itemId: string): void {
 }
 
 function onOptionItemDragOver(itemId: string): void {
-    if (!props.permissions.canEdit || draggedOptionItemId.value === null || draggedOptionItemId.value === itemId) {
+    if (
+        !props.permissions.canEdit ||
+        draggedOptionItemId.value === null ||
+        draggedOptionItemId.value === itemId
+    ) {
         dragOverOptionItemId.value = null;
 
         return;
@@ -1953,12 +2528,21 @@ function onOptionItemDragOver(itemId: string): void {
 }
 
 function onOptionItemDrop(block: StageBlock, targetItemId: string): void {
-    if (!props.permissions.canEdit || !isOptionsComponentType(block.type) || !block.option_items || draggedOptionItemId.value === null) {
+    if (
+        !props.permissions.canEdit ||
+        !isOptionsComponentType(block.type) ||
+        !block.option_items ||
+        draggedOptionItemId.value === null
+    ) {
         return;
     }
 
-    const sourceIndex = block.option_items.findIndex((item) => item.id === draggedOptionItemId.value);
-    const targetIndex = block.option_items.findIndex((item) => item.id === targetItemId);
+    const sourceIndex = block.option_items.findIndex(
+        (item) => item.id === draggedOptionItemId.value,
+    );
+    const targetIndex = block.option_items.findIndex(
+        (item) => item.id === targetItemId,
+    );
 
     if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
         draggedOptionItemId.value = null;
@@ -2009,12 +2593,24 @@ const stageDestinationOptions = computed(() => {
 });
 
 const hiddenPaletteTypes: StageBlockType[] = ['video_response'];
-const paletteBlocks = computed(() => blockCatalog.filter((block) => !hiddenPaletteTypes.includes(block.type)));
-const formBlocks = computed(() => paletteBlocks.value.filter((block) => block.category === 'form'));
-const quizBlocks = computed(() => paletteBlocks.value.filter((block) => block.category === 'quiz'));
-const mediaBlocks = computed(() => paletteBlocks.value.filter((block) => block.category === 'media'));
-const argumentBlocks = computed(() => paletteBlocks.value.filter((block) => block.category === 'argument'));
-const personalizationBlocks = computed(() => paletteBlocks.value.filter((block) => block.category === 'personalization'));
+const paletteBlocks = computed(() =>
+    blockCatalog.filter((block) => !hiddenPaletteTypes.includes(block.type)),
+);
+const formBlocks = computed(() =>
+    paletteBlocks.value.filter((block) => block.category === 'form'),
+);
+const quizBlocks = computed(() =>
+    paletteBlocks.value.filter((block) => block.category === 'quiz'),
+);
+const mediaBlocks = computed(() =>
+    paletteBlocks.value.filter((block) => block.category === 'media'),
+);
+const argumentBlocks = computed(() =>
+    paletteBlocks.value.filter((block) => block.category === 'argument'),
+);
+const personalizationBlocks = computed(() =>
+    paletteBlocks.value.filter((block) => block.category === 'personalization'),
+);
 
 const saveForm = useForm({
     name: props.funnel.name,
@@ -2032,7 +2628,9 @@ function cloneBlock(block: StageBlock): StageBlock {
         placeholder: block.placeholder,
         required: block.required,
         options: block.options ? [...block.options] : undefined,
-        option_items: block.option_items ? block.option_items.map((item) => ({ ...item })) : undefined,
+        option_items: block.option_items
+            ? block.option_items.map((item) => ({ ...item }))
+            : undefined,
         options_intro_type: block.options_intro_type,
         options_intro_title: block.options_intro_title,
         options_intro_description: block.options_intro_description,
@@ -2065,6 +2663,7 @@ function cloneBlock(block: StageBlock): StageBlock {
         carousel_layout: block.carousel_layout,
         carousel_pagination: block.carousel_pagination,
         carousel_autoplay: block.carousel_autoplay,
+        carousel_autoplay_seconds: block.carousel_autoplay_seconds,
         carousel_border_type: block.carousel_border_type,
         image_ratio: block.image_ratio,
         image_fit: block.image_fit,
@@ -2088,7 +2687,11 @@ function cloneBlock(block: StageBlock): StageBlock {
         notification_style: block.notification_style,
         notification_size: block.notification_size,
         notification_variant: block.notification_variant,
-        notification_variations: block.notification_variations ? block.notification_variations.map((variation) => ({ ...variation })) : undefined,
+        notification_variations: block.notification_variations
+            ? block.notification_variations.map((variation) => ({
+                  ...variation,
+              }))
+            : undefined,
         timer_seconds: block.timer_seconds,
         timer_text: block.timer_text,
         timer_style: block.timer_style,
@@ -2128,7 +2731,11 @@ function cloneBlock(block: StageBlock): StageBlock {
         show_after_seconds: block.show_after_seconds,
         display_rule_mode: block.display_rule_mode ?? 'all',
         display_rules: normalizeDisplayRules(block.display_rules),
-        display_rule_groups: normalizeDisplayRuleGroups(block.display_rule_groups, block.display_rules, block.display_rule_mode ?? 'all'),
+        display_rule_groups: normalizeDisplayRuleGroups(
+            block.display_rule_groups,
+            block.display_rules,
+            block.display_rule_mode ?? 'all',
+        ),
     };
 }
 
@@ -2172,14 +2779,21 @@ function restoreBuilderSnapshot(snapshot: BuilderStateSnapshot): void {
     funnelNameDraft.value = snapshot.funnelName;
     localStages.value = snapshot.stages.map(cloneStage);
 
-    const stageExists = localStages.value.some((stage) => stage.clientId === snapshot.selectedStageKey);
-    selectedStageKey.value = stageExists ? snapshot.selectedStageKey : localStages.value[0]?.clientId ?? '';
+    const stageExists = localStages.value.some(
+        (stage) => stage.clientId === snapshot.selectedStageKey,
+    );
+    selectedStageKey.value = stageExists
+        ? snapshot.selectedStageKey
+        : (localStages.value[0]?.clientId ?? '');
     selectedBlockId.value = null;
 
     isRestoringHistory.value = false;
 }
 
-function showActionToast(message: string, tone: 'info' | 'success' | 'error' = 'info'): void {
+function showActionToast(
+    message: string,
+    tone: 'info' | 'success' | 'error' = 'info',
+): void {
     if (actionToastTimer) {
         clearTimeout(actionToastTimer);
     }
@@ -2195,12 +2809,19 @@ function showActionToast(message: string, tone: 'info' | 'success' | 'error' = '
     }, 1400);
 }
 
-function carouselItemImageUrl(item: Pick<OptionItem, 'value' | 'image_url'>): string | null {
-    return sanitizeStoredAssetUrl(safeTrim(item.value) || safeTrim(item.image_url));
+function carouselItemImageUrl(
+    item: Pick<OptionItem, 'value' | 'image_url'>,
+): string | null {
+    return sanitizeStoredAssetUrl(
+        safeTrim(item.value) || safeTrim(item.image_url),
+    );
 }
 
 function resolveFirstFormError(errors: Record<string, string>): string {
-    return Object.values(errors).find((message) => safeTrim(message).length > 0) ?? 'Nao foi possivel salvar. Revise os campos e tente novamente.';
+    return (
+        Object.values(errors).find((message) => safeTrim(message).length > 0) ??
+        'Nao foi possivel salvar. Revise os campos e tente novamente.'
+    );
 }
 
 function pushHistorySnapshot(force = false): void {
@@ -2210,14 +2831,20 @@ function pushHistorySnapshot(force = false): void {
 
     const snapshot = createBuilderSnapshot();
     const snapshotJson = JSON.stringify(snapshot);
-    const currentJson = historyIndex.value >= 0 ? JSON.stringify(historyStack.value[historyIndex.value]) : null;
+    const currentJson =
+        historyIndex.value >= 0
+            ? JSON.stringify(historyStack.value[historyIndex.value])
+            : null;
 
     if (!force && snapshotJson === currentJson) {
         return;
     }
 
     if (historyIndex.value < historyStack.value.length - 1) {
-        historyStack.value = historyStack.value.slice(0, historyIndex.value + 1);
+        historyStack.value = historyStack.value.slice(
+            0,
+            historyIndex.value + 1,
+        );
     }
 
     historyStack.value.push(snapshot);
@@ -2230,7 +2857,11 @@ function pushHistorySnapshot(force = false): void {
 }
 
 const canUndo = computed(() => historyIndex.value > 0);
-const canRedo = computed(() => historyIndex.value >= 0 && historyIndex.value < historyStack.value.length - 1);
+const canRedo = computed(
+    () =>
+        historyIndex.value >= 0 &&
+        historyIndex.value < historyStack.value.length - 1,
+);
 
 function undoHistory(): void {
     if (!props.permissions.canEdit || !canUndo.value) {
@@ -2293,7 +2924,10 @@ function createBlock(type: StageBlockType): StageBlock {
 
     if (isOptionsComponentType(type)) {
         block.options = type === 'yes_no' ? defaultOptionsLabels(type) : [''];
-        block.option_items = type === 'yes_no' ? createOptionItems(block.options) : createBlankOptionItems(1);
+        block.option_items =
+            type === 'yes_no'
+                ? createOptionItems(block.options)
+                : createBlankOptionItems(1);
         block.options_intro_type = 'none';
         block.options_intro_title = '';
         block.options_intro_description = '';
@@ -2361,20 +2995,23 @@ function createBlock(type: StageBlockType): StageBlock {
         block.carousel_layout = 'image_text';
         block.carousel_pagination = true;
         block.carousel_autoplay = false;
+        block.carousel_autoplay_seconds = 3;
         block.carousel_border_type = 'none';
     }
 
     if (type === 'metrics') {
         block.label = '';
         block.options = [];
-        block.option_items = [{
-            id: createClientId(),
-            label: '',
-            value: '',
-            description: '',
-            points: 0,
-            destination: '',
-        }];
+        block.option_items = [
+            {
+                id: createClientId(),
+                label: '',
+                value: '',
+                description: '',
+                points: 0,
+                destination: '',
+            },
+        ];
     }
 
     if (type === 'level') {
@@ -2502,7 +3139,8 @@ function migrateLegacyStageFieldsToBlocks(stage: StageDraft): void {
         const buttonBlock = createBlock('button');
         buttonBlock.label = buttonText;
         buttonBlock.button_action = stage.stageButtonAction;
-        buttonBlock.button_target_stage_order = stage.stageButtonTargetStageOrder ?? 'next';
+        buttonBlock.button_target_stage_order =
+            stage.stageButtonTargetStageOrder ?? 'next';
         buttonBlock.button_link = stage.stageButtonLink;
         buttonBlock.button_open_new_tab = stage.stageButtonOpenNewTab;
         buttonBlock.button_color_style = stage.stageButtonColorStyle;
@@ -2523,11 +3161,26 @@ function migrateLegacyStageFieldsToBlocks(stage: StageDraft): void {
 }
 
 function isChoiceBlock(type: StageBlockType): boolean {
-    return ['options', 'multiple_choice', 'single_choice', 'yes_no', 'arguments', 'testimonials', 'faq', 'before_after', 'metrics'].includes(type);
+    return [
+        'options',
+        'multiple_choice',
+        'single_choice',
+        'yes_no',
+        'arguments',
+        'testimonials',
+        'faq',
+        'before_after',
+        'metrics',
+    ].includes(type);
 }
 
 function isOptionsComponentType(type: StageBlockType): boolean {
-    return type === 'options' || type === 'multiple_choice' || type === 'single_choice' || type === 'yes_no';
+    return (
+        type === 'options' ||
+        type === 'multiple_choice' ||
+        type === 'single_choice' ||
+        type === 'yes_no'
+    );
 }
 
 function supportsRichTextPanel(type: StageBlockType): boolean {
@@ -2539,25 +3192,27 @@ function defaultOptionsAllowMultiple(type: StageBlockType): boolean {
 }
 
 function shouldShowLabel(block: StageBlock): boolean {
-    return block.type !== 'button'
-        && block.type !== 'spacer'
-        && block.type !== 'content_text'
-        && block.type !== 'arguments'
-        && block.type !== 'metrics'
-        && block.type !== 'testimonials'
-        && block.type !== 'faq'
-        && block.type !== 'price'
-        && block.type !== 'carousel'
-        && block.type !== 'image'
-        && block.type !== 'video'
-        && block.type !== 'audio'
-        && block.type !== 'attention'
-        && block.type !== 'notification'
-        && block.type !== 'timer'
-        && block.type !== 'loading'
-        && block.type !== 'level'
-        && !isOptionsComponentType(block.type)
-        && block.label_style !== 'hidden';
+    return (
+        block.type !== 'button' &&
+        block.type !== 'spacer' &&
+        block.type !== 'content_text' &&
+        block.type !== 'arguments' &&
+        block.type !== 'metrics' &&
+        block.type !== 'testimonials' &&
+        block.type !== 'faq' &&
+        block.type !== 'price' &&
+        block.type !== 'carousel' &&
+        block.type !== 'image' &&
+        block.type !== 'video' &&
+        block.type !== 'audio' &&
+        block.type !== 'attention' &&
+        block.type !== 'notification' &&
+        block.type !== 'timer' &&
+        block.type !== 'loading' &&
+        block.type !== 'level' &&
+        !isOptionsComponentType(block.type) &&
+        block.label_style !== 'hidden'
+    );
 }
 
 function getVideoAspectClass(block: StageBlock): string {
@@ -2597,7 +3252,9 @@ function attentionToneClass(block: StageBlock): string {
 }
 
 function attentionHighlightClass(block: StageBlock): string {
-    return block.attention_emphasis ? 'ring-1 ring-offset-2 ring-offset-[#061635] ring-[#ef9a9a]/70 shadow-[0_0_0_2px_rgba(198,40,40,0.15)]' : '';
+    return block.attention_emphasis
+        ? 'ring-1 ring-offset-2 ring-offset-[#061635] ring-[#ef9a9a]/70 shadow-[0_0_0_2px_rgba(198,40,40,0.15)]'
+        : '';
 }
 
 function notificationToneClass(block: StageBlock): string {
@@ -2612,23 +3269,38 @@ function notificationToneClass(block: StageBlock): string {
     return 'border-[#e7eaf0] bg-white text-[#101828]';
 }
 
-function previewNotificationVariation(block: StageBlock): NotificationVariation | undefined {
+function previewNotificationVariation(
+    block: StageBlock,
+): NotificationVariation | undefined {
     const variations = block.notification_variations ?? [];
 
     if (variations.length === 0) {
         return undefined;
     }
 
-    const intervalSeconds = Math.max(1, Number(block.notification_interval_seconds ?? 2));
-    const variationIndex = Math.floor(notificationPreviewTick.value / intervalSeconds) % variations.length;
+    const intervalSeconds = Math.max(
+        1,
+        Number(block.notification_interval_seconds ?? 2),
+    );
+    const variationIndex =
+        Math.floor(notificationPreviewTick.value / intervalSeconds) %
+        variations.length;
 
     return variations[variationIndex] ?? variations[0];
 }
 
-function moveNotificationVariation(block: StageBlock, draggedId: string, targetId: string): void {
+function moveNotificationVariation(
+    block: StageBlock,
+    draggedId: string,
+    targetId: string,
+): void {
     const variations = block.notification_variations ?? [];
-    const fromIndex = variations.findIndex((variation) => variation.id === draggedId);
-    const toIndex = variations.findIndex((variation) => variation.id === targetId);
+    const fromIndex = variations.findIndex(
+        (variation) => variation.id === draggedId,
+    );
+    const toIndex = variations.findIndex(
+        (variation) => variation.id === targetId,
+    );
 
     if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
         return;
@@ -2647,19 +3319,33 @@ function onNotificationVariationDragStart(id: string): void {
 }
 
 function onNotificationVariationDragOver(id: string): void {
-    if (!props.permissions.canEdit || draggedNotificationVariationId.value === null || draggedNotificationVariationId.value === id) {
+    if (
+        !props.permissions.canEdit ||
+        draggedNotificationVariationId.value === null ||
+        draggedNotificationVariationId.value === id
+    ) {
         return;
     }
 
     dragOverNotificationVariationId.value = id;
 }
 
-function onNotificationVariationDrop(block: StageBlock, targetId: string): void {
-    if (!props.permissions.canEdit || draggedNotificationVariationId.value === null) {
+function onNotificationVariationDrop(
+    block: StageBlock,
+    targetId: string,
+): void {
+    if (
+        !props.permissions.canEdit ||
+        draggedNotificationVariationId.value === null
+    ) {
         return;
     }
 
-    moveNotificationVariation(block, draggedNotificationVariationId.value, targetId);
+    moveNotificationVariation(
+        block,
+        draggedNotificationVariationId.value,
+        targetId,
+    );
     draggedNotificationVariationId.value = null;
     dragOverNotificationVariationId.value = null;
 }
@@ -2687,15 +3373,23 @@ function addNotificationVariation(block: StageBlock): void {
     });
 }
 
-function removeNotificationVariation(block: StageBlock, variationId: string): void {
+function removeNotificationVariation(
+    block: StageBlock,
+    variationId: string,
+): void {
     if (!props.permissions.canEdit || block.type !== 'notification') {
         return;
     }
 
-    block.notification_variations = (block.notification_variations ?? []).filter((variation) => variation.id !== variationId);
+    block.notification_variations = (
+        block.notification_variations ?? []
+    ).filter((variation) => variation.id !== variationId);
 
     if ((block.notification_variations?.length ?? 0) === 0) {
-        block.notification_variations = createNotificationVariations().slice(0, 1);
+        block.notification_variations = createNotificationVariations().slice(
+            0,
+            1,
+        );
     }
 }
 
@@ -2717,7 +3411,9 @@ function toEmbedVideoUrl(url: string | undefined): string | null {
             }
 
             if (parsed.pathname.startsWith('/shorts/')) {
-                const shortsId = parsed.pathname.split('/').filter((segment) => segment.length > 0)[1];
+                const shortsId = parsed.pathname
+                    .split('/')
+                    .filter((segment) => segment.length > 0)[1];
 
                 if (shortsId) {
                     return `https://www.youtube.com/embed/${shortsId}`;
@@ -2740,7 +3436,9 @@ function toEmbedVideoUrl(url: string | undefined): string | null {
         }
 
         if (parsed.hostname.includes('vimeo.com')) {
-            const segments = parsed.pathname.split('/').filter((segment) => segment.length > 0);
+            const segments = parsed.pathname
+                .split('/')
+                .filter((segment) => segment.length > 0);
             const videoId = segments[segments.length - 1];
 
             if (videoId && /^\d+$/.test(videoId)) {
@@ -2763,14 +3461,32 @@ function labelClass(block: StageBlock): string {
 }
 
 function blockWrapperStyle(block: StageBlock): Record<string, string> {
-    const width = Math.max(25, Math.min(100, Number(block.width_percent ?? 100)));
+    const width = Math.max(
+        25,
+        Math.min(100, Number(block.width_percent ?? 100)),
+    );
     const horizontal = block.align_horizontal ?? 'start';
-    const textAlign = block.text_align === 'text-center' ? 'center' : block.text_align === 'text-right' ? 'right' : 'left';
+    const textAlign =
+        block.text_align === 'text-center'
+            ? 'center'
+            : block.text_align === 'text-right'
+              ? 'right'
+              : 'left';
 
     return {
         width: `${width}%`,
-        marginLeft: horizontal === 'end' ? 'auto' : horizontal === 'center' ? 'auto' : '0',
-        marginRight: horizontal === 'start' ? 'auto' : horizontal === 'center' ? 'auto' : '0',
+        marginLeft:
+            horizontal === 'end'
+                ? 'auto'
+                : horizontal === 'center'
+                  ? 'auto'
+                  : '0',
+        marginRight:
+            horizontal === 'start'
+                ? 'auto'
+                : horizontal === 'center'
+                  ? 'auto'
+                  : '0',
         textAlign,
     };
 }
@@ -2779,30 +3495,30 @@ function imageAspectClass(block: StageBlock): string {
     return block.image_ratio === '16:9'
         ? 'aspect-video'
         : block.image_ratio === '4:3'
-            ? 'aspect-[4/3]'
-            : block.image_ratio === '1:1'
-                ? 'aspect-square'
-                : '';
+          ? 'aspect-[4/3]'
+          : block.image_ratio === '1:1'
+            ? 'aspect-square'
+            : '';
 }
 
 function imageRadiusClass(block: StageBlock): string {
     return block.image_radius === 'none'
         ? 'rounded-none'
         : block.image_radius === 'small'
-            ? 'rounded-md'
-            : block.image_radius === 'large'
-                ? 'rounded-2xl'
-                : block.image_radius === 'full'
-                    ? 'rounded-[999px]'
-                    : 'rounded-xl';
+          ? 'rounded-md'
+          : block.image_radius === 'large'
+            ? 'rounded-2xl'
+            : block.image_radius === 'full'
+              ? 'rounded-[999px]'
+              : 'rounded-xl';
 }
 
 function imageFrameClass(block: StageBlock): string {
     return block.image_frame === 'strong'
         ? 'border-[#4f8fff] bg-[#102a56] p-2.5'
         : block.image_frame === 'none'
-            ? 'border-transparent bg-transparent p-0'
-            : 'border-[#2a4e88] bg-[#0b274f] p-2';
+          ? 'border-transparent bg-transparent p-0'
+          : 'border-[#2a4e88] bg-[#0b274f] p-2';
 }
 
 function imageFitClass(block: StageBlock): string {
@@ -2869,7 +3585,9 @@ function optionsCardShadowClass(block: StageBlock): string {
     return '';
 }
 
-function normalizeOptionsStyle(style?: StageBlock['options_style']): 'simple' | 'highlight' | 'relief' | 'contrast' {
+function normalizeOptionsStyle(
+    style?: StageBlock['options_style'],
+): 'simple' | 'highlight' | 'relief' | 'contrast' {
     if (style === 'highlight' || style === 'relief' || style === 'contrast') {
         return style;
     }
@@ -2903,7 +3621,11 @@ function optionsCardMinWidthClass(block: StageBlock): string {
     return block.options_layout === 'grid_2' ? '' : 'min-w-0';
 }
 
-function optionsDetailLabel(block: StageBlock, item: { points?: number; value?: string }, itemIndex: number): string {
+function optionsDetailLabel(
+    block: StageBlock,
+    item: { points?: number; value?: string },
+    itemIndex: number,
+): string {
     const detail = normalizeDetailValue(block.options_detail);
 
     if (detail === 'checkout' || detail === 'none') {
@@ -2912,12 +3634,16 @@ function optionsDetailLabel(block: StageBlock, item: { points?: number; value?: 
 
     if (detail === 'points') {
         const points = Number(item.points);
-        return Number.isFinite(points) && points > 0 ? String(Math.round(points)) : String(itemIndex + 1);
+        return Number.isFinite(points) && points > 0
+            ? String(Math.round(points))
+            : String(itemIndex + 1);
     }
 
     if (detail === 'value') {
         const value = (item.value ?? '').trim();
-        return value !== '' ? value : String.fromCharCode(65 + (itemIndex % 26));
+        return value !== ''
+            ? value
+            : String.fromCharCode(65 + (itemIndex % 26));
     }
 
     return '>';
@@ -2984,7 +3710,15 @@ function testimonialItems(block: StageBlock): OptionItem[] {
 }
 
 function ratingStars(rating?: number | null): number[] {
-    const safeRating = Math.max(1, Math.min(5, Math.round(Number.isFinite(Number(rating ?? 5)) ? Number(rating ?? 5) : 5)));
+    const safeRating = Math.max(
+        1,
+        Math.min(
+            5,
+            Math.round(
+                Number.isFinite(Number(rating ?? 5)) ? Number(rating ?? 5) : 5,
+            ),
+        ),
+    );
 
     return Array.from({ length: safeRating }, (_, index) => index);
 }
@@ -3031,17 +3765,22 @@ function addDisplayRuleGroup(block: StageBlock): void {
     block.display_rule_groups.push({
         id: createClientId(),
         mode: 'all',
-        rules: [{
-            id: createClientId(),
-            source_block_id: '',
-            operator: 'filled',
-            value: '',
-        }],
+        rules: [
+            {
+                id: createClientId(),
+                source_block_id: '',
+                operator: 'filled',
+                value: '',
+            },
+        ],
     });
 }
 
 function addDisplayRule(block: StageBlock, groupIndex: number): void {
-    if (!props.permissions.canEdit || !block.display_rule_groups?.[groupIndex]) {
+    if (
+        !props.permissions.canEdit ||
+        !block.display_rule_groups?.[groupIndex]
+    ) {
         return;
     }
 
@@ -3061,19 +3800,35 @@ function removeDisplayRuleGroup(block: StageBlock, groupIndex: number): void {
     block.display_rule_groups.splice(groupIndex, 1);
 }
 
-function removeDisplayRule(block: StageBlock, groupIndex: number, ruleIndex: number): void {
-    if (!props.permissions.canEdit || !block.display_rule_groups?.[groupIndex]) {
+function removeDisplayRule(
+    block: StageBlock,
+    groupIndex: number,
+    ruleIndex: number,
+): void {
+    if (
+        !props.permissions.canEdit ||
+        !block.display_rule_groups?.[groupIndex]
+    ) {
         return;
     }
 
     block.display_rule_groups[groupIndex].rules.splice(ruleIndex, 1);
 }
 
-function displayRuleOperatorNeedsValue(operator: DisplayRule['operator']): boolean {
-    return operator === 'equals' || operator === 'not_equals' || operator === 'contains_any' || operator === 'contains_all';
+function displayRuleOperatorNeedsValue(
+    operator: DisplayRule['operator'],
+): boolean {
+    return (
+        operator === 'equals' ||
+        operator === 'not_equals' ||
+        operator === 'contains_any' ||
+        operator === 'contains_all'
+    );
 }
 
-function displayRuleBlockOptions(block: StageBlock): Array<{ value: string; label: string }> {
+function displayRuleBlockOptions(
+    block: StageBlock,
+): Array<{ value: string; label: string }> {
     const stage = currentStage.value;
 
     if (!stage) {
@@ -3081,7 +3836,10 @@ function displayRuleBlockOptions(block: StageBlock): Array<{ value: string; labe
     }
 
     return stage.blocks
-        .filter((candidate) => candidate.id !== block.id && supportsRequired(candidate.type))
+        .filter(
+            (candidate) =>
+                candidate.id !== block.id && supportsRequired(candidate.type),
+        )
         .map((candidate) => ({
             value: candidate.id,
             label: safeTrim(candidate.label) || blockTitle(candidate.type),
@@ -3089,7 +3847,16 @@ function displayRuleBlockOptions(block: StageBlock): Array<{ value: string; labe
 }
 
 function isInputBlock(type: StageBlockType): boolean {
-    return ['text', 'email', 'phone', 'number', 'date', 'height', 'address', 'weight'].includes(type);
+    return [
+        'text',
+        'email',
+        'phone',
+        'number',
+        'date',
+        'height',
+        'address',
+        'weight',
+    ].includes(type);
 }
 
 function isTextAreaBlock(type: StageBlockType): boolean {
@@ -3127,15 +3894,52 @@ function numericBlockPlaceholder(block: StageBlock, fallback: number): number {
 }
 
 function isMediaContentBlock(type: StageBlockType): boolean {
-    return ['image', 'video', 'audio', 'attention', 'alert', 'notification', 'timer', 'loading'].includes(type);
+    return [
+        'image',
+        'video',
+        'audio',
+        'attention',
+        'alert',
+        'notification',
+        'timer',
+        'loading',
+    ].includes(type);
 }
 
 function supportsPlaceholder(type: StageBlockType): boolean {
-    return ['text', 'email', 'phone', 'number', 'textarea', 'date', 'height', 'address', 'weight', 'content_text'].includes(type);
+    return [
+        'text',
+        'email',
+        'phone',
+        'number',
+        'textarea',
+        'date',
+        'height',
+        'address',
+        'weight',
+        'content_text',
+    ].includes(type);
 }
 
 function supportsRequired(type: StageBlockType): boolean {
-    return !['button', 'spacer', 'loading', 'image', 'video', 'audio', 'attention', 'alert', 'notification', 'timer', 'content_text', 'level', 'testimonials', 'faq', 'price', 'carousel'].includes(type);
+    return ![
+        'button',
+        'spacer',
+        'loading',
+        'image',
+        'video',
+        'audio',
+        'attention',
+        'alert',
+        'notification',
+        'timer',
+        'content_text',
+        'level',
+        'testimonials',
+        'faq',
+        'price',
+        'carousel',
+    ].includes(type);
 }
 
 function blockOptionsTitle(type: StageBlockType): string {
@@ -3219,7 +4023,10 @@ function normalizeOptionsBlock(block: StageBlock): void {
         return;
     }
 
-    block.option_items = (block.option_items ?? createOptionItems(block.options ?? defaultOptionsLabels(block.type))).map((item, index) => ({
+    block.option_items = (
+        block.option_items ??
+        createOptionItems(block.options ?? defaultOptionsLabels(block.type))
+    ).map((item, index) => ({
         id: item.id ?? createClientId(),
         label: item.label?.trim() ?? '',
         points: Number.isFinite(Number(item.points)) ? Number(item.points) : 0,
@@ -3229,31 +4036,40 @@ function normalizeOptionsBlock(block: StageBlock): void {
     }));
     block.options = block.option_items.map((item) => item.label);
     if (block.type === 'yes_no' && block.options.length < 2) {
-        block.option_items = createOptionItems(defaultOptionsLabels(block.type));
+        block.option_items = createOptionItems(
+            defaultOptionsLabels(block.type),
+        );
         block.options = block.option_items.map((item) => item.label);
     }
     if (block.type === 'yes_no') {
-        block.option_items = block.option_items.slice(0, 2).map((item, index) => ({
-            ...item,
-            label: normalizeYesNoOptionLabel(item.label, index),
-        }));
+        block.option_items = block.option_items
+            .slice(0, 2)
+            .map((item, index) => ({
+                ...item,
+                label: normalizeYesNoOptionLabel(item.label, index),
+            }));
         block.options = block.option_items.map((item) => item.label);
     }
     block.options_intro_type = block.options_intro_type ?? 'none';
     block.options_intro_title = block.options_intro_title ?? '';
     block.options_intro_description = block.options_intro_description ?? '';
     block.options_required_selection = block.options_required_selection ?? true;
-    block.options_allow_multiple = block.type === 'single_choice'
-        ? false
-        : (block.options_allow_multiple ?? defaultOptionsAllowMultiple(block.type));
-    block.options_disable_auto_follow = block.options_disable_auto_follow ?? false;
+    block.options_allow_multiple =
+        block.type === 'single_choice'
+            ? false
+            : (block.options_allow_multiple ??
+              defaultOptionsAllowMultiple(block.type));
+    block.options_disable_auto_follow =
+        block.options_disable_auto_follow ?? false;
     block.options_style = normalizeOptionsStyle(block.options_style);
     block.options_transparent_image = block.options_transparent_image ?? true;
     block.options_layout = block.options_layout ?? 'grid_2';
     block.options_orientation = block.options_orientation ?? 'vertical';
     block.options_image_ratio = block.options_image_ratio ?? '1:1';
     block.options_disposition = block.options_disposition ?? 'image_text';
-    block.options_detail = block.options_detail ? normalizeDetailValue(block.options_detail) : defaultOptionsDetail(block.type);
+    block.options_detail = block.options_detail
+        ? normalizeDetailValue(block.options_detail)
+        : defaultOptionsDetail(block.type);
     block.options_detail_position = block.options_detail_position ?? 'start';
     block.options_border_size = block.options_border_size ?? 'small';
     block.options_shadow = block.options_shadow ?? 'none';
@@ -3265,9 +4081,15 @@ function normalizeTestimonialsBlock(block: StageBlock): void {
         return;
     }
 
-    const normalizedItems = normalizeTestimonialItems(block.option_items, block.options);
+    const normalizedItems = normalizeTestimonialItems(
+        block.option_items,
+        block.options,
+    );
     block.option_items = normalizedItems;
-    block.options = normalizedItems.map((item) => `${item.label}|${item.subtitle ?? ''}|${item.rating ?? 5}|${item.description ?? ''}`);
+    block.options = normalizedItems.map(
+        (item) =>
+            `${item.label}|${item.subtitle ?? ''}|${item.rating ?? 5}|${item.description ?? ''}`,
+    );
     block.testimonials_layout = block.testimonials_layout ?? 'list';
     block.options_border_size = block.options_border_size ?? 'small';
     block.options_shadow = block.options_shadow ?? 'none';
@@ -3279,7 +4101,10 @@ function normalizeFaqBlock(block: StageBlock): void {
         return;
     }
 
-    const normalizedItems = normalizeFaqItems(block.option_items, block.options);
+    const normalizedItems = normalizeFaqItems(
+        block.option_items,
+        block.options,
+    );
     block.option_items = normalizedItems;
     block.options = normalizedItems.map((item) => item.label);
     block.faq_first_active = block.faq_first_active ?? true;
@@ -3291,12 +4116,21 @@ function normalizeCarouselBlock(block: StageBlock): void {
         return;
     }
 
-    const normalizedItems = normalizeCarouselItems(block.option_items, block.options);
+    const normalizedItems = normalizeCarouselItems(
+        block.option_items,
+        block.options,
+    );
     block.option_items = normalizedItems;
-    block.options = normalizedItems.map((item) => item.description ?? item.label);
+    block.options = normalizedItems.map(
+        (item) => item.description ?? item.label,
+    );
     block.carousel_layout = block.carousel_layout ?? 'image_text';
     block.carousel_pagination = block.carousel_pagination ?? true;
     block.carousel_autoplay = block.carousel_autoplay ?? false;
+    block.carousel_autoplay_seconds = Math.max(
+        1,
+        Math.min(60, Number(block.carousel_autoplay_seconds ?? 3)),
+    );
     block.carousel_border_type = block.carousel_border_type ?? 'none';
 }
 
@@ -3305,13 +4139,18 @@ function normalizeMetricsBlock(block: StageBlock): void {
         return;
     }
 
-    const normalizedItems = normalizeMetricItems(block.option_items, block.options);
+    const normalizedItems = normalizeMetricItems(
+        block.option_items,
+        block.options,
+    );
     block.option_items = normalizedItems;
     block.options = normalizedItems.map((item) => item.label);
     block.label = '';
 }
 
-function carouselPreviewItems(block: StageBlock): Array<{ id: string; image: string; description: string }> {
+function carouselPreviewItems(
+    block: StageBlock,
+): Array<{ id: string; image: string; description: string }> {
     if (block.type !== 'carousel') {
         return [];
     }
@@ -3325,6 +4164,32 @@ function carouselPreviewItems(block: StageBlock): Array<{ id: string; image: str
         .filter((item) => item.image.length > 0 || item.description.length > 0);
 }
 
+function carouselPreviewIndex(block: StageBlock): number {
+    const items = carouselPreviewItems(block);
+
+    if (items.length === 0 || !block.carousel_autoplay) {
+        return 0;
+    }
+
+    const autoplaySeconds = Math.max(
+        1,
+        Math.min(60, Number(block.carousel_autoplay_seconds ?? 3)),
+    );
+
+    return (
+        Math.floor(notificationPreviewTick.value / autoplaySeconds) %
+        items.length
+    );
+}
+
+function currentCarouselPreviewItem(
+    block: StageBlock,
+): { id: string; image: string; description: string } | null {
+    const items = carouselPreviewItems(block);
+
+    return items[carouselPreviewIndex(block)] ?? items[0] ?? null;
+}
+
 function carouselShowsImage(block: StageBlock): boolean {
     return (block.carousel_layout ?? 'image_text') !== 'text_only';
 }
@@ -3333,7 +4198,9 @@ function carouselShowsDescription(block: StageBlock): boolean {
     return (block.carousel_layout ?? 'image_text') !== 'image_only';
 }
 
-function metricItems(block: StageBlock): Array<{ id: string; label: string; value: string; description: string }> {
+function metricItems(
+    block: StageBlock,
+): Array<{ id: string; label: string; value: string; description: string }> {
     return normalizeMetricItems(block.option_items, block.options)
         .map((item, index) => ({
             id: item.id ?? `${block.id}-metric-${index}`,
@@ -3341,7 +4208,12 @@ function metricItems(block: StageBlock): Array<{ id: string; label: string; valu
             value: item.value?.trim() ?? '',
             description: item.description?.trim() ?? '',
         }))
-        .filter((item) => item.label.length > 0 || item.value.length > 0 || item.description.length > 0);
+        .filter(
+            (item) =>
+                item.label.length > 0 ||
+                item.value.length > 0 ||
+                item.description.length > 0,
+        );
 }
 
 function normalizeDisplayRules(rules: unknown): DisplayRule[] {
@@ -3364,12 +4236,15 @@ function normalizeDisplayRules(rules: unknown): DisplayRule[] {
                     return {
                         id: createClientId(),
                         source_block_id: presenceMatch[2].trim(),
-                        operator: presenceMatch[1].toLowerCase() as DisplayRule['operator'],
+                        operator:
+                            presenceMatch[1].toLowerCase() as DisplayRule['operator'],
                         value: '',
                     };
                 }
 
-                const comparisonMatch = trimmed.match(/^([^!=:]+)\s*(=|!=)\s*(.+)$/);
+                const comparisonMatch = trimmed.match(
+                    /^([^!=:]+)\s*(=|!=)\s*(.+)$/,
+                );
 
                 if (!comparisonMatch) {
                     return null;
@@ -3378,25 +4253,42 @@ function normalizeDisplayRules(rules: unknown): DisplayRule[] {
                 return {
                     id: createClientId(),
                     source_block_id: comparisonMatch[1].trim(),
-                    operator: comparisonMatch[2] === '!=' ? 'not_equals' : 'equals',
+                    operator:
+                        comparisonMatch[2] === '!=' ? 'not_equals' : 'equals',
                     value: comparisonMatch[3].trim(),
                 };
             }
 
             if (rule && typeof rule === 'object') {
-                const sourceBlockId = String((rule as { source_block_id?: unknown }).source_block_id ?? '').trim();
-                const operator = String((rule as { operator?: unknown }).operator ?? '').trim();
-                const value = String((rule as { value?: unknown }).value ?? '').trim();
+                const sourceBlockId = String(
+                    (rule as { source_block_id?: unknown }).source_block_id ??
+                        '',
+                ).trim();
+                const operator = String(
+                    (rule as { operator?: unknown }).operator ?? '',
+                ).trim();
+                const value = String(
+                    (rule as { value?: unknown }).value ?? '',
+                ).trim();
 
                 if (
-                    sourceBlockId === ''
-                    || !['filled', 'empty', 'equals', 'not_equals', 'contains_any', 'contains_all'].includes(operator)
+                    sourceBlockId === '' ||
+                    ![
+                        'filled',
+                        'empty',
+                        'equals',
+                        'not_equals',
+                        'contains_any',
+                        'contains_all',
+                    ].includes(operator)
                 ) {
                     return null;
                 }
 
                 return {
-                    id: String((rule as { id?: unknown }).id ?? '').trim() || createClientId(),
+                    id:
+                        String((rule as { id?: unknown }).id ?? '').trim() ||
+                        createClientId(),
                     source_block_id: sourceBlockId,
                     operator: operator as DisplayRule['operator'],
                     value,
@@ -3408,7 +4300,11 @@ function normalizeDisplayRules(rules: unknown): DisplayRule[] {
         .filter((rule): rule is DisplayRule => rule !== null);
 }
 
-function normalizeDisplayRuleGroups(groups: unknown, legacyRules: unknown = [], fallbackMode: 'all' | 'any' = 'all'): DisplayRuleGroup[] {
+function normalizeDisplayRuleGroups(
+    groups: unknown,
+    legacyRules: unknown = [],
+    fallbackMode: 'all' | 'any' = 'all',
+): DisplayRuleGroup[] {
     if (Array.isArray(groups) && groups.length > 0) {
         return groups
             .map((group): DisplayRuleGroup | null => {
@@ -3416,16 +4312,22 @@ function normalizeDisplayRuleGroups(groups: unknown, legacyRules: unknown = [], 
                     return null;
                 }
 
-                const rules = normalizeDisplayRules((group as { rules?: unknown }).rules ?? []);
+                const rules = normalizeDisplayRules(
+                    (group as { rules?: unknown }).rules ?? [],
+                );
 
                 if (rules.length === 0) {
                     return null;
                 }
 
-                const mode = String((group as { mode?: unknown }).mode ?? 'all').trim();
+                const mode = String(
+                    (group as { mode?: unknown }).mode ?? 'all',
+                ).trim();
 
                 return {
-                    id: String((group as { id?: unknown }).id ?? '').trim() || createClientId(),
+                    id:
+                        String((group as { id?: unknown }).id ?? '').trim() ||
+                        createClientId(),
                     mode: mode === 'any' ? 'any' : 'all',
                     rules,
                 };
@@ -3439,20 +4341,32 @@ function normalizeDisplayRuleGroups(groups: unknown, legacyRules: unknown = [], 
         return [];
     }
 
-    return [{
-        id: createClientId(),
-        mode: fallbackMode === 'any' ? 'any' : 'all',
-        rules: normalizedLegacyRules,
-    }];
+    return [
+        {
+            id: createClientId(),
+            mode: fallbackMode === 'any' ? 'any' : 'all',
+            rules: normalizedLegacyRules,
+        },
+    ];
 }
 
-function optionsDisplayItems(block: StageBlock): Array<{ id: string; label: string; points: number; value: string; destination: string; image_url: string }> {
+function optionsDisplayItems(block: StageBlock): Array<{
+    id: string;
+    label: string;
+    points: number;
+    value: string;
+    destination: string;
+    image_url: string;
+}> {
     if (Array.isArray(block.option_items) && block.option_items.length > 0) {
         return block.option_items.map((item, index) => ({
             id: item.id ?? `${block.id}-option-${index}`,
             label: safeTrim(item.label),
-            points: Number.isFinite(Number(item.points)) ? Number(item.points) : index + 1,
-            value: safeTrim(item.value) || String.fromCharCode(65 + (index % 26)),
+            points: Number.isFinite(Number(item.points))
+                ? Number(item.points)
+                : index + 1,
+            value:
+                safeTrim(item.value) || String.fromCharCode(65 + (index % 26)),
             destination: safeTrim(item.destination) || 'next_stage',
             image_url: safeTrim(item.image_url),
         }));
@@ -3473,23 +4387,38 @@ function hasOptionsIntroContent(block: StageBlock): boolean {
         return false;
     }
 
-    return safeTrim(block.options_intro_title).length > 0 || safeTrim(block.options_intro_description).length > 0;
+    return (
+        safeTrim(block.options_intro_title).length > 0 ||
+        safeTrim(block.options_intro_description).length > 0
+    );
 }
 
-function optionsShouldRenderImage(block: StageBlock, item: { image_url: string }): boolean {
-    return (block.options_disposition ?? 'image_text') !== 'text' && item.image_url.length > 0;
+function optionsShouldRenderImage(
+    block: StageBlock,
+    item: { image_url: string },
+): boolean {
+    return (
+        (block.options_disposition ?? 'image_text') !== 'text' &&
+        item.image_url.length > 0
+    );
 }
 
 function optionsMediaOrderClass(block: StageBlock): string {
-    return (block.options_disposition ?? 'image_text') === 'text_image' ? 'order-2' : 'order-1';
+    return (block.options_disposition ?? 'image_text') === 'text_image'
+        ? 'order-2'
+        : 'order-1';
 }
 
 function optionsLabelOrderClass(block: StageBlock): string {
-    return (block.options_disposition ?? 'image_text') === 'text_image' ? 'order-1' : 'order-2';
+    return (block.options_disposition ?? 'image_text') === 'text_image'
+        ? 'order-1'
+        : 'order-2';
 }
 
 function optionsBodyClass(block: StageBlock): string {
-    return block.options_layout === 'grid_1' ? 'flex items-center gap-3' : 'flex items-center gap-2';
+    return block.options_layout === 'grid_1'
+        ? 'flex items-center gap-3'
+        : 'flex items-center gap-2';
 }
 
 function optionsImageRatioClass(block: StageBlock): string {
@@ -3514,7 +4443,9 @@ function optionsImageWrapClass(block: StageBlock): string {
 }
 
 function optionsDetailWrapClass(block: StageBlock): string {
-    return block.options_detail_position === 'end' ? 'order-3 ml-auto' : 'order-1';
+    return block.options_detail_position === 'end'
+        ? 'order-3 ml-auto'
+        : 'order-1';
 }
 
 function argumentItems(block: StageBlock): string[] {
@@ -3523,7 +4454,9 @@ function argumentItems(block: StageBlock): string[] {
         .filter((item) => item.length > 0);
 }
 
-function beforeAfterItems(block: StageBlock): Array<{ label: string; value: string }> {
+function beforeAfterItems(
+    block: StageBlock,
+): Array<{ label: string; value: string }> {
     return [
         { label: 'Antes', value: safeTrim(block.options?.[0]) },
         { label: 'Depois', value: safeTrim(block.options?.[1]) },
@@ -3549,7 +4482,9 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
 
     const previousType = block.type;
     const previousOptions = block.options ? [...block.options] : undefined;
-    const previousOptionItems = block.option_items ? block.option_items.map((item) => ({ ...item })) : undefined;
+    const previousOptionItems = block.option_items
+        ? block.option_items.map((item) => ({ ...item }))
+        : undefined;
     const previousOptionsIntroType = block.options_intro_type;
     const previousOptionsIntroTitle = block.options_intro_title;
     const previousOptionsIntroDescription = block.options_intro_description;
@@ -3577,7 +4512,9 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
     }
 
     if (isChoiceBlock(nextType)) {
-        block.options = template.options ? [...template.options] : defaultOptionsLabels(nextType);
+        block.options = template.options
+            ? [...template.options]
+            : defaultOptionsLabels(nextType);
     } else {
         delete block.options;
     }
@@ -3587,41 +4524,92 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
 
         block.option_items = preserveOptionsState
             ? previousOptionItems?.map((item) => ({ ...item }))
-            : (template.option_items ? template.option_items.map((item) => ({ ...item })) : createOptionItems(block.options ?? defaultOptionsLabels(nextType)));
+            : template.option_items
+              ? template.option_items.map((item) => ({ ...item }))
+              : createOptionItems(
+                    block.options ?? defaultOptionsLabels(nextType),
+                );
         block.options = preserveOptionsState
-            ? [...(previousOptions ?? block.option_items?.map((item) => item.label) ?? defaultOptionsLabels(nextType))]
+            ? [
+                  ...(previousOptions ??
+                      block.option_items?.map((item) => item.label) ??
+                      defaultOptionsLabels(nextType)),
+              ]
             : (block.options ?? defaultOptionsLabels(nextType));
-        block.options_intro_type = preserveOptionsState ? (previousOptionsIntroType ?? 'none') : (template.options_intro_type ?? 'none');
-        block.options_intro_title = preserveOptionsState ? (previousOptionsIntroTitle ?? '') : (template.options_intro_title ?? '');
-        block.options_intro_description = preserveOptionsState ? (previousOptionsIntroDescription ?? '') : (template.options_intro_description ?? '');
-        block.options_required_selection = preserveOptionsState ? (previousOptionsRequiredSelection ?? true) : (template.options_required_selection ?? true);
-        block.options_allow_multiple = nextType === 'single_choice'
-            ? false
-            : (preserveOptionsState ? (previousOptionsAllowMultiple ?? defaultOptionsAllowMultiple(nextType)) : (template.options_allow_multiple ?? defaultOptionsAllowMultiple(nextType)));
-        block.options_disable_auto_follow = preserveOptionsState ? (previousOptionsDisableAutoFollow ?? false) : (template.options_disable_auto_follow ?? false);
-        block.options_style = preserveOptionsState ? normalizeOptionsStyle(previousOptionsStyle) : normalizeOptionsStyle(template.options_style);
-        block.options_transparent_image = preserveOptionsState ? (previousOptionsTransparentImage ?? true) : (template.options_transparent_image ?? true);
-        block.options_layout = preserveOptionsState ? (previousOptionsLayout ?? 'grid_2') : (template.options_layout ?? 'grid_2');
-        block.options_orientation = preserveOptionsState ? (previousOptionsOrientation ?? 'vertical') : (template.options_orientation ?? 'vertical');
-        block.options_image_ratio = preserveOptionsState ? (previousOptionsImageRatio ?? '1:1') : (template.options_image_ratio ?? '1:1');
-        block.options_disposition = preserveOptionsState ? (previousOptionsDisposition ?? 'image_text') : (template.options_disposition ?? 'image_text');
+        block.options_intro_type = preserveOptionsState
+            ? (previousOptionsIntroType ?? 'none')
+            : (template.options_intro_type ?? 'none');
+        block.options_intro_title = preserveOptionsState
+            ? (previousOptionsIntroTitle ?? '')
+            : (template.options_intro_title ?? '');
+        block.options_intro_description = preserveOptionsState
+            ? (previousOptionsIntroDescription ?? '')
+            : (template.options_intro_description ?? '');
+        block.options_required_selection = preserveOptionsState
+            ? (previousOptionsRequiredSelection ?? true)
+            : (template.options_required_selection ?? true);
+        block.options_allow_multiple =
+            nextType === 'single_choice'
+                ? false
+                : preserveOptionsState
+                  ? (previousOptionsAllowMultiple ??
+                    defaultOptionsAllowMultiple(nextType))
+                  : (template.options_allow_multiple ??
+                    defaultOptionsAllowMultiple(nextType));
+        block.options_disable_auto_follow = preserveOptionsState
+            ? (previousOptionsDisableAutoFollow ?? false)
+            : (template.options_disable_auto_follow ?? false);
+        block.options_style = preserveOptionsState
+            ? normalizeOptionsStyle(previousOptionsStyle)
+            : normalizeOptionsStyle(template.options_style);
+        block.options_transparent_image = preserveOptionsState
+            ? (previousOptionsTransparentImage ?? true)
+            : (template.options_transparent_image ?? true);
+        block.options_layout = preserveOptionsState
+            ? (previousOptionsLayout ?? 'grid_2')
+            : (template.options_layout ?? 'grid_2');
+        block.options_orientation = preserveOptionsState
+            ? (previousOptionsOrientation ?? 'vertical')
+            : (template.options_orientation ?? 'vertical');
+        block.options_image_ratio = preserveOptionsState
+            ? (previousOptionsImageRatio ?? '1:1')
+            : (template.options_image_ratio ?? '1:1');
+        block.options_disposition = preserveOptionsState
+            ? (previousOptionsDisposition ?? 'image_text')
+            : (template.options_disposition ?? 'image_text');
         block.options_detail = preserveOptionsState
-            ? (previousOptionsDetail ? normalizeDetailValue(previousOptionsDetail) : defaultOptionsDetail(nextType))
-            : (template.options_detail ? normalizeDetailValue(template.options_detail) : defaultOptionsDetail(nextType));
-        block.options_detail_position = preserveOptionsState ? (previousOptionsDetailPosition ?? 'start') : (template.options_detail_position ?? 'start');
-        block.options_border_size = preserveOptionsState ? (previousOptionsBorderSize ?? 'small') : (template.options_border_size ?? 'small');
-        block.options_shadow = preserveOptionsState ? (previousOptionsShadow ?? 'none') : (template.options_shadow ?? 'none');
-        block.options_spacing = preserveOptionsState ? (previousOptionsSpacing ?? 'simple') : (template.options_spacing ?? 'simple');
+            ? previousOptionsDetail
+                ? normalizeDetailValue(previousOptionsDetail)
+                : defaultOptionsDetail(nextType)
+            : template.options_detail
+              ? normalizeDetailValue(template.options_detail)
+              : defaultOptionsDetail(nextType);
+        block.options_detail_position = preserveOptionsState
+            ? (previousOptionsDetailPosition ?? 'start')
+            : (template.options_detail_position ?? 'start');
+        block.options_border_size = preserveOptionsState
+            ? (previousOptionsBorderSize ?? 'small')
+            : (template.options_border_size ?? 'small');
+        block.options_shadow = preserveOptionsState
+            ? (previousOptionsShadow ?? 'none')
+            : (template.options_shadow ?? 'none');
+        block.options_spacing = preserveOptionsState
+            ? (previousOptionsSpacing ?? 'simple')
+            : (template.options_spacing ?? 'simple');
         normalizeOptionsBlock(block);
     } else if (nextType === 'testimonials') {
-        block.option_items = template.option_items ? template.option_items.map((item) => ({ ...item })) : [];
+        block.option_items = template.option_items
+            ? template.option_items.map((item) => ({ ...item }))
+            : [];
         block.options_border_size = template.options_border_size ?? 'small';
         block.options_shadow = template.options_shadow ?? 'none';
         block.options_spacing = template.options_spacing ?? 'simple';
         block.testimonials_layout = template.testimonials_layout ?? 'list';
         normalizeTestimonialsBlock(block);
     } else if (nextType === 'faq') {
-        block.option_items = template.option_items ? template.option_items.map((item) => ({ ...item })) : [];
+        block.option_items = template.option_items
+            ? template.option_items.map((item) => ({ ...item }))
+            : [];
         block.faq_first_active = template.faq_first_active ?? true;
         block.faq_detail = template.faq_detail ?? 'arrow';
         normalizeFaqBlock(block);
@@ -3636,22 +4624,30 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
         block.price_style = template.price_style ?? 'theme';
         block.price_link = template.price_link ?? '';
     } else if (nextType === 'carousel') {
-        block.option_items = template.option_items ? template.option_items.map((item) => ({ ...item })) : [];
+        block.option_items = template.option_items
+            ? template.option_items.map((item) => ({ ...item }))
+            : [];
         block.carousel_layout = template.carousel_layout ?? 'image_text';
         block.carousel_pagination = template.carousel_pagination ?? true;
         block.carousel_autoplay = template.carousel_autoplay ?? false;
+        block.carousel_autoplay_seconds =
+            template.carousel_autoplay_seconds ?? 3;
         block.carousel_border_type = template.carousel_border_type ?? 'none';
         normalizeCarouselBlock(block);
     } else if (nextType === 'metrics') {
         block.label = '';
-        block.option_items = template.option_items ? template.option_items.map((item) => ({ ...item })) : [{
-            id: createClientId(),
-            label: '',
-            value: '',
-            description: '',
-            points: 0,
-            destination: '',
-        }];
+        block.option_items = template.option_items
+            ? template.option_items.map((item) => ({ ...item }))
+            : [
+                  {
+                      id: createClientId(),
+                      label: '',
+                      value: '',
+                      description: '',
+                      points: 0,
+                      destination: '',
+                  },
+              ];
         normalizeMetricsBlock(block);
     } else {
         delete block.option_items;
@@ -3687,6 +4683,7 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
         delete block.carousel_layout;
         delete block.carousel_pagination;
         delete block.carousel_autoplay;
+        delete block.carousel_autoplay_seconds;
         delete block.carousel_border_type;
     }
 
@@ -3696,7 +4693,8 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
 
     if (nextType === 'button') {
         block.button_action = template.button_action ?? 'next_stage';
-        block.button_target_stage_order = template.button_target_stage_order ?? 'next';
+        block.button_target_stage_order =
+            template.button_target_stage_order ?? 'next';
         block.button_link = template.button_link ?? '';
         block.button_open_new_tab = template.button_open_new_tab ?? true;
         block.button_color_style = template.button_color_style ?? 'theme';
@@ -3776,16 +4774,28 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
 
     if (nextType === 'notification') {
         block.label = '';
-        block.notification_title = template.notification_title ?? defaultNotificationTitle();
-        block.notification_description = template.notification_description ?? defaultNotificationDescription();
-        block.notification_avatar_url = template.notification_avatar_url ?? defaultNotificationAvatarUrl();
-        block.notification_position = template.notification_position ?? 'default';
-        block.notification_duration_seconds = Number(template.notification_duration_seconds ?? 5);
-        block.notification_interval_seconds = Number(template.notification_interval_seconds ?? 2);
+        block.notification_title =
+            template.notification_title ?? defaultNotificationTitle();
+        block.notification_description =
+            template.notification_description ??
+            defaultNotificationDescription();
+        block.notification_avatar_url =
+            template.notification_avatar_url ?? defaultNotificationAvatarUrl();
+        block.notification_position =
+            template.notification_position ?? 'default';
+        block.notification_duration_seconds = Number(
+            template.notification_duration_seconds ?? 5,
+        );
+        block.notification_interval_seconds = Number(
+            template.notification_interval_seconds ?? 2,
+        );
         block.notification_style = template.notification_style ?? 'white';
         block.notification_size = template.notification_size ?? 'default';
         block.notification_variant = template.notification_variant ?? 'social';
-        block.notification_variations = (template.notification_variations?.length ?? 0) > 0 ? template.notification_variations : createNotificationVariations(true);
+        block.notification_variations =
+            (template.notification_variations?.length ?? 0) > 0
+                ? template.notification_variations
+                : createNotificationVariations(true);
     } else {
         delete block.notification_title;
         delete block.notification_description;
@@ -3801,7 +4811,10 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
 
     if (nextType === 'timer') {
         block.label = '';
-        block.timer_seconds = Number(template.timer_seconds ?? parseLegacyTimerSeconds(template.placeholder));
+        block.timer_seconds = Number(
+            template.timer_seconds ??
+                parseLegacyTimerSeconds(template.placeholder),
+        );
         block.timer_text = template.timer_text ?? template.placeholder ?? '';
         block.timer_style = template.timer_style ?? 'red';
         block.placeholder = block.timer_text;
@@ -3814,10 +4827,16 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
     if (nextType === 'loading') {
         block.label = template.label ?? '';
         block.placeholder = template.placeholder ?? '';
-        block.loading_start_seconds = Number(template.loading_start_seconds ?? 0);
-        block.loading_duration_seconds = Number(template.loading_duration_seconds ?? 5);
-        block.loading_navigation_action = template.loading_navigation_action ?? 'none';
-        block.loading_target_stage_order = template.loading_target_stage_order ?? 'next';
+        block.loading_start_seconds = Number(
+            template.loading_start_seconds ?? 0,
+        );
+        block.loading_duration_seconds = Number(
+            template.loading_duration_seconds ?? 5,
+        );
+        block.loading_navigation_action =
+            template.loading_navigation_action ?? 'none';
+        block.loading_target_stage_order =
+            template.loading_target_stage_order ?? 'next';
         block.loading_link = template.loading_link ?? '';
         block.loading_show_title = template.loading_show_title ?? true;
         block.loading_show_progress = template.loading_show_progress ?? true;
@@ -3836,7 +4855,10 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
         block.placeholder = '';
         block.level_title = template.level_title ?? '';
         block.level_subtitle = template.level_subtitle ?? '';
-        block.level_percentage = Math.max(0, Math.min(100, Number(template.level_percentage ?? 0)));
+        block.level_percentage = Math.max(
+            0,
+            Math.min(100, Number(template.level_percentage ?? 0)),
+        );
         block.level_indicator_text = template.level_indicator_text ?? '';
         block.level_legends = template.level_legends ?? '';
         block.level_show_meter = template.level_show_meter ?? true;
@@ -3860,8 +4882,10 @@ function changeBlockType(block: StageBlock, nextType: StageBlockType): void {
     block.width_percent = Number(block.width_percent ?? 100);
     block.align_horizontal = block.align_horizontal ?? 'start';
     block.align_vertical = block.align_vertical ?? 'start';
-    block.show_after_seconds = nextType === 'email' ? null : (block.show_after_seconds ?? null);
-    block.display_rules = nextType === 'email' ? [] : (block.display_rules ?? []);
+    block.show_after_seconds =
+        nextType === 'email' ? null : (block.show_after_seconds ?? null);
+    block.display_rules =
+        nextType === 'email' ? [] : (block.display_rules ?? []);
 }
 
 function onButtonActionChange(block: StageBlock): void {
@@ -3898,7 +4922,8 @@ function onLoadingNavigationChange(block: StageBlock): void {
         return;
     }
 
-    block.loading_target_stage_order = block.loading_target_stage_order ?? 'next';
+    block.loading_target_stage_order =
+        block.loading_target_stage_order ?? 'next';
 }
 
 function addBlock(type: StageBlockType): void {
@@ -3924,7 +4949,11 @@ function onPaletteDragEnd(): void {
 }
 
 function onBlocksPanelDrop(): void {
-    if (!props.permissions.canEdit || !currentStage.value || draggedPaletteType.value === null) {
+    if (
+        !props.permissions.canEdit ||
+        !currentStage.value ||
+        draggedPaletteType.value === null
+    ) {
         return;
     }
 
@@ -3939,7 +4968,9 @@ function removeBlock(blockId: string): void {
         return;
     }
 
-    currentStage.value.blocks = currentStage.value.blocks.filter((block) => block.id !== blockId);
+    currentStage.value.blocks = currentStage.value.blocks.filter(
+        (block) => block.id !== blockId,
+    );
 
     if (selectedBlockId.value === blockId) {
         selectedBlockId.value = null;
@@ -3951,7 +4982,9 @@ function duplicateBlock(blockId: string): void {
         return;
     }
 
-    const sourceIndex = currentStage.value.blocks.findIndex((block) => block.id === blockId);
+    const sourceIndex = currentStage.value.blocks.findIndex(
+        (block) => block.id === blockId,
+    );
 
     if (sourceIndex < 0) {
         return;
@@ -3973,7 +5006,9 @@ function moveBlock(blockId: string, direction: 'up' | 'down'): void {
         return;
     }
 
-    const index = currentStage.value.blocks.findIndex((block) => block.id === blockId);
+    const index = currentStage.value.blocks.findIndex(
+        (block) => block.id === blockId,
+    );
 
     if (index < 0) {
         return;
@@ -3990,12 +5025,17 @@ function moveBlock(blockId: string, direction: 'up' | 'down'): void {
     selectedBlockId.value = block.id;
 }
 
-function moveSelectedBlock(direction: 'up' | 'down', options: { showToast?: boolean } = {}): void {
+function moveSelectedBlock(
+    direction: 'up' | 'down',
+    options: { showToast?: boolean } = {},
+): void {
     if (!selectedBlockId.value || !currentStage.value) {
         return;
     }
 
-    const index = currentStage.value.blocks.findIndex((block) => block.id === selectedBlockId.value);
+    const index = currentStage.value.blocks.findIndex(
+        (block) => block.id === selectedBlockId.value,
+    );
 
     if (index < 0) {
         return;
@@ -4010,7 +5050,12 @@ function moveSelectedBlock(direction: 'up' | 'down', options: { showToast?: bool
     moveBlock(selectedBlockId.value, direction);
 
     if (options.showToast) {
-        showActionToast(direction === 'up' ? 'Bloco movido para cima' : 'Bloco movido para baixo', 'success');
+        showActionToast(
+            direction === 'up'
+                ? 'Bloco movido para cima'
+                : 'Bloco movido para baixo',
+            'success',
+        );
     }
 }
 
@@ -4050,7 +5095,9 @@ function onBlockDrop(targetBlockId: string): void {
     }
 
     if (draggedPaletteType.value !== null) {
-        const targetIndex = currentStage.value.blocks.findIndex((block) => block.id === targetBlockId);
+        const targetIndex = currentStage.value.blocks.findIndex(
+            (block) => block.id === targetBlockId,
+        );
 
         if (targetIndex < 0) {
             draggedPaletteType.value = null;
@@ -4059,8 +5106,13 @@ function onBlockDrop(targetBlockId: string): void {
             return;
         }
 
-        currentStage.value.blocks.splice(targetIndex, 0, createBlock(draggedPaletteType.value));
-        selectedBlockId.value = currentStage.value.blocks[targetIndex]?.id ?? null;
+        currentStage.value.blocks.splice(
+            targetIndex,
+            0,
+            createBlock(draggedPaletteType.value),
+        );
+        selectedBlockId.value =
+            currentStage.value.blocks[targetIndex]?.id ?? null;
         draggedPaletteType.value = null;
         dragOverBlockId.value = null;
 
@@ -4071,8 +5123,12 @@ function onBlockDrop(targetBlockId: string): void {
         return;
     }
 
-    const sourceIndex = currentStage.value.blocks.findIndex((block) => block.id === draggedBlockId.value);
-    const targetIndex = currentStage.value.blocks.findIndex((block) => block.id === targetBlockId);
+    const sourceIndex = currentStage.value.blocks.findIndex(
+        (block) => block.id === draggedBlockId.value,
+    );
+    const targetIndex = currentStage.value.blocks.findIndex(
+        (block) => block.id === targetBlockId,
+    );
 
     if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
         draggedBlockId.value = null;
@@ -4113,8 +5169,10 @@ function addBlockOption(block: StageBlock): void {
             destination: 'next_stage',
             image_url: '',
         });
-        block.options = block.option_items?.map((item) => item.label) ?? block.options;
-        expandedOptionItemId.value = block.option_items?.[block.option_items.length - 1]?.id ?? null;
+        block.options =
+            block.option_items?.map((item) => item.label) ?? block.options;
+        expandedOptionItemId.value =
+            block.option_items?.[block.option_items.length - 1]?.id ?? null;
 
         return;
     }
@@ -4132,7 +5190,8 @@ function addBlockOption(block: StageBlock): void {
             destination: '',
         });
         normalizeTestimonialsBlock(block);
-        expandedOptionItemId.value = block.option_items?.[block.option_items.length - 1]?.id ?? null;
+        expandedOptionItemId.value =
+            block.option_items?.[block.option_items.length - 1]?.id ?? null;
 
         return;
     }
@@ -4314,7 +5373,9 @@ function duplicateStageByClientId(stageClientId: string): void {
         return;
     }
 
-    const index = localStages.value.findIndex((stage) => stage.clientId === stageClientId);
+    const index = localStages.value.findIndex(
+        (stage) => stage.clientId === stageClientId,
+    );
 
     if (index < 0) {
         return;
@@ -4333,10 +5394,12 @@ function duplicateStageByClientId(stageClientId: string): void {
                 ...item,
                 id: createClientId(),
             })),
-            notification_variations: block.notification_variations?.map((variation) => ({
-                ...variation,
-                id: createClientId(),
-            })),
+            notification_variations: block.notification_variations?.map(
+                (variation) => ({
+                    ...variation,
+                    id: createClientId(),
+                }),
+            ),
         })),
     };
 
@@ -4350,7 +5413,9 @@ function removeStageByClientId(stageClientId: string): void {
         return;
     }
 
-    const index = localStages.value.findIndex((stage) => stage.clientId === stageClientId);
+    const index = localStages.value.findIndex(
+        (stage) => stage.clientId === stageClientId,
+    );
 
     if (index < 0) {
         return;
@@ -4359,7 +5424,11 @@ function removeStageByClientId(stageClientId: string): void {
     localStages.value.splice(index, 1);
 
     if (selectedStageKey.value === stageClientId) {
-        const nextStage = localStages.value[index] ?? localStages.value[index - 1] ?? localStages.value[0] ?? null;
+        const nextStage =
+            localStages.value[index] ??
+            localStages.value[index - 1] ??
+            localStages.value[0] ??
+            null;
         selectedStageKey.value = nextStage?.clientId ?? '';
     }
 
@@ -4367,7 +5436,8 @@ function removeStageByClientId(stageClientId: string): void {
 }
 
 function toggleStageMenu(stageClientId: string): void {
-    openStageMenuKey.value = openStageMenuKey.value === stageClientId ? null : stageClientId;
+    openStageMenuKey.value =
+        openStageMenuKey.value === stageClientId ? null : stageClientId;
 }
 
 function onStageDragStart(stageKey: string): void {
@@ -4403,8 +5473,12 @@ function onStageDrop(targetStageKey: string): void {
         return;
     }
 
-    const sourceIndex = localStages.value.findIndex((stage) => stage.clientId === draggedStageKey.value);
-    const targetIndex = localStages.value.findIndex((stage) => stage.clientId === targetStageKey);
+    const sourceIndex = localStages.value.findIndex(
+        (stage) => stage.clientId === draggedStageKey.value,
+    );
+    const targetIndex = localStages.value.findIndex(
+        (stage) => stage.clientId === targetStageKey,
+    );
 
     if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) {
         draggedStageKey.value = null;
@@ -4467,8 +5541,14 @@ function buildStagesPayload(): Array<{
     return localStages.value.map((stage, index) => {
         const basePayload = {
             name: stage.name.trim() || `Etapa ${index + 1}`,
-            conversion_rate: stage.conversion_rate.length > 0 ? Number(stage.conversion_rate) : null,
-            expected_volume: stage.expected_volume.length > 0 ? Number(stage.expected_volume) : null,
+            conversion_rate:
+                stage.conversion_rate.length > 0
+                    ? Number(stage.conversion_rate)
+                    : null,
+            expected_volume:
+                stage.expected_volume.length > 0
+                    ? Number(stage.expected_volume)
+                    : null,
             meta: {
                 header: stage.header,
                 builder: {
@@ -4476,7 +5556,8 @@ function buildStagesPayload(): Array<{
                     subtitle: safeTrim(stage.subtitle),
                     button_text: safeTrim(stage.buttonText),
                     stage_button_action: stage.stageButtonAction,
-                    stage_button_target_stage_order: stage.stageButtonTargetStageOrder,
+                    stage_button_target_stage_order:
+                        stage.stageButtonTargetStageOrder,
                     stage_button_link: safeTrim(stage.stageButtonLink),
                     stage_button_open_new_tab: stage.stageButtonOpenNewTab,
                     stage_button_color_style: stage.stageButtonColorStyle,
@@ -4500,152 +5581,563 @@ function buildStagesPayload(): Array<{
                             id: block.id,
                             type: normalizeLegacyBlockType(block.type),
                             label: safeTrim(block.label) || null,
-                            placeholder: block.type === 'image'
-                                ? sanitizeStoredAssetUrl(block.placeholder)
-                                : (safeTrim(block.placeholder) || null),
+                            placeholder:
+                                block.type === 'image'
+                                    ? sanitizeStoredAssetUrl(block.placeholder)
+                                    : safeTrim(block.placeholder) || null,
                             required: block.required,
-                            options: block.options?.map((option) => safeTrim(option)).filter((option) => option.length > 0) ?? undefined,
-                            option_items: (isOptionsComponentType(block.type) || block.type === 'testimonials' || block.type === 'faq' || block.type === 'carousel' || block.type === 'metrics')
-                                ? (block.option_items ?? []).map((item) => ({
-                                    id: item.id,
-                                    label: safeTrim(item.label),
-                                    points: Number(item.points ?? 0),
-                                    value: block.type === 'carousel'
-                                        ? (sanitizeStoredAssetUrl(safeTrim(item.value) || safeTrim(item.image_url)) ?? (safeTrim(item.value) || safeTrim(item.image_url)))
-                                        : safeTrim(item.value),
-                                    destination: safeTrim(item.destination),
-                                    image_url: block.type === 'carousel'
-                                        ? (sanitizeStoredAssetUrl(safeTrim(item.image_url) || safeTrim(item.value)) ?? (safeTrim(item.image_url) || safeTrim(item.value)))
-                                        : sanitizeStoredAssetUrl(item.image_url),
-                                    subtitle: safeTrim(item.subtitle) || null,
-                                    description: safeTrim(item.description) || null,
-                                    rating: (() => { const r = Number(item.rating ?? item.points ?? 5); return Math.max(1, Math.min(5, Math.round(Number.isFinite(r) ? r : 5))); })(),
-                                }))
+                            options:
+                                block.options
+                                    ?.map((option) => safeTrim(option))
+                                    .filter((option) => option.length > 0) ??
+                                undefined,
+                            option_items:
+                                isOptionsComponentType(block.type) ||
+                                block.type === 'testimonials' ||
+                                block.type === 'faq' ||
+                                block.type === 'carousel' ||
+                                block.type === 'metrics'
+                                    ? (block.option_items ?? []).map(
+                                          (item) => ({
+                                              id: item.id,
+                                              label: safeTrim(item.label),
+                                              points: Number(item.points ?? 0),
+                                              value:
+                                                  block.type === 'carousel'
+                                                      ? (sanitizeStoredAssetUrl(
+                                                            safeTrim(
+                                                                item.value,
+                                                            ) ||
+                                                                safeTrim(
+                                                                    item.image_url,
+                                                                ),
+                                                        ) ??
+                                                        (safeTrim(item.value) ||
+                                                            safeTrim(
+                                                                item.image_url,
+                                                            )))
+                                                      : safeTrim(item.value),
+                                              destination: safeTrim(
+                                                  item.destination,
+                                              ),
+                                              image_url:
+                                                  block.type === 'carousel'
+                                                      ? (sanitizeStoredAssetUrl(
+                                                            safeTrim(
+                                                                item.image_url,
+                                                            ) ||
+                                                                safeTrim(
+                                                                    item.value,
+                                                                ),
+                                                        ) ??
+                                                        (safeTrim(
+                                                            item.image_url,
+                                                        ) ||
+                                                            safeTrim(
+                                                                item.value,
+                                                            )))
+                                                      : sanitizeStoredAssetUrl(
+                                                            item.image_url,
+                                                        ),
+                                              subtitle:
+                                                  safeTrim(item.subtitle) ||
+                                                  null,
+                                              description:
+                                                  safeTrim(item.description) ||
+                                                  null,
+                                              rating: (() => {
+                                                  const r = Number(
+                                                      item.rating ??
+                                                          item.points ??
+                                                          5,
+                                                  );
+                                                  return Math.max(
+                                                      1,
+                                                      Math.min(
+                                                          5,
+                                                          Math.round(
+                                                              Number.isFinite(r)
+                                                                  ? r
+                                                                  : 5,
+                                                          ),
+                                                      ),
+                                                  );
+                                              })(),
+                                          }),
+                                      )
+                                    : undefined,
+                            options_intro_type: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_intro_type ?? 'text')
                                 : undefined,
-                            options_intro_type: isOptionsComponentType(block.type) ? (block.options_intro_type ?? 'text') : undefined,
-                            options_intro_title: isOptionsComponentType(block.type) ? (block.options_intro_title?.trim() || null) : undefined,
-                            options_intro_description: isOptionsComponentType(block.type) ? (block.options_intro_description?.trim() || null) : undefined,
-                            options_required_selection: isOptionsComponentType(block.type) ? (block.options_required_selection ?? true) : undefined,
-                            options_allow_multiple: isOptionsComponentType(block.type) ? (block.options_allow_multiple ?? defaultOptionsAllowMultiple(block.type)) : undefined,
-                            options_disable_auto_follow: isOptionsComponentType(block.type) ? (block.options_disable_auto_follow ?? false) : undefined,
-                            options_style: isOptionsComponentType(block.type) ? (block.options_style ?? 'simple') : undefined,
-                            options_transparent_image: isOptionsComponentType(block.type) ? (block.options_transparent_image ?? true) : undefined,
-                            options_layout: isOptionsComponentType(block.type) ? (block.options_layout ?? 'grid_2') : undefined,
-                            options_orientation: isOptionsComponentType(block.type) ? (block.options_orientation ?? 'vertical') : undefined,
-                            options_image_ratio: isOptionsComponentType(block.type) ? (block.options_image_ratio ?? '1:1') : undefined,
-                            options_disposition: isOptionsComponentType(block.type) ? (block.options_disposition ?? 'image_text') : undefined,
-                            options_detail: isOptionsComponentType(block.type) ? normalizeDetailValue(block.options_detail) : undefined,
-                            options_detail_position: isOptionsComponentType(block.type) ? (block.options_detail_position ?? 'start') : undefined,
-                            options_border_size: (isOptionsComponentType(block.type) || block.type === 'testimonials') ? (block.options_border_size ?? 'small') : undefined,
-                            options_shadow: (isOptionsComponentType(block.type) || block.type === 'testimonials') ? (block.options_shadow ?? 'none') : undefined,
-                            options_spacing: (isOptionsComponentType(block.type) || block.type === 'testimonials') ? (block.options_spacing ?? 'simple') : undefined,
-                            testimonials_layout: block.type === 'testimonials' ? (block.testimonials_layout ?? 'list') : undefined,
-                            faq_first_active: block.type === 'faq' ? (block.faq_first_active ?? true) : undefined,
-                            faq_detail: block.type === 'faq' ? (block.faq_detail ?? 'arrow') : undefined,
-                            price_title: block.type === 'price' ? (block.price_title?.trim() || null) : undefined,
-                            price_prefix: block.type === 'price' ? (block.price_prefix?.trim() || null) : undefined,
-                            price_value: block.type === 'price' ? (block.price_value?.trim() || null) : undefined,
-                            price_suffix: block.type === 'price' ? (block.price_suffix?.trim() || null) : undefined,
-                            price_badge_text: block.type === 'price' ? (block.price_badge_text?.trim() || '') : undefined,
-                            price_mode: block.type === 'price' ? (block.price_mode ?? 'illustrative') : undefined,
-                            price_layout: block.type === 'price' ? (block.price_layout ?? 'horizontal') : undefined,
-                            price_style: block.type === 'price' ? (block.price_style ?? 'theme') : undefined,
-                            price_link: block.type === 'price' ? (block.price_link?.trim() || '') : undefined,
-                            carousel_layout: block.type === 'carousel' ? (block.carousel_layout ?? 'image_text') : undefined,
-                            carousel_pagination: block.type === 'carousel' ? (block.carousel_pagination ?? true) : undefined,
-                            carousel_autoplay: block.type === 'carousel' ? (block.carousel_autoplay ?? false) : undefined,
-                            carousel_border_type: block.type === 'carousel' ? (block.carousel_border_type ?? 'none') : undefined,
-                            image_ratio: block.type === 'image' ? (block.image_ratio ?? 'auto') : undefined,
-                            image_fit: block.type === 'image' ? (block.image_fit ?? 'cover') : undefined,
-                            image_radius: block.type === 'image' ? (block.image_radius ?? 'medium') : undefined,
-                            image_frame: block.type === 'image' ? (block.image_frame ?? 'subtle') : undefined,
-                            video_ratio: block.type === 'video' ? (block.video_ratio ?? '16:9') : undefined,
-                            audio_sender: block.type === 'audio' ? (block.audio_sender?.trim() || null) : undefined,
-                            audio_src: block.type === 'audio' ? sanitizeStoredAssetUrl(block.audio_src) : undefined,
-                            audio_avatar_url: block.type === 'audio' ? sanitizeStoredAssetUrl(block.audio_avatar_url) : undefined,
-                            audio_model: block.type === 'audio' ? (block.audio_model ?? 'whatsapp') : undefined,
-                            audio_theme: block.type === 'audio' ? (block.audio_theme ?? 'light') : undefined,
-                            attention_style: block.type === 'attention' ? (block.attention_style ?? 'red') : undefined,
-                            attention_emphasis: block.type === 'attention' ? (block.attention_emphasis ?? false) : undefined,
-                            attention_padding: block.type === 'attention' ? (block.attention_padding ?? 'default') : undefined,
-                            notification_title: block.type === 'notification' ? (block.notification_title?.trim() || null) : undefined,
-                            notification_description: block.type === 'notification' ? (block.notification_description?.trim() || null) : undefined,
-                            notification_avatar_url: block.type === 'notification' ? sanitizeStoredAssetUrl(block.notification_avatar_url) : undefined,
-                            notification_position: block.type === 'notification' ? (block.notification_position ?? 'default') : undefined,
-                            notification_duration_seconds: block.type === 'notification' ? Math.max(1, Number(block.notification_duration_seconds ?? 5)) : undefined,
-                            notification_interval_seconds: block.type === 'notification' ? Math.max(1, Number(block.notification_interval_seconds ?? 2)) : undefined,
-                            notification_style: block.type === 'notification' ? (block.notification_style ?? 'white') : undefined,
-                            notification_size: block.type === 'notification' ? (block.notification_size ?? 'default') : undefined,
-                            notification_variant: block.type === 'notification' ? (block.notification_variant ?? 'social') : undefined,
-                            notification_variations: block.type === 'notification'
-                                ? (block.notification_variations ?? []).map((variation) => ({
-                                    id: variation.id,
-                                    value1: variation.value1?.trim() || '',
-                                    value2: variation.value2?.trim() || '',
-                                    value3: variation.value3?.trim() || '',
-                                    value4: variation.value4?.trim() || '',
-                                }))
+                            options_intro_title: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? block.options_intro_title?.trim() || null
                                 : undefined,
-                            timer_seconds: block.type === 'timer' ? Math.max(1, Number(block.timer_seconds ?? parseLegacyTimerSeconds(block.placeholder))) : undefined,
-                            timer_text: block.type === 'timer' ? ((block.timer_text ?? block.placeholder ?? '').trim() || null) : undefined,
-                            timer_style: block.type === 'timer' ? (block.timer_style ?? 'red') : undefined,
-                            loading_start_seconds: block.type === 'loading' ? Math.max(0, Number(block.loading_start_seconds ?? 0)) : undefined,
-                            loading_duration_seconds: block.type === 'loading' ? Math.max(1, Number(block.loading_duration_seconds ?? 5)) : undefined,
-                            loading_navigation_action: block.type === 'loading' ? (block.loading_navigation_action ?? 'none') : undefined,
-                            loading_target_stage_order: block.type === 'loading' ? (block.loading_target_stage_order ?? 'next') : undefined,
-                            loading_link: block.type === 'loading' ? (block.loading_link?.trim() || '') : undefined,
-                            loading_show_title: block.type === 'loading' ? (block.loading_show_title ?? true) : undefined,
-                            loading_show_progress: block.type === 'loading' ? (block.loading_show_progress ?? true) : undefined,
-                            level_title: block.type === 'level' ? (block.level_title?.trim() || null) : undefined,
-                            level_subtitle: block.type === 'level' ? (block.level_subtitle?.trim() || null) : undefined,
-                            level_percentage: block.type === 'level' ? Math.max(0, Math.min(100, Number(block.level_percentage ?? 0))) : undefined,
-                            level_indicator_text: block.type === 'level' ? (block.level_indicator_text?.trim() || '') : undefined,
-                            level_legends: block.type === 'level' ? (block.level_legends?.trim() || '') : undefined,
-                            level_show_meter: block.type === 'level' ? (block.level_show_meter ?? true) : undefined,
-                            level_show_progress: block.type === 'level' ? (block.level_show_progress ?? true) : undefined,
-                            level_type: block.type === 'level' ? (block.level_type ?? 'line') : undefined,
-                            level_color: block.type === 'level' ? (block.level_color ?? 'theme') : undefined,
-                        phone_mask: block.type === 'phone' ? (block.phone_mask ?? 'br') : undefined,
-                        number_mask: block.type === 'number' ? (block.number_mask ?? 'decimal') : undefined,
-                        height_mode: block.type === 'height' ? (block.height_mode ?? 'ruler') : undefined,
-                        weight_mode: block.type === 'weight' ? (block.weight_mode ?? 'ruler') : undefined,
-                        button_action: block.button_action ?? 'next_stage',
-                        button_target_stage_order: block.button_target_stage_order ?? 'next',
-                        button_link: block.button_link?.trim() || null,
-                        button_open_new_tab: block.button_open_new_tab ?? true,
-                        button_color_style: block.button_color_style ?? 'theme',
-                        button_animated: block.button_animated ?? false,
-                        button_elevated: block.button_elevated ?? false,
-                        button_sticky_footer: block.button_sticky_footer ?? false,
-                        label_style: block.label_style ?? 'default',
-                        text_align: block.text_align ?? 'text-left',
-                        width_percent: Number(block.width_percent ?? 100),
-                        align_horizontal: block.align_horizontal ?? 'start',
-                        align_vertical: block.align_vertical ?? 'start',
-                        show_after_seconds: block.show_after_seconds ?? null,
-                        display_rule_mode: block.display_rule_mode ?? 'all',
-                        display_rules: (block.display_rules ?? [])
-                            .map((rule) => ({
-                                id: safeTrim(rule.id) || createClientId(),
-                                source_block_id: safeTrim(rule.source_block_id),
-                                operator: rule.operator,
-                                value: safeTrim(rule.value),
-                            }))
-                            .filter((rule) => rule.source_block_id !== '' && (!displayRuleOperatorNeedsValue(rule.operator) || rule.value !== '')),
-                        display_rule_groups: (block.display_rule_groups ?? [])
-                            .map((group) => ({
-                                id: safeTrim(group.id) || createClientId(),
-                                mode: group.mode === 'any' ? 'any' : 'all',
-                                rules: (group.rules ?? [])
-                                    .map((rule) => ({
-                                        id: safeTrim(rule.id) || createClientId(),
-                                        source_block_id: safeTrim(rule.source_block_id),
-                                        operator: rule.operator,
-                                        value: safeTrim(rule.value),
-                                    }))
-                                    .filter((rule) => rule.source_block_id !== '' && (!displayRuleOperatorNeedsValue(rule.operator) || rule.value !== '')),
-                            }))
-                            .filter((group) => group.rules.length > 0),
+                            options_intro_description: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? block.options_intro_description?.trim() ||
+                                  null
+                                : undefined,
+                            options_required_selection: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_required_selection ?? true)
+                                : undefined,
+                            options_allow_multiple: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_allow_multiple ??
+                                  defaultOptionsAllowMultiple(block.type))
+                                : undefined,
+                            options_disable_auto_follow: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_disable_auto_follow ?? false)
+                                : undefined,
+                            options_style: isOptionsComponentType(block.type)
+                                ? (block.options_style ?? 'simple')
+                                : undefined,
+                            options_transparent_image: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_transparent_image ?? true)
+                                : undefined,
+                            options_layout: isOptionsComponentType(block.type)
+                                ? (block.options_layout ?? 'grid_2')
+                                : undefined,
+                            options_orientation: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_orientation ?? 'vertical')
+                                : undefined,
+                            options_image_ratio: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_image_ratio ?? '1:1')
+                                : undefined,
+                            options_disposition: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_disposition ?? 'image_text')
+                                : undefined,
+                            options_detail: isOptionsComponentType(block.type)
+                                ? normalizeDetailValue(block.options_detail)
+                                : undefined,
+                            options_detail_position: isOptionsComponentType(
+                                block.type,
+                            )
+                                ? (block.options_detail_position ?? 'start')
+                                : undefined,
+                            options_border_size:
+                                isOptionsComponentType(block.type) ||
+                                block.type === 'testimonials'
+                                    ? (block.options_border_size ?? 'small')
+                                    : undefined,
+                            options_shadow:
+                                isOptionsComponentType(block.type) ||
+                                block.type === 'testimonials'
+                                    ? (block.options_shadow ?? 'none')
+                                    : undefined,
+                            options_spacing:
+                                isOptionsComponentType(block.type) ||
+                                block.type === 'testimonials'
+                                    ? (block.options_spacing ?? 'simple')
+                                    : undefined,
+                            testimonials_layout:
+                                block.type === 'testimonials'
+                                    ? (block.testimonials_layout ?? 'list')
+                                    : undefined,
+                            faq_first_active:
+                                block.type === 'faq'
+                                    ? (block.faq_first_active ?? true)
+                                    : undefined,
+                            faq_detail:
+                                block.type === 'faq'
+                                    ? (block.faq_detail ?? 'arrow')
+                                    : undefined,
+                            price_title:
+                                block.type === 'price'
+                                    ? block.price_title?.trim() || null
+                                    : undefined,
+                            price_prefix:
+                                block.type === 'price'
+                                    ? block.price_prefix?.trim() || null
+                                    : undefined,
+                            price_value:
+                                block.type === 'price'
+                                    ? block.price_value?.trim() || null
+                                    : undefined,
+                            price_suffix:
+                                block.type === 'price'
+                                    ? block.price_suffix?.trim() || null
+                                    : undefined,
+                            price_badge_text:
+                                block.type === 'price'
+                                    ? block.price_badge_text?.trim() || ''
+                                    : undefined,
+                            price_mode:
+                                block.type === 'price'
+                                    ? (block.price_mode ?? 'illustrative')
+                                    : undefined,
+                            price_layout:
+                                block.type === 'price'
+                                    ? (block.price_layout ?? 'horizontal')
+                                    : undefined,
+                            price_style:
+                                block.type === 'price'
+                                    ? (block.price_style ?? 'theme')
+                                    : undefined,
+                            price_link:
+                                block.type === 'price'
+                                    ? block.price_link?.trim() || ''
+                                    : undefined,
+                            carousel_layout:
+                                block.type === 'carousel'
+                                    ? (block.carousel_layout ?? 'image_text')
+                                    : undefined,
+                            carousel_pagination:
+                                block.type === 'carousel'
+                                    ? (block.carousel_pagination ?? true)
+                                    : undefined,
+                            carousel_autoplay:
+                                block.type === 'carousel'
+                                    ? (block.carousel_autoplay ?? false)
+                                    : undefined,
+                            carousel_autoplay_seconds:
+                                block.type === 'carousel'
+                                    ? Math.max(
+                                          1,
+                                          Math.min(
+                                              60,
+                                              Number(
+                                                  block.carousel_autoplay_seconds ??
+                                                      3,
+                                              ),
+                                          ),
+                                      )
+                                    : undefined,
+                            carousel_border_type:
+                                block.type === 'carousel'
+                                    ? (block.carousel_border_type ?? 'none')
+                                    : undefined,
+                            image_ratio:
+                                block.type === 'image'
+                                    ? (block.image_ratio ?? 'auto')
+                                    : undefined,
+                            image_fit:
+                                block.type === 'image'
+                                    ? (block.image_fit ?? 'cover')
+                                    : undefined,
+                            image_radius:
+                                block.type === 'image'
+                                    ? (block.image_radius ?? 'medium')
+                                    : undefined,
+                            image_frame:
+                                block.type === 'image'
+                                    ? (block.image_frame ?? 'subtle')
+                                    : undefined,
+                            video_ratio:
+                                block.type === 'video'
+                                    ? (block.video_ratio ?? '16:9')
+                                    : undefined,
+                            audio_sender:
+                                block.type === 'audio'
+                                    ? block.audio_sender?.trim() || null
+                                    : undefined,
+                            audio_src:
+                                block.type === 'audio'
+                                    ? sanitizeStoredAssetUrl(block.audio_src)
+                                    : undefined,
+                            audio_avatar_url:
+                                block.type === 'audio'
+                                    ? sanitizeStoredAssetUrl(
+                                          block.audio_avatar_url,
+                                      )
+                                    : undefined,
+                            audio_model:
+                                block.type === 'audio'
+                                    ? (block.audio_model ?? 'whatsapp')
+                                    : undefined,
+                            audio_theme:
+                                block.type === 'audio'
+                                    ? (block.audio_theme ?? 'light')
+                                    : undefined,
+                            attention_style:
+                                block.type === 'attention'
+                                    ? (block.attention_style ?? 'red')
+                                    : undefined,
+                            attention_emphasis:
+                                block.type === 'attention'
+                                    ? (block.attention_emphasis ?? false)
+                                    : undefined,
+                            attention_padding:
+                                block.type === 'attention'
+                                    ? (block.attention_padding ?? 'default')
+                                    : undefined,
+                            notification_title:
+                                block.type === 'notification'
+                                    ? block.notification_title?.trim() || null
+                                    : undefined,
+                            notification_description:
+                                block.type === 'notification'
+                                    ? block.notification_description?.trim() ||
+                                      null
+                                    : undefined,
+                            notification_avatar_url:
+                                block.type === 'notification'
+                                    ? sanitizeStoredAssetUrl(
+                                          block.notification_avatar_url,
+                                      )
+                                    : undefined,
+                            notification_position:
+                                block.type === 'notification'
+                                    ? (block.notification_position ?? 'default')
+                                    : undefined,
+                            notification_duration_seconds:
+                                block.type === 'notification'
+                                    ? Math.max(
+                                          1,
+                                          Number(
+                                              block.notification_duration_seconds ??
+                                                  5,
+                                          ),
+                                      )
+                                    : undefined,
+                            notification_interval_seconds:
+                                block.type === 'notification'
+                                    ? Math.max(
+                                          1,
+                                          Number(
+                                              block.notification_interval_seconds ??
+                                                  2,
+                                          ),
+                                      )
+                                    : undefined,
+                            notification_style:
+                                block.type === 'notification'
+                                    ? (block.notification_style ?? 'white')
+                                    : undefined,
+                            notification_size:
+                                block.type === 'notification'
+                                    ? (block.notification_size ?? 'default')
+                                    : undefined,
+                            notification_variant:
+                                block.type === 'notification'
+                                    ? (block.notification_variant ?? 'social')
+                                    : undefined,
+                            notification_variations:
+                                block.type === 'notification'
+                                    ? (block.notification_variations ?? []).map(
+                                          (variation) => ({
+                                              id: variation.id,
+                                              value1:
+                                                  variation.value1?.trim() ||
+                                                  '',
+                                              value2:
+                                                  variation.value2?.trim() ||
+                                                  '',
+                                              value3:
+                                                  variation.value3?.trim() ||
+                                                  '',
+                                              value4:
+                                                  variation.value4?.trim() ||
+                                                  '',
+                                          }),
+                                      )
+                                    : undefined,
+                            timer_seconds:
+                                block.type === 'timer'
+                                    ? Math.max(
+                                          1,
+                                          Number(
+                                              block.timer_seconds ??
+                                                  parseLegacyTimerSeconds(
+                                                      block.placeholder,
+                                                  ),
+                                          ),
+                                      )
+                                    : undefined,
+                            timer_text:
+                                block.type === 'timer'
+                                    ? (
+                                          block.timer_text ??
+                                          block.placeholder ??
+                                          ''
+                                      ).trim() || null
+                                    : undefined,
+                            timer_style:
+                                block.type === 'timer'
+                                    ? (block.timer_style ?? 'red')
+                                    : undefined,
+                            loading_start_seconds:
+                                block.type === 'loading'
+                                    ? Math.max(
+                                          0,
+                                          Number(
+                                              block.loading_start_seconds ?? 0,
+                                          ),
+                                      )
+                                    : undefined,
+                            loading_duration_seconds:
+                                block.type === 'loading'
+                                    ? Math.max(
+                                          1,
+                                          Number(
+                                              block.loading_duration_seconds ??
+                                                  5,
+                                          ),
+                                      )
+                                    : undefined,
+                            loading_navigation_action:
+                                block.type === 'loading'
+                                    ? (block.loading_navigation_action ??
+                                      'none')
+                                    : undefined,
+                            loading_target_stage_order:
+                                block.type === 'loading'
+                                    ? (block.loading_target_stage_order ??
+                                      'next')
+                                    : undefined,
+                            loading_link:
+                                block.type === 'loading'
+                                    ? block.loading_link?.trim() || ''
+                                    : undefined,
+                            loading_show_title:
+                                block.type === 'loading'
+                                    ? (block.loading_show_title ?? true)
+                                    : undefined,
+                            loading_show_progress:
+                                block.type === 'loading'
+                                    ? (block.loading_show_progress ?? true)
+                                    : undefined,
+                            level_title:
+                                block.type === 'level'
+                                    ? block.level_title?.trim() || null
+                                    : undefined,
+                            level_subtitle:
+                                block.type === 'level'
+                                    ? block.level_subtitle?.trim() || null
+                                    : undefined,
+                            level_percentage:
+                                block.type === 'level'
+                                    ? Math.max(
+                                          0,
+                                          Math.min(
+                                              100,
+                                              Number(
+                                                  block.level_percentage ?? 0,
+                                              ),
+                                          ),
+                                      )
+                                    : undefined,
+                            level_indicator_text:
+                                block.type === 'level'
+                                    ? block.level_indicator_text?.trim() || ''
+                                    : undefined,
+                            level_legends:
+                                block.type === 'level'
+                                    ? block.level_legends?.trim() || ''
+                                    : undefined,
+                            level_show_meter:
+                                block.type === 'level'
+                                    ? (block.level_show_meter ?? true)
+                                    : undefined,
+                            level_show_progress:
+                                block.type === 'level'
+                                    ? (block.level_show_progress ?? true)
+                                    : undefined,
+                            level_type:
+                                block.type === 'level'
+                                    ? (block.level_type ?? 'line')
+                                    : undefined,
+                            level_color:
+                                block.type === 'level'
+                                    ? (block.level_color ?? 'theme')
+                                    : undefined,
+                            phone_mask:
+                                block.type === 'phone'
+                                    ? (block.phone_mask ?? 'br')
+                                    : undefined,
+                            number_mask:
+                                block.type === 'number'
+                                    ? (block.number_mask ?? 'decimal')
+                                    : undefined,
+                            height_mode:
+                                block.type === 'height'
+                                    ? (block.height_mode ?? 'ruler')
+                                    : undefined,
+                            weight_mode:
+                                block.type === 'weight'
+                                    ? (block.weight_mode ?? 'ruler')
+                                    : undefined,
+                            button_action: block.button_action ?? 'next_stage',
+                            button_target_stage_order:
+                                block.button_target_stage_order ?? 'next',
+                            button_link: block.button_link?.trim() || null,
+                            button_open_new_tab:
+                                block.button_open_new_tab ?? true,
+                            button_color_style:
+                                block.button_color_style ?? 'theme',
+                            button_animated: block.button_animated ?? false,
+                            button_elevated: block.button_elevated ?? false,
+                            button_sticky_footer:
+                                block.button_sticky_footer ?? false,
+                            label_style: block.label_style ?? 'default',
+                            text_align: block.text_align ?? 'text-left',
+                            width_percent: Number(block.width_percent ?? 100),
+                            align_horizontal: block.align_horizontal ?? 'start',
+                            align_vertical: block.align_vertical ?? 'start',
+                            show_after_seconds:
+                                block.show_after_seconds ?? null,
+                            display_rule_mode: block.display_rule_mode ?? 'all',
+                            display_rules: (block.display_rules ?? [])
+                                .map((rule) => ({
+                                    id: safeTrim(rule.id) || createClientId(),
+                                    source_block_id: safeTrim(
+                                        rule.source_block_id,
+                                    ),
+                                    operator: rule.operator,
+                                    value: safeTrim(rule.value),
+                                }))
+                                .filter(
+                                    (rule) =>
+                                        rule.source_block_id !== '' &&
+                                        (!displayRuleOperatorNeedsValue(
+                                            rule.operator,
+                                        ) ||
+                                            rule.value !== ''),
+                                ),
+                            display_rule_groups: (
+                                block.display_rule_groups ?? []
+                            )
+                                .map((group) => ({
+                                    id: safeTrim(group.id) || createClientId(),
+                                    mode: group.mode === 'any' ? 'any' : 'all',
+                                    rules: (group.rules ?? [])
+                                        .map((rule) => ({
+                                            id:
+                                                safeTrim(rule.id) ||
+                                                createClientId(),
+                                            source_block_id: safeTrim(
+                                                rule.source_block_id,
+                                            ),
+                                            operator: rule.operator,
+                                            value: safeTrim(rule.value),
+                                        }))
+                                        .filter(
+                                            (rule) =>
+                                                rule.source_block_id !== '' &&
+                                                (!displayRuleOperatorNeedsValue(
+                                                    rule.operator,
+                                                ) ||
+                                                    rule.value !== ''),
+                                        ),
+                                }))
+                                .filter((group) => group.rules.length > 0),
                         };
                     }),
                 },
@@ -4663,7 +6155,11 @@ function buildStagesPayload(): Array<{
     });
 }
 
-function createSnapshotFromPayload(name: string, isActive: boolean, stages: ReturnType<typeof buildStagesPayload>): string {
+function createSnapshotFromPayload(
+    name: string,
+    isActive: boolean,
+    stages: ReturnType<typeof buildStagesPayload>,
+): string {
     return JSON.stringify({
         name,
         is_active: isActive,
@@ -4672,12 +6168,20 @@ function createSnapshotFromPayload(name: string, isActive: boolean, stages: Retu
 }
 
 function createPersistedSnapshot(): string {
-    return createSnapshotFromPayload(funnelNameDraft.value.trim(), saveForm.is_active, buildStagesPayload());
+    return createSnapshotFromPayload(
+        funnelNameDraft.value.trim(),
+        saveForm.is_active,
+        buildStagesPayload(),
+    );
 }
 
 const persistedSnapshot = computed(() => createPersistedSnapshot());
 const lastSavedSnapshot = ref(persistedSnapshot.value);
-const hasUnsavedChanges = computed(() => props.permissions.canEdit && persistedSnapshot.value !== lastSavedSnapshot.value);
+const hasUnsavedChanges = computed(
+    () =>
+        props.permissions.canEdit &&
+        persistedSnapshot.value !== lastSavedSnapshot.value,
+);
 
 function clearAutosaveStatusLater(): void {
     if (autosaveStatusTimer) {
@@ -4694,7 +6198,11 @@ function clearAutosaveStatusLater(): void {
 }
 
 function scheduleAutosave(): void {
-    if (!props.permissions.canEdit || saveForm.processing || !hasUnsavedChanges.value) {
+    if (
+        !props.permissions.canEdit ||
+        saveForm.processing ||
+        !hasUnsavedChanges.value
+    ) {
         return;
     }
 
@@ -4725,7 +6233,10 @@ function flushPendingSaveRequest(): void {
     }, 80);
 }
 
-function saveBuilder(isPublishing = false, options: { auto?: boolean } = {}): void {
+function saveBuilder(
+    isPublishing = false,
+    options: { auto?: boolean } = {},
+): void {
     if (!props.permissions.canEdit) {
         return;
     }
@@ -4737,12 +6248,15 @@ function saveBuilder(isPublishing = false, options: { auto?: boolean } = {}): vo
 
     if (saveForm.processing) {
         pendingSaveRequest.value = {
-            isPublishing: isPublishing || pendingSaveRequest.value?.isPublishing === true,
+            isPublishing:
+                isPublishing || pendingSaveRequest.value?.isPublishing === true,
             auto: options.auto ?? false,
         };
 
         if (!options.auto) {
-            showActionToast('Um salvamento ja esta em andamento. Aguarde um instante.');
+            showActionToast(
+                'Um salvamento ja esta em andamento. Aguarde um instante.',
+            );
         }
 
         return;
@@ -4752,7 +6266,11 @@ function saveBuilder(isPublishing = false, options: { auto?: boolean } = {}): vo
 
     const stagesPayload = buildStagesPayload();
     const nextActiveState = isPublishing ? true : saveForm.is_active;
-    const requestSnapshot = createSnapshotFromPayload(funnelNameDraft.value.trim(), nextActiveState, stagesPayload);
+    const requestSnapshot = createSnapshotFromPayload(
+        funnelNameDraft.value.trim(),
+        nextActiveState,
+        stagesPayload,
+    );
 
     saveForm.name = funnelNameDraft.value.trim();
     saveForm.is_active = nextActiveState;
@@ -4776,7 +6294,12 @@ function saveBuilder(isPublishing = false, options: { auto?: boolean } = {}): vo
             }
 
             if (!options.auto) {
-                showActionToast(isPublishing ? 'Funil publicado com sucesso.' : 'Alteracoes salvas com sucesso.', 'success');
+                showActionToast(
+                    isPublishing
+                        ? 'Funil publicado com sucesso.'
+                        : 'Alteracoes salvas com sucesso.',
+                    'success',
+                );
             }
 
             flushPendingSaveRequest();
@@ -4799,7 +6322,12 @@ function shouldIgnoreGlobalShortcut(event: KeyboardEvent): boolean {
 
     const tag = target.tagName;
 
-    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+    return (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target.isContentEditable
+    );
 }
 
 function onGlobalKeydown(event: KeyboardEvent): void {
@@ -4844,14 +6372,24 @@ function onGlobalKeydown(event: KeyboardEvent): void {
         return;
     }
 
-    if (!insideInput && event.shiftKey && selectedBlockId.value && event.key === 'ArrowUp') {
+    if (
+        !insideInput &&
+        event.shiftKey &&
+        selectedBlockId.value &&
+        event.key === 'ArrowUp'
+    ) {
         event.preventDefault();
         moveSelectedBlock('up', { showToast: true });
 
         return;
     }
 
-    if (!insideInput && event.shiftKey && selectedBlockId.value && event.key === 'ArrowDown') {
+    if (
+        !insideInput &&
+        event.shiftKey &&
+        selectedBlockId.value &&
+        event.key === 'ArrowDown'
+    ) {
         event.preventDefault();
         moveSelectedBlock('down', { showToast: true });
     }
@@ -4900,7 +6438,10 @@ watch(
         const persistedStageKey = stageStorageValue(currentStage.value);
 
         if (persistedStageKey) {
-            window.sessionStorage.setItem(selectedStageStorageKey.value, persistedStageKey);
+            window.sessionStorage.setItem(
+                selectedStageStorageKey.value,
+                persistedStageKey,
+            );
 
             return;
         }
@@ -4919,7 +6460,9 @@ watch(
             return;
         }
 
-        const blockExists = stage.blocks.some((block) => block.id === selectedBlockId.value);
+        const blockExists = stage.blocks.some(
+            (block) => block.id === selectedBlockId.value,
+        );
         selectedBlockId.value = blockExists ? selectedBlockId.value : null;
     },
     { immediate: true },
@@ -4929,10 +6472,19 @@ watch(
     selectedBlock,
     (block, previousBlock) => {
         if (previousBlock?.type === 'content_text') {
-            syncContentTextMarkupForBlock(previousBlock, contentTextEditorElement.value);
+            syncContentTextMarkupForBlock(
+                previousBlock,
+                contentTextEditorElement.value,
+            );
         }
 
-        if (!block || (!isOptionsComponentType(block.type) && block.type !== 'content_text' && block.type !== 'image' && block.type !== 'audio')) {
+        if (
+            !block ||
+            (!isOptionsComponentType(block.type) &&
+                block.type !== 'content_text' &&
+                block.type !== 'image' &&
+                block.type !== 'audio')
+        ) {
             expandedOptionItemId.value = null;
             introEditorTarget.value = null;
             introActiveElement.value = null;
@@ -4944,7 +6496,10 @@ watch(
         }
 
         if (block.type === 'image') {
-            imageComponentTab.value = block.placeholder && /^https?:\/\//i.test(block.placeholder) ? 'url' : 'image';
+            imageComponentTab.value =
+                block.placeholder && /^https?:\/\//i.test(block.placeholder)
+                    ? 'url'
+                    : 'image';
             expandedOptionItemId.value = null;
             introEditorTarget.value = null;
             introActiveElement.value = null;
@@ -4981,18 +6536,27 @@ watch(
 
         normalizeOptionsBlock(block);
 
-        const hasExpandedItem = block.option_items?.some((item) => item.id === expandedOptionItemId.value) ?? false;
+        const hasExpandedItem =
+            block.option_items?.some(
+                (item) => item.id === expandedOptionItemId.value,
+            ) ?? false;
         if (!hasExpandedItem) {
             expandedOptionItemId.value = null;
         }
 
-        const hasDraggedItem = block.option_items?.some((item) => item.id === draggedOptionItemId.value) ?? false;
+        const hasDraggedItem =
+            block.option_items?.some(
+                (item) => item.id === draggedOptionItemId.value,
+            ) ?? false;
         if (!hasDraggedItem) {
             draggedOptionItemId.value = null;
             dragOverOptionItemId.value = null;
         }
 
-        const hasReorderedItem = block.option_items?.some((item) => item.id === reorderedOptionItemId.value) ?? false;
+        const hasReorderedItem =
+            block.option_items?.some(
+                (item) => item.id === reorderedOptionItemId.value,
+            ) ?? false;
         if (!hasReorderedItem) {
             reorderedOptionItemId.value = null;
         }
@@ -5016,20 +6580,19 @@ watch(
     { immediate: true },
 );
 
-watch(
-    persistedSnapshot,
-    () => {
-        if (!props.permissions.canEdit || !hasUnsavedChanges.value) {
-            return;
-        }
+watch(persistedSnapshot, () => {
+    if (!props.permissions.canEdit || !hasUnsavedChanges.value) {
+        return;
+    }
 
-        scheduleAutosave();
-    },
-);
+    scheduleAutosave();
+});
 
 onMounted(() => {
     if (typeof window !== 'undefined') {
-        const storedStageKey = window.sessionStorage.getItem(selectedStageStorageKey.value);
+        const storedStageKey = window.sessionStorage.getItem(
+            selectedStageStorageKey.value,
+        );
 
         const storedStage = findStageByStoredValue(storedStageKey);
 
@@ -5081,8 +6644,12 @@ onBeforeUnmount(() => {
 <template>
     <Head :title="`${props.funnel.name} - Builder`" />
 
-    <div class="flex h-screen flex-col overflow-hidden bg-[#050d22] text-[#d8e7ff]">
-        <header class="shrink-0 border-b border-[#1e3157] bg-[#071430] px-4 py-3">
+    <div
+        class="flex h-screen flex-col overflow-hidden bg-[#050d22] text-[#d8e7ff]"
+    >
+        <header
+            class="shrink-0 border-b border-[#1e3157] bg-[#071430] px-4 py-3"
+        >
             <div class="flex items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
                     <Link
@@ -5092,8 +6659,12 @@ onBeforeUnmount(() => {
                         IN
                     </Link>
                     <div>
-                        <p class="text-lg font-semibold text-white">{{ funnelNameDraft }}</p>
-                        <p class="text-sm text-[#88a8df]">... / {{ funnelNameDraft.toLowerCase() }}</p>
+                        <p class="text-lg font-semibold text-white">
+                            {{ funnelNameDraft }}
+                        </p>
+                        <p class="text-sm text-[#88a8df]">
+                            ... / {{ funnelNameDraft.toLowerCase() }}
+                        </p>
                     </div>
                     <div
                         v-if="!props.permissions.canEdit"
@@ -5103,19 +6674,58 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <nav class="flex items-center gap-1.5 rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm">
-                    <button class="rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white">
-                        <span class="inline-flex items-center gap-1"><BookOpen class="size-4" /> Construtor</span>
+                <nav
+                    class="flex items-center gap-1.5 rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm"
+                >
+                    <button
+                        class="rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><BookOpen class="size-4" /> Construtor</span
+                        >
                     </button>
-                    <Link :href="FunnelController.flow(props.funnel.id).url" class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]">
-                        <span class="inline-flex items-center gap-1"><ListTree class="size-4" /> Fluxo</span>
+                    <Link
+                        :href="FunnelController.flow(props.funnel.id).url"
+                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><ListTree class="size-4" /> Fluxo</span
+                        >
                     </Link>
-                    <Link :href="FunnelController.design(props.funnel.id).url" class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]">
-                        <span class="inline-flex items-center gap-1"><Palette class="size-4" /> Design</span>
+                    <Link
+                        :href="FunnelController.design(props.funnel.id).url"
+                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><Palette class="size-4" /> Design</span
+                        >
                     </Link>
-                    <Link :href="FunnelController.leads(props.funnel.id).url" class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]">
-                        <span class="inline-flex items-center gap-1"><CircleUserRound class="size-4" /> Leads</span>
+                    <Link
+                        v-if="props.permissions.canManageLeads"
+                        :href="FunnelController.leads(props.funnel.id).url"
+                        data-testid="leads-nav-link"
+                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><CircleUserRound class="size-4" /> Leads</span
+                        >
                     </Link>
+                    <button
+                        v-else
+                        type="button"
+                        disabled
+                        data-testid="leads-nav-restricted"
+                        title="Leads disponíveis apenas para proprietários e editores"
+                        class="cursor-not-allowed rounded-md px-3.5 py-1.5 text-[#607da8] opacity-70"
+                    >
+                        <span class="inline-flex items-center gap-1"
+                            ><CircleUserRound class="size-4" /> Leads</span
+                        >
+                        <span class="sr-only"
+                            >Acesso disponível apenas para proprietários e
+                            editores</span
+                        >
+                    </button>
                 </nav>
 
                 <div class="flex items-center gap-1.5">
@@ -5133,68 +6743,121 @@ onBeforeUnmount(() => {
                     >
                         <Redo2 class="size-4" />
                     </button>
-                    <Link :href="profile.edit().url" class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]">
+                    <Link
+                        :href="FunnelController.settings(props.funnel.id).url"
+                        aria-label="Configurações do funil"
+                        title="Configurações do funil"
+                        data-testid="funnel-settings-button"
+                        class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]"
+                    >
                         <Settings class="size-4" />
                     </Link>
-                    <button @click="copyBuilderLink" class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]">
+                    <button
+                        @click="copyBuilderLink"
+                        class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]"
+                    >
                         <Share2 v-if="!copiedLink" class="size-4" />
                         <Check v-else class="size-4" />
                     </button>
-                    <button @click="isPreviewMode = !isPreviewMode" class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]">
-                        <Eye v-if="!isPreviewMode" class="size-4" />
-                        <EyeOff v-else class="size-4" />
-                    </button>
+                    <a
+                        :href="showPublicFunnel(props.funnel.slug).url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Ver resultado do funil"
+                        title="Ver resultado do funil"
+                        data-testid="funnel-preview-button"
+                        class="rounded-md border border-[#2a487c] bg-[#081b39] p-1.5 text-[#b6cdff]"
+                    >
+                        <Eye class="size-4" />
+                    </a>
                     <button
                         @click="saveBuilder(false)"
-                        :disabled="!props.permissions.canEdit || saveForm.processing"
+                        :disabled="
+                            !props.permissions.canEdit || saveForm.processing
+                        "
                         data-testid="builder-save-button"
                         class="rounded-md border border-[#3860a7] bg-[#0a2c61] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
                     >
-                        <span class="inline-flex items-center gap-1"><Save class="size-4" /> Salvar</span>
+                        <span class="inline-flex items-center gap-1"
+                            ><Save class="size-4" /> Salvar</span
+                        >
                     </button>
                     <button
                         @click="saveBuilder(true)"
-                        :disabled="!props.permissions.canEdit || saveForm.processing"
+                        :disabled="
+                            !props.permissions.canEdit || saveForm.processing
+                        "
                         data-testid="builder-publish-button"
                         class="rounded-md bg-gradient-to-r from-[#1d5fd2] to-[#3f8dff] px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
                     >
                         Publicar
                     </button>
-                    <span v-if="props.permissions.canEdit && hasUnsavedChanges" data-testid="builder-unsaved-status" class="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200">
+                    <span
+                        v-if="props.permissions.canEdit && hasUnsavedChanges"
+                        data-testid="builder-unsaved-status"
+                        class="rounded-md border border-amber-300/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200"
+                    >
                         Alteracoes pendentes
                     </span>
-                    <span v-else-if="autosaveStatus === 'saving'" data-testid="builder-autosave-status" class="text-[11px] text-[#9bb9ef]">Salvando automaticamente...</span>
-                    <span v-else-if="autosaveStatus === 'saved'" data-testid="builder-autosave-status" class="text-[11px] text-emerald-300">Salvo</span>
-                    <span v-else-if="autosaveStatus === 'error'" data-testid="builder-autosave-status" class="text-[11px] text-rose-300">Erro ao salvar</span>
+                    <span
+                        v-else-if="autosaveStatus === 'saving'"
+                        data-testid="builder-autosave-status"
+                        class="text-[11px] text-[#9bb9ef]"
+                        >Salvando automaticamente...</span
+                    >
+                    <span
+                        v-else-if="autosaveStatus === 'saved'"
+                        data-testid="builder-autosave-status"
+                        class="text-[11px] text-emerald-300"
+                        >Salvo</span
+                    >
+                    <span
+                        v-else-if="autosaveStatus === 'error'"
+                        data-testid="builder-autosave-status"
+                        class="text-[11px] text-rose-300"
+                        >Erro ao salvar</span
+                    >
                 </div>
             </div>
         </header>
 
         <div
             v-if="actionToast.visible"
-            class="fixed right-5 top-20 z-50 rounded-lg border px-3 py-2 text-xs shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
+            class="fixed top-20 right-5 z-50 rounded-lg border px-3 py-2 text-xs shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
             :class="
                 actionToast.tone === 'success'
                     ? 'border-emerald-300/40 bg-emerald-500/15 text-emerald-100'
                     : actionToast.tone === 'error'
-                        ? 'border-rose-300/40 bg-rose-500/15 text-rose-100'
-                        : 'border-[#4f8fff]/40 bg-[#10366f] text-[#d8e7ff]'
+                      ? 'border-rose-300/40 bg-rose-500/15 text-rose-100'
+                      : 'border-[#4f8fff]/40 bg-[#10366f] text-[#d8e7ff]'
             "
         >
             {{ actionToast.message }}
         </div>
 
-        <main class="grid min-h-0 flex-1 grid-cols-[230px_210px_1fr_430px] overflow-hidden" @click="clearSelectedBlock">
-            <aside class="h-full overflow-y-auto border-r border-[#1c3158] bg-[#07142e]" @click.stop>
+        <main
+            class="grid min-h-0 flex-1 grid-cols-[230px_210px_1fr_430px] overflow-hidden"
+            @click="clearSelectedBlock"
+        >
+            <aside
+                class="h-full overflow-y-auto border-r border-[#1c3158] bg-[#07142e]"
+                @click.stop
+            >
                 <div
                     v-for="(stage, index) in localStages"
                     :key="stage.clientId"
                     :data-testid="`builder-stage-item-${index + 1}`"
                     class="relative flex items-center justify-between border-b border-[#1a2b4d] px-4 py-3 transition"
                     :class="[
-                        stage.clientId === selectedStageKey ? 'bg-[#0f2c61]' : 'hover:bg-[#0b2148]',
-                        dragOverStageKey === stage.clientId ? 'ring-1 ring-inset ring-[#4f8fff]' : '',
-                        props.permissions.canEdit ? 'cursor-move' : 'cursor-pointer',
+                        stage.clientId === selectedStageKey
+                            ? 'bg-[#0f2c61]'
+                            : 'hover:bg-[#0b2148]',
+                        dragOverStageKey === stage.clientId
+                            ? 'ring-1 ring-[#4f8fff] ring-inset'
+                            : '',
+                        props.permissions.canEdit
+                            ? 'cursor-move'
+                            : 'cursor-pointer',
                     ]"
                     :draggable="props.permissions.canEdit"
                     @click="selectedStageKey = stage.clientId"
@@ -5204,8 +6867,12 @@ onBeforeUnmount(() => {
                     @dragend="onStageDragEnd"
                 >
                     <div class="flex items-center gap-3">
-                        <span class="text-xs text-[#7ea4e8]">{{ index + 1 }}</span>
-                        <p class="text-lg leading-none text-[#e8f1ff]">{{ stage.name }}</p>
+                        <span class="text-xs text-[#7ea4e8]">{{
+                            index + 1
+                        }}</span>
+                        <p class="text-lg leading-none text-[#e8f1ff]">
+                            {{ stage.name }}
+                        </p>
                     </div>
                     <div class="relative">
                         <button
@@ -5219,13 +6886,15 @@ onBeforeUnmount(() => {
                         </button>
                         <div
                             v-if="openStageMenuKey === stage.clientId"
-                            class="absolute right-0 top-8 z-20 min-w-36 rounded-lg border border-[#27477f] bg-[#081a3c] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.35)]"
+                            class="absolute top-8 right-0 z-20 min-w-36 rounded-lg border border-[#27477f] bg-[#081a3c] p-1 shadow-[0_12px_28px_rgba(0,0,0,0.35)]"
                         >
                             <button
                                 type="button"
                                 :data-testid="`stage-menu-duplicate-${stage.clientId}`"
                                 class="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-[#d8e7ff] transition hover:bg-[#12315f]"
-                                @click.stop="duplicateStageByClientId(stage.clientId)"
+                                @click.stop="
+                                    duplicateStageByClientId(stage.clientId)
+                                "
                             >
                                 <Blend class="size-3.5" /> Duplicar etapa
                             </button>
@@ -5234,14 +6903,18 @@ onBeforeUnmount(() => {
                                 :data-testid="`stage-menu-delete-${stage.clientId}`"
                                 :disabled="localStages.length <= 2"
                                 class="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-[#3a1630] disabled:cursor-not-allowed disabled:opacity-40"
-                                @click.stop="removeStageByClientId(stage.clientId)"
+                                @click.stop="
+                                    removeStageByClientId(stage.clientId)
+                                "
                             >
                                 <Trash2 class="size-3.5" /> Excluir etapa
                             </button>
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-4 px-4 py-3 text-sm text-[#8fb2ee]">
+                <div
+                    class="flex items-center gap-4 px-4 py-3 text-sm text-[#8fb2ee]"
+                >
                     <button
                         @click="addStage"
                         :disabled="!props.permissions.canEdit"
@@ -5253,9 +6926,16 @@ onBeforeUnmount(() => {
                 </div>
             </aside>
 
-            <aside class="flex min-h-0 flex-col border-r border-[#1c3158] bg-[#071a37] p-2.5" @click.stop>
-                <h2 class="mb-3 text-lg font-medium text-[#e4efff]">Formulario</h2>
-                <div class="form-scroll-area flex-1 space-y-2 overflow-y-auto pr-1">
+            <aside
+                class="flex min-h-0 flex-col border-r border-[#1c3158] bg-[#071a37] p-2.5"
+                @click.stop
+            >
+                <h2 class="mb-3 text-lg font-medium text-[#e4efff]">
+                    Formulario
+                </h2>
+                <div
+                    class="form-scroll-area flex-1 space-y-2 overflow-y-auto pr-1"
+                >
                     <button
                         v-for="block in formBlocks"
                         :key="block.type"
@@ -5271,7 +6951,7 @@ onBeforeUnmount(() => {
                         <span>{{ block.label }}</span>
                     </button>
 
-                    <p class="mb-2 mt-4 text-sm text-[#88a8df]">Quiz</p>
+                    <p class="mt-4 mb-2 text-sm text-[#88a8df]">Quiz</p>
                     <button
                         v-for="block in quizBlocks"
                         :key="block.type"
@@ -5287,7 +6967,9 @@ onBeforeUnmount(() => {
                         <span>{{ block.label }}</span>
                     </button>
 
-                    <p class="mb-2 mt-4 text-sm text-[#88a8df]">Midia e conteudo</p>
+                    <p class="mt-4 mb-2 text-sm text-[#88a8df]">
+                        Midia e conteudo
+                    </p>
                     <button
                         v-for="block in mediaBlocks"
                         :key="block.type"
@@ -5303,7 +6985,7 @@ onBeforeUnmount(() => {
                         <span>{{ block.label }}</span>
                     </button>
 
-                    <p class="mb-2 mt-4 text-sm text-[#88a8df]">Argumentacao</p>
+                    <p class="mt-4 mb-2 text-sm text-[#88a8df]">Argumentacao</p>
                     <button
                         v-for="block in argumentBlocks"
                         :key="block.type"
@@ -5319,7 +7001,9 @@ onBeforeUnmount(() => {
                         <span>{{ block.label }}</span>
                     </button>
 
-                    <p class="mb-2 mt-4 text-sm text-[#88a8df]">Personalizacao</p>
+                    <p class="mt-4 mb-2 text-sm text-[#88a8df]">
+                        Personalizacao
+                    </p>
                     <button
                         v-for="block in personalizationBlocks"
                         :key="block.type"
@@ -5337,16 +7021,23 @@ onBeforeUnmount(() => {
                 </div>
             </aside>
 
-            <section class="min-h-0 overflow-y-auto border-r border-[#1c3158] bg-[#061227] p-4">
+            <section
+                class="min-h-0 overflow-y-auto border-r border-[#1c3158] bg-[#061227] p-4"
+            >
                 <div
                     data-testid="builder-preview-card"
                     class="mx-auto w-full max-w-[500px] rounded-[2rem] border border-[#2a4f89] bg-[#0b1f43] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.48)]"
-                    :class="isPreviewMode ? 'ring-2 ring-[#4f8fff]' : ''"
                 >
                     <div class="mb-5 flex items-center gap-3 text-[#9fc0f8]">
-                        <ArrowLeft v-if="currentStage?.header.allow_back" class="size-4" />
+                        <ArrowLeft
+                            v-if="currentStage?.header.allow_back"
+                            class="size-4"
+                        />
                         <div class="h-2.5 w-full rounded-full bg-[#1a3564]">
-                            <div v-if="currentStage?.header.show_progress" class="h-2.5 w-2/3 rounded-full bg-gradient-to-r from-[#4aa0ff] to-[#5b79ff]" />
+                            <div
+                                v-if="currentStage?.header.show_progress"
+                                class="h-2.5 w-2/3 rounded-full bg-gradient-to-r from-[#4aa0ff] to-[#5b79ff]"
+                            />
                         </div>
                     </div>
 
@@ -5354,26 +7045,41 @@ onBeforeUnmount(() => {
                         v-if="currentStage"
                         data-testid="builder-preview-canvas"
                         class="mt-6 space-y-2.5 rounded-xl p-1 transition"
-                        :class="draggedPaletteType ? 'ring-1 ring-inset ring-[#4f8fff]/70' : ''"
+                        :class="
+                            draggedPaletteType
+                                ? 'ring-1 ring-[#4f8fff]/70 ring-inset'
+                                : ''
+                        "
                         @click="clearSelectedBlock"
                         @dragover.prevent
                         @drop.prevent="onBlocksPanelDrop"
                     >
                         <template v-if="visibleCurrentStageBlocks.length === 0">
-                            <div class="rounded-xl border border-dashed border-[#2a4e88] px-4 py-6 text-center text-sm text-[#8daee7]">
-                                Arraste um componente da esquerda e solte aqui para montar esta etapa.
+                            <div
+                                class="rounded-xl border border-dashed border-[#2a4e88] px-4 py-6 text-center text-sm text-[#8daee7]"
+                            >
+                                Arraste um componente da esquerda e solte aqui
+                                para montar esta etapa.
                             </div>
                         </template>
                         <template v-else>
                             <div
-                                v-for="(block, blockIndex) in visibleCurrentStageBlocks"
+                                v-for="(
+                                    block, blockIndex
+                                ) in visibleCurrentStageBlocks"
                                 :key="block.id"
                                 :data-testid="`preview-block-${block.id}`"
                                 class="group relative w-full space-y-2 rounded-lg border border-transparent p-1 transition"
                                 :class="[
-                                    props.permissions.canEdit ? 'cursor-grab active:cursor-grabbing' : '',
-                                    dragOverBlockId === block.id ? 'ring-2 ring-inset ring-[#4f8fff]' : '',
-                                    selectedBlockId === block.id ? 'border-[#4f8fff] ring-1 ring-inset ring-[#4f8fff]' : '',
+                                    props.permissions.canEdit
+                                        ? 'cursor-grab active:cursor-grabbing'
+                                        : '',
+                                    dragOverBlockId === block.id
+                                        ? 'ring-2 ring-[#4f8fff] ring-inset'
+                                        : '',
+                                    selectedBlockId === block.id
+                                        ? 'border-[#4f8fff] ring-1 ring-[#4f8fff] ring-inset'
+                                        : '',
                                 ]"
                                 :style="blockWrapperStyle(block)"
                                 :draggable="props.permissions.canEdit"
@@ -5385,45 +7091,87 @@ onBeforeUnmount(() => {
                                 @dragend="onBlockDragEnd"
                             >
                                 <div
-                                    v-if="props.permissions.canEdit && selectedBlockId === block.id"
+                                    v-if="
+                                        props.permissions.canEdit &&
+                                        selectedBlockId === block.id
+                                    "
                                     class="mb-2 inline-flex items-center gap-1 rounded-md bg-[#1c57be] p-1.5 text-white shadow-[0_8px_20px_rgba(8,20,44,0.35)]"
                                 >
-                                    <button type="button" class="rounded p-1 hover:bg-[#2e6fe0]" @click.stop="moveBlock(block.id, 'up')" :disabled="blockIndex === 0">
+                                    <button
+                                        type="button"
+                                        class="rounded p-1 hover:bg-[#2e6fe0]"
+                                        @click.stop="moveBlock(block.id, 'up')"
+                                        :disabled="blockIndex === 0"
+                                    >
                                         <ArrowUp class="size-3.5" />
                                     </button>
-                                    <button type="button" class="rounded p-1 hover:bg-[#2e6fe0]" @click.stop="duplicateBlock(block.id)">
+                                    <button
+                                        type="button"
+                                        class="rounded p-1 hover:bg-[#2e6fe0]"
+                                        @click.stop="duplicateBlock(block.id)"
+                                    >
                                         <Blend class="size-3.5" />
                                     </button>
-                                    <button type="button" class="rounded p-1 hover:bg-[#2e6fe0]" @click.stop="removeBlock(block.id)">
+                                    <button
+                                        type="button"
+                                        class="rounded p-1 hover:bg-[#2e6fe0]"
+                                        @click.stop="removeBlock(block.id)"
+                                    >
                                         <Trash2 class="size-3.5" />
                                     </button>
                                 </div>
 
-                                <label v-if="shouldShowLabel(block)" class="block text-sm" :class="labelClass(block)">{{ block.label }}</label>
+                                <label
+                                    v-if="shouldShowLabel(block)"
+                                    class="block text-sm"
+                                    :class="labelClass(block)"
+                                    >{{ block.label }}</label
+                                >
 
                                 <div
-                                    v-if="block.type === 'height' && (block.height_mode ?? 'ruler') === 'ruler'"
+                                    v-if="
+                                        block.type === 'height' &&
+                                        (block.height_mode ?? 'ruler') ===
+                                            'ruler'
+                                    "
                                     class="w-full rounded-xl border border-[#2f538f] px-4 py-4 text-white"
                                     :style="{ backgroundColor: '#0b274f' }"
                                 >
-                                    <div class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm">
-                                        <span class="rounded-full bg-[#071733] px-4 py-1.5 font-semibold text-white">cm</span>
-                                        <span class="px-4 py-1.5 text-[#9dbbeb]">pol</span>
+                                    <div
+                                        class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm"
+                                    >
+                                        <span
+                                            class="rounded-full bg-[#071733] px-4 py-1.5 font-semibold text-white"
+                                            >cm</span
+                                        >
+                                        <span class="px-4 py-1.5 text-[#9dbbeb]"
+                                            >pol</span
+                                        >
                                     </div>
 
-                                    <div class="text-center text-5xl font-semibold text-white">
-                                        {{ numericBlockPlaceholder(block, 175) }}<span class="text-3xl">cm</span>
+                                    <div
+                                        class="text-center text-5xl font-semibold text-white"
+                                    >
+                                        {{ numericBlockPlaceholder(block, 175)
+                                        }}<span class="text-3xl">cm</span>
                                     </div>
                                     <div class="mt-4 px-1">
                                         <input
                                             type="range"
                                             min="120"
                                             max="230"
-                                            :value="numericBlockPlaceholder(block, 175)"
+                                            :value="
+                                                numericBlockPlaceholder(
+                                                    block,
+                                                    175,
+                                                )
+                                            "
                                             class="w-full accent-[#4f8fff]"
                                             disabled
                                         />
-                                        <div class="mt-2 flex justify-between text-xs text-[#9dbbeb]">
+                                        <div
+                                            class="mt-2 flex justify-between text-xs text-[#9dbbeb]"
+                                        >
                                             <span>120</span>
                                             <span>175</span>
                                             <span>230</span>
@@ -5432,28 +7180,49 @@ onBeforeUnmount(() => {
                                 </div>
 
                                 <div
-                                    v-else-if="block.type === 'weight' && (block.weight_mode ?? 'ruler') === 'ruler'"
+                                    v-else-if="
+                                        block.type === 'weight' &&
+                                        (block.weight_mode ?? 'ruler') ===
+                                            'ruler'
+                                    "
                                     class="w-full rounded-xl border border-[#2f538f] px-4 py-4 text-white"
                                     :style="{ backgroundColor: '#0b274f' }"
                                 >
-                                    <div class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm">
-                                        <span class="rounded-full bg-[#071733] px-4 py-1.5 font-semibold text-white">kg</span>
-                                        <span class="px-4 py-1.5 text-[#9dbbeb]">lb</span>
+                                    <div
+                                        class="mx-auto mb-4 flex w-fit rounded-full bg-[#153568] p-1 text-sm"
+                                    >
+                                        <span
+                                            class="rounded-full bg-[#071733] px-4 py-1.5 font-semibold text-white"
+                                            >kg</span
+                                        >
+                                        <span class="px-4 py-1.5 text-[#9dbbeb]"
+                                            >lb</span
+                                        >
                                     </div>
 
-                                    <div class="text-center text-5xl font-semibold text-white">
-                                        {{ numericBlockPlaceholder(block, 80) }}<span class="text-3xl">kg</span>
+                                    <div
+                                        class="text-center text-5xl font-semibold text-white"
+                                    >
+                                        {{ numericBlockPlaceholder(block, 80)
+                                        }}<span class="text-3xl">kg</span>
                                     </div>
                                     <div class="mt-4 px-1">
                                         <input
                                             type="range"
                                             min="30"
                                             max="180"
-                                            :value="numericBlockPlaceholder(block, 80)"
+                                            :value="
+                                                numericBlockPlaceholder(
+                                                    block,
+                                                    80,
+                                                )
+                                            "
                                             class="w-full accent-[#4f8fff]"
                                             disabled
                                         />
-                                        <div class="mt-2 flex justify-between text-xs text-[#9dbbeb]">
+                                        <div
+                                            class="mt-2 flex justify-between text-xs text-[#9dbbeb]"
+                                        >
                                             <span>30</span>
                                             <span>80</span>
                                             <span>180</span>
@@ -5477,9 +7246,12 @@ onBeforeUnmount(() => {
                                 />
 
                                 <div
-                                    v-else-if="block.type === 'content_text' && hasContentTextContent(block)"
+                                    v-else-if="
+                                        block.type === 'content_text' &&
+                                        hasContentTextContent(block)
+                                    "
                                     :data-testid="`content-text-preview-${block.id}`"
-                                    class="px-1 py-1 text-[#dce8ff] [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:leading-tight [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:leading-tight [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:leading-tight [&_p]:mt-2 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-[#9cc1ff] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_a]:text-[#9fc2ff] [&_a]:underline"
+                                    class="px-1 py-1 text-[#dce8ff] [&_a]:text-[#9fc2ff] [&_a]:underline [&_h1]:text-3xl [&_h1]:leading-tight [&_h1]:font-bold [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-bold [&_h3]:text-xl [&_h3]:leading-tight [&_h3]:font-semibold [&_p]:mt-2 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-[#9cc1ff] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5"
                                     :class="contentTextAlignClass(block)"
                                     v-html="contentTextMarkup(block)"
                                 ></div>
@@ -5490,80 +7262,194 @@ onBeforeUnmount(() => {
                                         :class="[
                                             block.button_color_style === 'dark'
                                                 ? 'bg-[#06183a]'
-                                                : block.button_color_style === 'light'
-                                                    ? 'bg-[#d8e7ff] text-[#082252]'
-                                                    : 'bg-gradient-to-r from-[#1f60d4] to-[#4d87ff]',
-                                            block.button_elevated ? 'shadow-[0_10px_24px_rgba(20,86,193,0.45)]' : '',
-                                            block.button_animated ? 'hover:translate-y-[-1px] hover:brightness-110' : '',
-                                            block.button_sticky_footer ? 'sticky bottom-3 z-[1]' : '',
+                                                : block.button_color_style ===
+                                                    'light'
+                                                  ? 'bg-[#d8e7ff] text-[#082252]'
+                                                  : 'bg-gradient-to-r from-[#1f60d4] to-[#4d87ff]',
+                                            block.button_elevated
+                                                ? 'shadow-[0_10px_24px_rgba(20,86,193,0.45)]'
+                                                : '',
+                                            block.button_animated
+                                                ? 'hover:translate-y-[-1px] hover:brightness-110'
+                                                : '',
+                                            block.button_sticky_footer
+                                                ? 'sticky bottom-3 z-[1]'
+                                                : '',
                                         ]"
                                     >
                                         {{ block.label }}
                                     </button>
-                                    <p v-if="block.button_action === 'open_link' && block.button_link" class="text-xs text-[#8cb3f4]">
+                                    <p
+                                        v-if="
+                                            block.button_action ===
+                                                'open_link' && block.button_link
+                                        "
+                                        class="text-xs text-[#8cb3f4]"
+                                    >
                                         Link: {{ block.button_link }}
                                     </p>
                                 </template>
 
-                                <div v-else-if="isChoiceBlock(block.type)" class="space-y-2">
-                                    <template v-if="isOptionsComponentType(block.type)">
+                                <div
+                                    v-else-if="isChoiceBlock(block.type)"
+                                    class="space-y-2"
+                                >
+                                    <template
+                                        v-if="
+                                            isOptionsComponentType(block.type)
+                                        "
+                                    >
                                         <div :class="optionsListClass(block)">
                                             <div
-                                                v-if="hasOptionsIntroContent(block)"
+                                                v-if="
+                                                    hasOptionsIntroContent(
+                                                        block,
+                                                    )
+                                                "
                                                 :data-testid="`builder-options-intro-${block.id}`"
                                                 class="sm:col-span-2"
                                                 :class="[
-                                                    optionsCardRadiusClass(block),
-                                                    optionsCardSpacingClass(block),
+                                                    optionsCardRadiusClass(
+                                                        block,
+                                                    ),
+                                                    optionsCardSpacingClass(
+                                                        block,
+                                                    ),
                                                     optionsCardToneClass(block),
-                                                    optionsCardShadowClass(block),
+                                                    optionsCardShadowClass(
+                                                        block,
+                                                    ),
                                                     'border text-center',
                                                 ]"
                                             >
-                                                <h4 v-if="(block.options_intro_title ?? '').trim().length" class="text-xl font-semibold leading-tight text-white">
-                                                    {{ block.options_intro_title }}
+                                                <h4
+                                                    v-if="
+                                                        (
+                                                            block.options_intro_title ??
+                                                            ''
+                                                        ).trim().length
+                                                    "
+                                                    class="text-xl leading-tight font-semibold text-white"
+                                                >
+                                                    {{
+                                                        block.options_intro_title
+                                                    }}
                                                 </h4>
-                                                <p v-if="(block.options_intro_description ?? '').trim().length" class="text-sm text-[#9cc1ff]" :class="(block.options_intro_title ?? '').trim().length ? 'mt-2' : ''">
-                                                    {{ block.options_intro_description }}
+                                                <p
+                                                    v-if="
+                                                        (
+                                                            block.options_intro_description ??
+                                                            ''
+                                                        ).trim().length
+                                                    "
+                                                    class="text-sm text-[#9cc1ff]"
+                                                    :class="
+                                                        (
+                                                            block.options_intro_title ??
+                                                            ''
+                                                        ).trim().length
+                                                            ? 'mt-2'
+                                                            : ''
+                                                    "
+                                                >
+                                                    {{
+                                                        block.options_intro_description
+                                                    }}
                                                 </p>
                                             </div>
                                             <button
-                                                v-for="(item, itemIndex) in optionsDisplayItems(block)"
+                                                v-for="(
+                                                    item, itemIndex
+                                                ) in optionsDisplayItems(block)"
                                                 :key="`${block.id}-opt-item-${item.id ?? itemIndex}`"
                                                 type="button"
                                                 class="border text-sm text-white"
                                                 :class="[
-                                                    optionsItemWidthClass(block),
-                                                    optionsCardRadiusClass(block),
-                                                    optionsCardSpacingClass(block),
+                                                    optionsItemWidthClass(
+                                                        block,
+                                                    ),
+                                                    optionsCardRadiusClass(
+                                                        block,
+                                                    ),
+                                                    optionsCardSpacingClass(
+                                                        block,
+                                                    ),
                                                     optionsCardToneClass(block),
-                                                    optionsCardShadowClass(block),
-                                                    optionsCardMinWidthClass(block),
+                                                    optionsCardShadowClass(
+                                                        block,
+                                                    ),
+                                                    optionsCardMinWidthClass(
+                                                        block,
+                                                    ),
                                                 ]"
                                             >
-                                                <div :class="optionsBodyClass(block)">
+                                                <div
+                                                    :class="
+                                                        optionsBodyClass(block)
+                                                    "
+                                                >
                                                     <span
-                                                        v-if="normalizeDetailValue(block.options_detail) !== 'none'"
+                                                        v-if="
+                                                            normalizeDetailValue(
+                                                                block.options_detail,
+                                                            ) !== 'none'
+                                                        "
                                                         :data-testid="`option-detail-${block.id}-${itemIndex}`"
                                                         class="mt-0.5 inline-flex shrink-0 items-center justify-center text-xs font-semibold text-[#1b2333]"
                                                         :class="[
-                                                            optionsDetailWrapClass(block),
-                                                            optionsDetailBadgeClass(block),
-                                                            normalizeDetailValue(block.options_detail) !== 'checkout' ? 'bg-[#d2d8e4]' : '',
-                                                            optionsDetailTextClass(block),
+                                                            optionsDetailWrapClass(
+                                                                block,
+                                                            ),
+                                                            optionsDetailBadgeClass(
+                                                                block,
+                                                            ),
+                                                            normalizeDetailValue(
+                                                                block.options_detail,
+                                                            ) !== 'checkout'
+                                                                ? 'bg-[#d2d8e4]'
+                                                                : '',
+                                                            optionsDetailTextClass(
+                                                                block,
+                                                            ),
                                                         ]"
                                                     >
-                                                        {{ optionsDetailLabel(block, item, itemIndex) }}
+                                                        {{
+                                                            optionsDetailLabel(
+                                                                block,
+                                                                item,
+                                                                itemIndex,
+                                                            )
+                                                        }}
                                                     </span>
                                                     <div
-                                                        v-if="optionsShouldRenderImage(block, item)"
+                                                        v-if="
+                                                            optionsShouldRenderImage(
+                                                                block,
+                                                                item,
+                                                            )
+                                                        "
                                                         :data-testid="`option-image-${block.id}-${itemIndex}`"
                                                         class="shrink-0"
-                                                        :class="optionsMediaOrderClass(block)"
+                                                        :class="
+                                                            optionsMediaOrderClass(
+                                                                block,
+                                                            )
+                                                        "
                                                     >
-                                                        <div :class="optionsImageWrapClass(block)">
+                                                        <div
+                                                            :class="
+                                                                optionsImageWrapClass(
+                                                                    block,
+                                                                )
+                                                            "
+                                                        >
                                                             <img
-                                                                :src="sanitizeStoredAssetUrl(item.image_url) ?? undefined"
+                                                                :src="
+                                                                    sanitizeStoredAssetUrl(
+                                                                        item.image_url,
+                                                                    ) ??
+                                                                    undefined
+                                                                "
                                                                 alt="Imagem da opcao"
                                                                 class="h-full w-full object-cover"
                                                             />
@@ -5571,7 +7457,14 @@ onBeforeUnmount(() => {
                                                     </div>
                                                     <span
                                                         class="block min-w-0 flex-1 text-[1.02rem] leading-7"
-                                                        :class="[optionTextAlignClass(block), optionsLabelOrderClass(block)]"
+                                                        :class="[
+                                                            optionTextAlignClass(
+                                                                block,
+                                                            ),
+                                                            optionsLabelOrderClass(
+                                                                block,
+                                                            ),
+                                                        ]"
                                                     >
                                                         {{ item.label }}
                                                     </span>
@@ -5581,108 +7474,319 @@ onBeforeUnmount(() => {
                                     </template>
                                     <template v-else-if="block.type === 'faq'">
                                         <div
-                                            v-for="(item, optionIndex) in normalizeFaqItems(block.option_items, block.options)"
+                                            v-for="(
+                                                item, optionIndex
+                                            ) in normalizeFaqItems(
+                                                block.option_items,
+                                                block.options,
+                                            )"
                                             :key="`${block.id}-faq-preview-${item.id}`"
                                             class="border-b border-[#2a4e88]/70 px-1 py-1.5"
                                         >
-                                            <div class="flex items-center justify-between gap-3">
-                                                <p class="text-base font-semibold text-white">{{ item.label }}</p>
-                                                <span v-if="(block.faq_detail ?? 'arrow') !== 'none'" class="text-sm font-semibold text-[#8fb45c]">{{ faqDetailLabel(block, optionIndex) }}</span>
+                                            <div
+                                                class="flex items-center justify-between gap-3"
+                                            >
+                                                <p
+                                                    class="text-base font-semibold text-white"
+                                                >
+                                                    {{ item.label }}
+                                                </p>
+                                                <span
+                                                    v-if="
+                                                        (block.faq_detail ??
+                                                            'arrow') !== 'none'
+                                                    "
+                                                    class="text-sm font-semibold text-[#8fb45c]"
+                                                    >{{
+                                                        faqDetailLabel(
+                                                            block,
+                                                            optionIndex,
+                                                        )
+                                                    }}</span
+                                                >
                                             </div>
                                             <p
-                                                v-if="(block.faq_first_active ?? true) && optionIndex === 0"
+                                                v-if="
+                                                    (block.faq_first_active ??
+                                                        true) &&
+                                                    optionIndex === 0
+                                                "
                                                 class="mt-1 text-sm leading-6 text-[#9fb3cf]"
                                             >
                                                 {{ item.description }}
                                             </p>
                                         </div>
                                     </template>
-                                    <template v-else-if="block.type === 'price'">
+                                    <template
+                                        v-else-if="block.type === 'price'"
+                                    >
                                         <div
                                             class="rounded-2xl border px-3 py-2"
-                                            :class="block.price_style === 'dark'
-                                                ? 'border-[#355d9f] bg-[#0b274f]'
-                                                : block.price_style === 'light'
-                                                    ? 'border-[#d5deed] bg-[#f7f9fe] text-[#0d1a31]'
-                                                    : 'border-[#6faa2a] bg-[#eef8e5] text-[#0d1a31]'"
+                                            :class="
+                                                block.price_style === 'dark'
+                                                    ? 'border-[#355d9f] bg-[#0b274f]'
+                                                    : block.price_style ===
+                                                        'light'
+                                                      ? 'border-[#d5deed] bg-[#f7f9fe] text-[#0d1a31]'
+                                                      : 'border-[#6faa2a] bg-[#eef8e5] text-[#0d1a31]'
+                                            "
                                         >
-                                            <div :class="(block.price_layout ?? 'horizontal') === 'vertical' ? 'space-y-2' : 'flex items-center justify-between gap-3'">
-                                                <p v-if="block.price_title?.trim().length" class="text-xl font-semibold" :class="block.price_style === 'dark' ? 'text-white' : 'text-[#091225]'">{{ block.price_title }}</p>
-                                                <div class="rounded-xl px-2 py-1.5" :class="block.price_style === 'dark' ? 'bg-[#13386f]' : 'bg-[#e9edf3]'">
-                                                    <p v-if="block.price_prefix?.trim().length" class="text-sm text-[#5f6875]">{{ block.price_prefix }}</p>
-                                                    <p v-if="block.price_value?.trim().length" class="text-2xl font-semibold" :class="block.price_style === 'dark' ? 'text-white' : 'text-[#0a1224]'">{{ block.price_value }}</p>
-                                                    <p v-if="block.price_suffix?.trim().length" class="text-sm text-[#5f6875]">{{ block.price_suffix }}</p>
+                                            <div
+                                                :class="
+                                                    (block.price_layout ??
+                                                        'horizontal') ===
+                                                    'vertical'
+                                                        ? 'space-y-2'
+                                                        : 'flex items-center justify-between gap-3'
+                                                "
+                                            >
+                                                <p
+                                                    v-if="
+                                                        block.price_title?.trim()
+                                                            .length
+                                                    "
+                                                    class="text-xl font-semibold"
+                                                    :class="
+                                                        block.price_style ===
+                                                        'dark'
+                                                            ? 'text-white'
+                                                            : 'text-[#091225]'
+                                                    "
+                                                >
+                                                    {{ block.price_title }}
+                                                </p>
+                                                <div
+                                                    class="rounded-xl px-2 py-1.5"
+                                                    :class="
+                                                        block.price_style ===
+                                                        'dark'
+                                                            ? 'bg-[#13386f]'
+                                                            : 'bg-[#e9edf3]'
+                                                    "
+                                                >
+                                                    <p
+                                                        v-if="
+                                                            block.price_prefix?.trim()
+                                                                .length
+                                                        "
+                                                        class="text-sm text-[#5f6875]"
+                                                    >
+                                                        {{ block.price_prefix }}
+                                                    </p>
+                                                    <p
+                                                        v-if="
+                                                            block.price_value?.trim()
+                                                                .length
+                                                        "
+                                                        class="text-2xl font-semibold"
+                                                        :class="
+                                                            block.price_style ===
+                                                            'dark'
+                                                                ? 'text-white'
+                                                                : 'text-[#0a1224]'
+                                                        "
+                                                    >
+                                                        {{ block.price_value }}
+                                                    </p>
+                                                    <p
+                                                        v-if="
+                                                            block.price_suffix?.trim()
+                                                                .length
+                                                        "
+                                                        class="text-sm text-[#5f6875]"
+                                                    >
+                                                        {{ block.price_suffix }}
+                                                    </p>
                                                 </div>
                                             </div>
-                                            <p v-if="block.price_badge_text?.trim().length" class="mt-1 text-xs font-medium text-[#4f8a19]">{{ block.price_badge_text }}</p>
+                                            <p
+                                                v-if="
+                                                    block.price_badge_text?.trim()
+                                                        .length
+                                                "
+                                                class="mt-1 text-xs font-medium text-[#4f8a19]"
+                                            >
+                                                {{ block.price_badge_text }}
+                                            </p>
                                         </div>
                                     </template>
-                                    <template v-else-if="block.type === 'metrics'">
+                                    <template
+                                        v-else-if="block.type === 'metrics'"
+                                    >
                                         <div class="grid gap-2 sm:grid-cols-3">
                                             <div
-                                                v-for="item in metricItems(block)"
+                                                v-for="item in metricItems(
+                                                    block,
+                                                )"
                                                 :key="`${block.id}-metric-${item.id}`"
-                                                class="rounded-2xl border border-[#2a4e88] bg-[#0b274f] px-3 py-3"
+                                                class="min-w-0 overflow-hidden rounded-2xl border border-[#2a4e88] bg-[#0b274f] px-3 py-3"
                                             >
-                                                <p v-if="item.value.length" class="text-[1.55rem] font-semibold leading-none text-white">{{ item.value }}</p>
-                                                <p v-if="item.label.length" class="text-sm font-medium text-[#dce9ff]" :class="item.value.length ? 'mt-2' : ''">{{ item.label }}</p>
-                                                <p v-if="item.description.length" class="text-xs leading-5 text-[#8eb2ea]" :class="item.value.length || item.label.length ? 'mt-1' : ''">{{ item.description }}</p>
+                                                <p
+                                                    v-if="item.value.length"
+                                                    class="text-[1.55rem] leading-none font-semibold wrap-anywhere text-white"
+                                                >
+                                                    {{ item.value }}
+                                                </p>
+                                                <p
+                                                    v-if="item.label.length"
+                                                    class="text-sm font-medium wrap-anywhere text-[#dce9ff]"
+                                                    :class="
+                                                        item.value.length
+                                                            ? 'mt-2'
+                                                            : ''
+                                                    "
+                                                >
+                                                    {{ item.label }}
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        item.description.length
+                                                    "
+                                                    class="text-xs leading-5 wrap-anywhere text-[#8eb2ea]"
+                                                    :class="
+                                                        item.value.length ||
+                                                        item.label.length
+                                                            ? 'mt-1'
+                                                            : ''
+                                                    "
+                                                >
+                                                    {{ item.description }}
+                                                </p>
                                             </div>
                                         </div>
                                     </template>
-                                    <template v-else-if="block.type === 'before_after'">
+                                    <template
+                                        v-else-if="
+                                            block.type === 'before_after'
+                                        "
+                                    >
                                         <div class="grid grid-cols-2 gap-2">
                                             <div
-                                                v-for="item in beforeAfterItems(block)"
+                                                v-for="item in beforeAfterItems(
+                                                    block,
+                                                )"
                                                 :key="`${block.id}-preview-${item.label}`"
                                                 class="rounded-xl border border-[#2a4e88] bg-[#0b274f] px-3 py-2.5"
                                             >
-                                                <p class="text-xs uppercase tracking-wide text-[#9cc1ff]">{{ item.label }}</p>
-                                                <p class="mt-1 text-sm text-white">{{ item.value }}</p>
+                                                <p
+                                                    class="text-xs tracking-wide text-[#9cc1ff] uppercase"
+                                                >
+                                                    {{ item.label }}
+                                                </p>
+                                                <p
+                                                    class="mt-1 text-sm text-white"
+                                                >
+                                                    {{ item.value }}
+                                                </p>
                                             </div>
                                         </div>
                                     </template>
-                                    <template v-else-if="block.type === 'testimonials'">
-                                        <div :class="testimonialGridClass(block)">
+                                    <template
+                                        v-else-if="
+                                            block.type === 'testimonials'
+                                        "
+                                    >
+                                        <div
+                                            :class="testimonialGridClass(block)"
+                                        >
                                             <article
-                                                v-for="item in testimonialItems(block)"
+                                                v-for="item in testimonialItems(
+                                                    block,
+                                                )"
                                                 :key="`${block.id}-testimonial-${item.id}`"
                                                 class="border text-[#dde8fa]"
                                                 :class="[
-                                                    optionsCardRadiusClass(block),
+                                                    optionsCardRadiusClass(
+                                                        block,
+                                                    ),
                                                     optionsCardToneClass(block),
                                                     'px-2.5 py-2',
-                                                    optionsCardShadowClass(block),
-                                                    block.testimonials_layout === 'slide' ? 'min-w-[220px]' : '',
+                                                    optionsCardShadowClass(
+                                                        block,
+                                                    ),
+                                                    block.testimonials_layout ===
+                                                    'slide'
+                                                        ? 'min-w-[220px]'
+                                                        : '',
                                                 ]"
                                             >
-                                                <div class="flex items-center gap-1 text-amber-300"><span v-for="starIndex in ratingStars(item.rating)" :key="`${item.id}-star-${starIndex}`">&#9733;</span></div>
-                                                <p v-if="item.label?.trim().length" class="mt-0.5 text-base font-semibold text-white">{{ item.label }}</p>
-                                                <p v-if="item.subtitle?.trim().length" class="text-sm text-[#a9c1e9]">{{ item.subtitle }}</p>
-                                                <p v-if="item.description?.trim().length" class="mt-1.5 text-base leading-6 text-[#d8e5f8]">{{ item.description }}</p>
+                                                <div
+                                                    class="flex items-center gap-1 text-amber-300"
+                                                >
+                                                    <span
+                                                        v-for="starIndex in ratingStars(
+                                                            item.rating,
+                                                        )"
+                                                        :key="`${item.id}-star-${starIndex}`"
+                                                        >&#9733;</span
+                                                    >
+                                                </div>
+                                                <p
+                                                    v-if="
+                                                        item.label?.trim()
+                                                            .length
+                                                    "
+                                                    class="mt-0.5 text-base font-semibold text-white"
+                                                >
+                                                    {{ item.label }}
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        item.subtitle?.trim()
+                                                            .length
+                                                    "
+                                                    class="text-sm text-[#a9c1e9]"
+                                                >
+                                                    {{ item.subtitle }}
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        item.description?.trim()
+                                                            .length
+                                                    "
+                                                    class="mt-1.5 text-base leading-6 text-[#d8e5f8]"
+                                                >
+                                                    {{ item.description }}
+                                                </p>
                                             </article>
                                         </div>
                                     </template>
-                                    <template v-else-if="block.type === 'arguments'">
+                                    <template
+                                        v-else-if="block.type === 'arguments'"
+                                    >
                                         <ul class="space-y-2">
                                             <li
-                                                v-for="(option, optionIndex) in argumentItems(block)"
+                                                v-for="(
+                                                    option, optionIndex
+                                                ) in argumentItems(block)"
                                                 :key="`${block.id}-${optionIndex}`"
                                                 class="flex items-center gap-2 rounded-xl border border-[#2a4e88] bg-[#0b274f] px-3 py-2"
                                             >
-                                                <span class="text-[#7fb3ff]">*</span>
-                                                <span class="text-sm text-white">{{ option }}</span>
+                                                <span class="text-[#7fb3ff]"
+                                                    >*</span
+                                                >
+                                                <span
+                                                    class="text-sm text-white"
+                                                    >{{ option }}</span
+                                                >
                                             </li>
                                         </ul>
                                     </template>
                                     <template v-else>
                                         <button
-                                            v-for="(option, optionIndex) in block.options ?? []"
+                                            v-for="(
+                                                option, optionIndex
+                                            ) in block.options ?? []"
                                             :key="`${block.id}-${optionIndex}`"
                                             class="flex w-full items-center gap-3 rounded-xl border border-[#2a4e88] bg-[#0b274f] px-3.5 py-3 text-left transition hover:border-[#4f8fff]"
                                         >
-                                            <span class="flex h-7 w-7 items-center justify-center rounded-md bg-[#123a7b] text-xs font-bold text-white">{{ optionIndex + 1 }}</span>
-                                            <span class="text-lg text-white">{{ option }}</span>
+                                            <span
+                                                class="flex h-7 w-7 items-center justify-center rounded-md bg-[#123a7b] text-xs font-bold text-white"
+                                                >{{ optionIndex + 1 }}</span
+                                            >
+                                            <span class="text-lg text-white">{{
+                                                option
+                                            }}</span>
                                         </button>
                                     </template>
                                 </div>
@@ -5690,53 +7794,175 @@ onBeforeUnmount(() => {
                                 <div
                                     v-else-if="block.type === 'price'"
                                     class="rounded-xl border px-2.5 py-1.5 text-left transition"
-                                    :class="block.price_style === 'dark'
-                                        ? 'border-[#355d9f] bg-[#0b274f]'
-                                        : block.price_style === 'light'
-                                            ? 'border-[#d5deed] bg-[#f7f9fe] text-[#0d1a31]'
-                                            : 'border-[#6faa2a] bg-[#eef8e5] text-[#0d1a31]'"
-                                    :title="(block.price_mode ?? 'illustrative') === 'redirect' ? 'Abrir link do plano' : undefined"
-                                    :style="{ cursor: (block.price_mode ?? 'illustrative') === 'redirect' ? 'pointer' : 'default' }"
+                                    :class="
+                                        block.price_style === 'dark'
+                                            ? 'border-[#355d9f] bg-[#0b274f]'
+                                            : block.price_style === 'light'
+                                              ? 'border-[#d5deed] bg-[#f7f9fe] text-[#0d1a31]'
+                                              : 'border-[#6faa2a] bg-[#eef8e5] text-[#0d1a31]'
+                                    "
+                                    :title="
+                                        (block.price_mode ?? 'illustrative') ===
+                                        'redirect'
+                                            ? 'Abrir link do plano'
+                                            : undefined
+                                    "
+                                    :style="{
+                                        cursor:
+                                            (block.price_mode ??
+                                                'illustrative') === 'redirect'
+                                                ? 'pointer'
+                                                : 'default',
+                                    }"
                                 >
-                                    <div :class="(block.price_layout ?? 'horizontal') === 'vertical' ? 'space-y-2' : 'flex items-center justify-between gap-3'">
-                                        <p v-if="block.price_title?.trim().length" class="text-lg font-semibold" :class="block.price_style === 'dark' ? 'text-white' : 'text-[#091225]'">{{ block.price_title }}</p>
-                                        <div class="rounded-lg px-2 py-1" :class="block.price_style === 'dark' ? 'bg-[#13386f]' : 'bg-[#e9edf3]'">
-                                            <p v-if="block.price_prefix?.trim().length" class="text-xs text-[#5f6875]">{{ block.price_prefix }}</p>
-                                            <p v-if="block.price_value?.trim().length" class="text-xl font-semibold" :class="block.price_style === 'dark' ? 'text-white' : 'text-[#0a1224]'">{{ block.price_value }}</p>
-                                            <p v-if="block.price_suffix?.trim().length" class="text-sm text-[#5f6875]">{{ block.price_suffix }}</p>
+                                    <div
+                                        :class="
+                                            (block.price_layout ??
+                                                'horizontal') === 'vertical'
+                                                ? 'space-y-2'
+                                                : 'flex items-center justify-between gap-3'
+                                        "
+                                    >
+                                        <p
+                                            v-if="
+                                                block.price_title?.trim().length
+                                            "
+                                            class="text-lg font-semibold"
+                                            :class="
+                                                block.price_style === 'dark'
+                                                    ? 'text-white'
+                                                    : 'text-[#091225]'
+                                            "
+                                        >
+                                            {{ block.price_title }}
+                                        </p>
+                                        <div
+                                            class="rounded-lg px-2 py-1"
+                                            :class="
+                                                block.price_style === 'dark'
+                                                    ? 'bg-[#13386f]'
+                                                    : 'bg-[#e9edf3]'
+                                            "
+                                        >
+                                            <p
+                                                v-if="
+                                                    block.price_prefix?.trim()
+                                                        .length
+                                                "
+                                                class="text-xs text-[#5f6875]"
+                                            >
+                                                {{ block.price_prefix }}
+                                            </p>
+                                            <p
+                                                v-if="
+                                                    block.price_value?.trim()
+                                                        .length
+                                                "
+                                                class="text-xl font-semibold"
+                                                :class="
+                                                    block.price_style === 'dark'
+                                                        ? 'text-white'
+                                                        : 'text-[#0a1224]'
+                                                "
+                                            >
+                                                {{ block.price_value }}
+                                            </p>
+                                            <p
+                                                v-if="
+                                                    block.price_suffix?.trim()
+                                                        .length
+                                                "
+                                                class="text-sm text-[#5f6875]"
+                                            >
+                                                {{ block.price_suffix }}
+                                            </p>
                                         </div>
                                     </div>
-                                    <p v-if="block.price_badge_text?.trim().length" class="mt-1 text-xs font-medium text-[#4f8a19]">{{ block.price_badge_text }}</p>
+                                    <p
+                                        v-if="
+                                            block.price_badge_text?.trim()
+                                                .length
+                                        "
+                                        class="mt-1 text-xs font-medium text-[#4f8a19]"
+                                    >
+                                        {{ block.price_badge_text }}
+                                    </p>
                                 </div>
 
                                 <div
                                     v-else-if="block.type === 'carousel'"
                                     class="rounded-xl border p-2"
-                                    :class="block.carousel_border_type === 'strong'
-                                        ? 'border-[#2a4e88] bg-[#0b274f]'
-                                        : block.carousel_border_type === 'subtle'
-                                            ? 'border-[#365b92]/60 bg-[#0b274f]/70'
-                                            : 'border-transparent bg-transparent'"
+                                    :class="
+                                        block.carousel_border_type === 'strong'
+                                            ? 'border-[#2a4e88] bg-[#0b274f]'
+                                            : block.carousel_border_type ===
+                                                'subtle'
+                                              ? 'border-[#365b92]/60 bg-[#0b274f]/70'
+                                              : 'border-transparent bg-transparent'
+                                    "
                                 >
-                                    <div v-if="carouselShowsImage(block) && carouselPreviewItems(block)[0]?.image" class="rounded-2xl bg-[#bfd3b2] p-1">
-                                        <div class="aspect-[4/3] w-full rounded-2xl bg-[#bfd3b2]">
+                                    <div
+                                        v-if="
+                                            carouselShowsImage(block) &&
+                                            currentCarouselPreviewItem(block)
+                                                ?.image
+                                        "
+                                        class="rounded-2xl bg-[#bfd3b2] p-1"
+                                    >
+                                        <div
+                                            class="aspect-[4/3] w-full rounded-2xl bg-[#bfd3b2]"
+                                        >
                                             <img
-                                                v-if="carouselPreviewItems(block)[0]?.image"
-                                                :src="carouselPreviewItems(block)[0]?.image"
+                                                v-if="
+                                                    currentCarouselPreviewItem(
+                                                        block,
+                                                    )?.image
+                                                "
+                                                :src="
+                                                    currentCarouselPreviewItem(
+                                                        block,
+                                                    )?.image
+                                                "
                                                 alt="Imagem do slide"
                                                 class="h-full w-full rounded-2xl object-cover"
                                             />
                                         </div>
                                     </div>
-                                    <p v-if="carouselShowsDescription(block) && carouselPreviewItems(block)[0]?.description" class="mt-2 text-center text-lg text-[#9fb3cf]">
-                                        {{ carouselPreviewItems(block)[0]?.description }}
+                                    <p
+                                        v-if="
+                                            carouselShowsDescription(block) &&
+                                            currentCarouselPreviewItem(block)
+                                                ?.description
+                                        "
+                                        :data-testid="`builder-carousel-current-${block.id}`"
+                                        class="mt-2 text-center text-lg text-[#9fb3cf]"
+                                    >
+                                        {{
+                                            currentCarouselPreviewItem(block)
+                                                ?.description
+                                        }}
                                     </p>
-                                    <div v-if="block.carousel_pagination !== false && carouselPreviewItems(block).length > 1" class="mt-2 flex items-center justify-center gap-2">
+                                    <div
+                                        v-if="
+                                            block.carousel_pagination !==
+                                                false &&
+                                            carouselPreviewItems(block).length >
+                                                1
+                                        "
+                                        class="mt-2 flex items-center justify-center gap-2"
+                                    >
                                         <span
-                                            v-for="(item, itemIndex) in carouselPreviewItems(block)"
+                                            v-for="(
+                                                item, itemIndex
+                                            ) in carouselPreviewItems(block)"
                                             :key="`${block.id}-preview-dot-${item.id}`"
                                             class="rounded-full"
-                                            :class="itemIndex === 0 ? 'h-2.5 w-2.5 bg-[#6faa2a]' : 'h-1.5 w-1.5 bg-[#a8ba99]'"
+                                            :class="
+                                                itemIndex ===
+                                                carouselPreviewIndex(block)
+                                                    ? 'h-2.5 w-2.5 bg-[#6faa2a]'
+                                                    : 'h-1.5 w-1.5 bg-[#a8ba99]'
+                                            "
                                         />
                                     </div>
                                 </div>
@@ -5745,48 +7971,153 @@ onBeforeUnmount(() => {
                                     v-else-if="block.type === 'spacer'"
                                     :data-testid="`builder-spacer-${block.id}`"
                                     class="rounded-xl border border-dashed border-[#3562a7] bg-[#0b274f] px-3.5 text-center text-sm text-[#9cc1ff]"
-                                    :style="{ paddingTop: `${spacerHeight(block)}px`, paddingBottom: `${spacerHeight(block)}px` }"
+                                    :style="{
+                                        paddingTop: `${spacerHeight(block)}px`,
+                                        paddingBottom: `${spacerHeight(block)}px`,
+                                    }"
                                 >
                                     Espaco entre blocos
                                 </div>
 
-                                <div v-else-if="block.type === 'image'" class="border" :class="['border-[#2f538f]', imageFrameClass(block), imageRadiusClass(block)]">
-                                    <div v-if="imageAspectClass(block)" :class="['w-full overflow-hidden', imageAspectClass(block), imageRadiusClass(block)]">
+                                <div
+                                    v-else-if="block.type === 'image'"
+                                    class="border"
+                                    :class="[
+                                        'border-[#2f538f]',
+                                        imageFrameClass(block),
+                                        imageRadiusClass(block),
+                                    ]"
+                                >
+                                    <div
+                                        v-if="imageAspectClass(block)"
+                                        :class="[
+                                            'w-full overflow-hidden',
+                                            imageAspectClass(block),
+                                            imageRadiusClass(block),
+                                        ]"
+                                    >
+                                        <div
+                                            v-if="
+                                                uploadingImageBlockId ===
+                                                block.id
+                                            "
+                                            :data-testid="`builder-image-uploading-${block.id}`"
+                                            role="status"
+                                            class="flex h-full items-center justify-center border border-dashed border-[#4b89ff] text-sm font-medium text-[#b9d2ff]"
+                                            :class="imageRadiusClass(block)"
+                                        >
+                                            <span class="animate-pulse"
+                                                >Carregando imagem...</span
+                                            >
+                                        </div>
                                         <img
-                                            v-if="sanitizeStoredAssetUrl(block.placeholder) !== null"
-                                            :src="sanitizeStoredAssetUrl(block.placeholder) ?? undefined"
+                                            v-else-if="
+                                                sanitizeStoredAssetUrl(
+                                                    block.placeholder,
+                                                ) !== null
+                                            "
+                                            :src="
+                                                sanitizeStoredAssetUrl(
+                                                    block.placeholder,
+                                                ) ?? undefined
+                                            "
                                             alt="Imagem do bloco"
-                                            :class="['h-full w-full', imageFitClass(block), imageRadiusClass(block)]"
+                                            :class="[
+                                                'h-full w-full',
+                                                imageFitClass(block),
+                                                imageRadiusClass(block),
+                                            ]"
                                         />
-                                        <div v-else class="flex h-full items-center justify-center border border-dashed border-[#3562a7] text-sm text-[#9cc1ff]" :class="imageRadiusClass(block)">
+                                        <div
+                                            v-else
+                                            class="flex h-full items-center justify-center border border-dashed border-[#3562a7] text-sm text-[#9cc1ff]"
+                                            :class="imageRadiusClass(block)"
+                                        >
                                             Imagem nao configurada
                                         </div>
                                     </div>
                                     <template v-else>
+                                        <div
+                                            v-if="
+                                                uploadingImageBlockId ===
+                                                block.id
+                                            "
+                                            :data-testid="`builder-image-uploading-${block.id}`"
+                                            role="status"
+                                            class="flex h-40 items-center justify-center border border-dashed border-[#4b89ff] text-sm font-medium text-[#b9d2ff]"
+                                            :class="imageRadiusClass(block)"
+                                        >
+                                            <span class="animate-pulse"
+                                                >Carregando imagem...</span
+                                            >
+                                        </div>
                                         <img
-                                            v-if="sanitizeStoredAssetUrl(block.placeholder) !== null"
-                                            :src="sanitizeStoredAssetUrl(block.placeholder) ?? undefined"
+                                            v-else-if="
+                                                sanitizeStoredAssetUrl(
+                                                    block.placeholder,
+                                                ) !== null
+                                            "
+                                            :src="
+                                                sanitizeStoredAssetUrl(
+                                                    block.placeholder,
+                                                ) ?? undefined
+                                            "
                                             alt="Imagem do bloco"
-                                            :class="['max-h-[22rem] w-full', imageFitClass(block), imageRadiusClass(block)]"
+                                            :class="[
+                                                'max-h-[22rem] w-full',
+                                                imageFitClass(block),
+                                                imageRadiusClass(block),
+                                            ]"
                                         />
-                                        <div v-else class="flex h-40 items-center justify-center border border-dashed border-[#3562a7] text-sm text-[#9cc1ff]" :class="imageRadiusClass(block)">
+                                        <div
+                                            v-else
+                                            class="flex h-40 items-center justify-center border border-dashed border-[#3562a7] text-sm text-[#9cc1ff]"
+                                            :class="imageRadiusClass(block)"
+                                        >
                                             Imagem nao configurada
                                         </div>
                                     </template>
                                 </div>
 
-                                <div v-else-if="block.type === 'video'" class="rounded-xl border border-[#2f538f] p-2" :style="{ backgroundColor: '#0b274f' }">
-                                    <div v-if="toEmbedVideoUrl(block.placeholder)" :class="['overflow-hidden rounded-lg border border-[#2f538f]', getVideoAspectClass(block)]">
+                                <div
+                                    v-else-if="block.type === 'video'"
+                                    class="rounded-xl border border-[#2f538f] p-2"
+                                    :style="{ backgroundColor: '#0b274f' }"
+                                >
+                                    <div
+                                        v-if="
+                                            toEmbedVideoUrl(block.placeholder)
+                                        "
+                                        :class="[
+                                            'overflow-hidden rounded-lg border border-[#2f538f]',
+                                            getVideoAspectClass(block),
+                                        ]"
+                                    >
                                         <iframe
                                             :data-testid="`builder-video-preview-${block.id}`"
-                                            :src="toEmbedVideoUrl(block.placeholder) ?? undefined"
+                                            :src="
+                                                toEmbedVideoUrl(
+                                                    block.placeholder,
+                                                ) ?? undefined
+                                            "
                                             title="Preview do video"
                                             class="h-full w-full"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                            allow="
+                                                accelerometer;
+                                                autoplay;
+                                                clipboard-write;
+                                                encrypted-media;
+                                                gyroscope;
+                                                picture-in-picture;
+                                                web-share;
+                                            "
                                             allowfullscreen
                                         />
                                     </div>
-                                    <div v-else class="flex h-40 items-center justify-center rounded-lg border border-dashed border-[#3562a7] text-sm text-[#9cc1ff]">
+                                    <div
+                                        v-else
+                                        class="flex h-40 items-center justify-center rounded-lg border border-dashed border-[#3562a7] text-sm text-[#9cc1ff]"
+                                    >
                                         Video nao configurado
                                     </div>
                                 </div>
@@ -5794,32 +8125,99 @@ onBeforeUnmount(() => {
                                 <div
                                     v-else-if="block.type === 'audio'"
                                     class="relative rounded-[26px] border p-3"
-                                    :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-[#274573] bg-[#0b1f42]' : 'border-[#e6e1d8] bg-[#efebe5]'"
-                                    :style="(block.audio_theme ?? 'light') === 'dark'
-                                        ? {}
-                                        : {
-                                            backgroundImage: 'radial-gradient(circle at 10px 10px, rgba(255,255,255,0.35) 1px, transparent 1px)',
-                                            backgroundSize: '18px 18px',
-                                        }"
+                                    :class="
+                                        (block.audio_theme ?? 'light') ===
+                                        'dark'
+                                            ? 'border-[#274573] bg-[#0b1f42]'
+                                            : 'border-[#e6e1d8] bg-[#efebe5]'
+                                    "
+                                    :style="
+                                        (block.audio_theme ?? 'light') ===
+                                        'dark'
+                                            ? {}
+                                            : {
+                                                  backgroundImage:
+                                                      'radial-gradient(circle at 10px 10px, rgba(255,255,255,0.35) 1px, transparent 1px)',
+                                                  backgroundSize: '18px 18px',
+                                              }
+                                    "
                                 >
                                     <span
-                                        class="absolute left-[15px] top-[26px] h-3 w-3 rotate-45"
-                                        :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-l border-t border-[#33598d] bg-[#102a56]' : 'border-l border-t border-[#ece7df] bg-white'"
+                                        class="absolute top-[26px] left-[15px] h-3 w-3 rotate-45"
+                                        :class="
+                                            (block.audio_theme ?? 'light') ===
+                                            'dark'
+                                                ? 'border-t border-l border-[#33598d] bg-[#102a56]'
+                                                : 'border-t border-l border-[#ece7df] bg-white'
+                                        "
                                     />
                                     <div
                                         class="relative rounded-[22px] border px-3 py-3 shadow-[0_1px_0_rgba(0,0,0,0.06)]"
-                                        :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-[#33598d] bg-[#102a56]' : 'border-[#ece7df] bg-white'"
+                                        :class="
+                                            (block.audio_theme ?? 'light') ===
+                                            'dark'
+                                                ? 'border-[#33598d] bg-[#102a56]'
+                                                : 'border-[#ece7df] bg-white'
+                                        "
                                     >
                                         <audio
-                                            :ref="(element) => bindAudioElement(audioPreviewKey(currentStage.clientId, block.id), element as HTMLAudioElement | null)"
-                                            :src="audioSource(block) ?? undefined"
+                                            :ref="
+                                                (element) =>
+                                                    bindAudioElement(
+                                                        audioPreviewKey(
+                                                            currentStage.clientId,
+                                                            block.id,
+                                                        ),
+                                                        element as HTMLAudioElement | null,
+                                                    )
+                                            "
+                                            :src="
+                                                audioSource(block) ?? undefined
+                                            "
                                             preload="metadata"
                                             class="hidden"
-                                            @loadedmetadata="onAudioLoadedMetadata(audioPreviewKey(currentStage.clientId, block.id), $event)"
-                                            @timeupdate="onAudioTimeUpdate(audioPreviewKey(currentStage.clientId, block.id), $event)"
-                                            @play="onAudioPlay(audioPreviewKey(currentStage.clientId, block.id))"
-                                            @pause="onAudioPause(audioPreviewKey(currentStage.clientId, block.id))"
-                                            @ended="onAudioEnded(audioPreviewKey(currentStage.clientId, block.id))"
+                                            @loadedmetadata="
+                                                onAudioLoadedMetadata(
+                                                    audioPreviewKey(
+                                                        currentStage.clientId,
+                                                        block.id,
+                                                    ),
+                                                    $event,
+                                                )
+                                            "
+                                            @timeupdate="
+                                                onAudioTimeUpdate(
+                                                    audioPreviewKey(
+                                                        currentStage.clientId,
+                                                        block.id,
+                                                    ),
+                                                    $event,
+                                                )
+                                            "
+                                            @play="
+                                                onAudioPlay(
+                                                    audioPreviewKey(
+                                                        currentStage.clientId,
+                                                        block.id,
+                                                    ),
+                                                )
+                                            "
+                                            @pause="
+                                                onAudioPause(
+                                                    audioPreviewKey(
+                                                        currentStage.clientId,
+                                                        block.id,
+                                                    ),
+                                                )
+                                            "
+                                            @ended="
+                                                onAudioEnded(
+                                                    audioPreviewKey(
+                                                        currentStage.clientId,
+                                                        block.id,
+                                                    ),
+                                                )
+                                            "
                                         />
                                         <div class="flex items-center gap-3">
                                             <button
@@ -5827,15 +8225,59 @@ onBeforeUnmount(() => {
                                                 :data-testid="`builder-audio-toggle-${block.id}`"
                                                 class="grid h-9 w-9 shrink-0 place-items-center rounded-full transition disabled:opacity-50"
                                                 :disabled="!audioSource(block)"
-                                                @click.stop="toggleAudioPlayback(audioPreviewKey(currentStage.clientId, block.id))"
+                                                @click.stop="
+                                                    toggleAudioPlayback(
+                                                        audioPreviewKey(
+                                                            currentStage.clientId,
+                                                            block.id,
+                                                        ),
+                                                    )
+                                                "
                                             >
-                                                <template v-if="activeAudioKey === audioPreviewKey(currentStage.clientId, block.id)">
-                                                    <span class="flex items-center gap-1">
-                                                        <span class="h-4 w-1 rounded-full" :class="(block.audio_theme ?? 'light') === 'dark' ? 'bg-[#b8cbe8]' : 'bg-[#9f9393]'" />
-                                                        <span class="h-4 w-1 rounded-full" :class="(block.audio_theme ?? 'light') === 'dark' ? 'bg-[#b8cbe8]' : 'bg-[#9f9393]'" />
+                                                <template
+                                                    v-if="
+                                                        activeAudioKey ===
+                                                        audioPreviewKey(
+                                                            currentStage.clientId,
+                                                            block.id,
+                                                        )
+                                                    "
+                                                >
+                                                    <span
+                                                        class="flex items-center gap-1"
+                                                    >
+                                                        <span
+                                                            class="h-4 w-1 rounded-full"
+                                                            :class="
+                                                                (block.audio_theme ??
+                                                                    'light') ===
+                                                                'dark'
+                                                                    ? 'bg-[#b8cbe8]'
+                                                                    : 'bg-[#9f9393]'
+                                                            "
+                                                        />
+                                                        <span
+                                                            class="h-4 w-1 rounded-full"
+                                                            :class="
+                                                                (block.audio_theme ??
+                                                                    'light') ===
+                                                                'dark'
+                                                                    ? 'bg-[#b8cbe8]'
+                                                                    : 'bg-[#9f9393]'
+                                                            "
+                                                        />
                                                     </span>
                                                 </template>
-                                                <span v-else class="ml-0.5 inline-block h-0 w-0 border-y-[8px] border-y-transparent border-l-[12px]" :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-l-[#b8cbe8]' : 'border-l-[#9f9393]'" />
+                                                <span
+                                                    v-else
+                                                    class="ml-0.5 inline-block h-0 w-0 border-y-[8px] border-l-[12px] border-y-transparent"
+                                                    :class="
+                                                        (block.audio_theme ??
+                                                            'light') === 'dark'
+                                                            ? 'border-l-[#b8cbe8]'
+                                                            : 'border-l-[#9f9393]'
+                                                    "
+                                                />
                                             </button>
                                             <div class="min-w-0 flex-1">
                                                 <div
@@ -5845,55 +8287,175 @@ onBeforeUnmount(() => {
                                                     tabindex="0"
                                                     :aria-valuemin="0"
                                                     :aria-valuemax="100"
-                                                    :aria-valuenow="Math.round(audioProgressRatio(audioPreviewKey(currentStage.clientId, block.id)) * 100)"
-                                                    @click.stop="seekAudio(audioPreviewKey(currentStage.clientId, block.id), $event)"
-                                                    @keydown.stop="handleAudioKeyboard(audioPreviewKey(currentStage.clientId, block.id), $event)"
+                                                    :aria-valuenow="
+                                                        Math.round(
+                                                            audioProgressRatio(
+                                                                audioPreviewKey(
+                                                                    currentStage.clientId,
+                                                                    block.id,
+                                                                ),
+                                                            ) * 100,
+                                                        )
+                                                    "
+                                                    @click.stop="
+                                                        seekAudio(
+                                                            audioPreviewKey(
+                                                                currentStage.clientId,
+                                                                block.id,
+                                                            ),
+                                                            $event,
+                                                        )
+                                                    "
+                                                    @keydown.stop="
+                                                        handleAudioKeyboard(
+                                                            audioPreviewKey(
+                                                                currentStage.clientId,
+                                                                block.id,
+                                                            ),
+                                                            $event,
+                                                        )
+                                                    "
                                                 >
-                                                    <div class="flex items-center gap-[3px]">
-                                                        <span class="mr-1 inline-block h-3.5 w-3.5 rounded-full bg-[#58baf1]" />
+                                                    <div
+                                                        class="flex items-center gap-[3px]"
+                                                    >
                                                         <span
-                                                            v-for="(barHeight, barIndex) in audioWaveHeights"
+                                                            class="mr-1 inline-block h-3.5 w-3.5 rounded-full bg-[#58baf1]"
+                                                        />
+                                                        <span
+                                                            v-for="(
+                                                                barHeight,
+                                                                barIndex
+                                                            ) in audioWaveHeights"
                                                             :key="`audio-wave-${block.id}-${barIndex}`"
                                                             class="inline-block w-[3px] rounded-full transition-colors"
-                                                            :class="barIndex / audioWaveHeights.length < audioProgressRatio(audioPreviewKey(currentStage.clientId, block.id))
-                                                                ? 'bg-[#58baf1]'
-                                                                : (block.audio_theme ?? 'light') === 'dark'
-                                                                    ? 'bg-[#8ea3c5]/65'
-                                                                    : 'bg-[#d5d6d8]'"
-                                                            :style="{ height: `${barHeight}px` }"
+                                                            :class="
+                                                                barIndex /
+                                                                    audioWaveHeights.length <
+                                                                audioProgressRatio(
+                                                                    audioPreviewKey(
+                                                                        currentStage.clientId,
+                                                                        block.id,
+                                                                    ),
+                                                                )
+                                                                    ? 'bg-[#58baf1]'
+                                                                    : (block.audio_theme ??
+                                                                            'light') ===
+                                                                        'dark'
+                                                                      ? 'bg-[#8ea3c5]/65'
+                                                                      : 'bg-[#d5d6d8]'
+                                                            "
+                                                            :style="{
+                                                                height: `${barHeight}px`,
+                                                            }"
                                                         />
                                                     </div>
                                                 </div>
-                                                <div class="mt-2 flex items-center justify-between pl-0.5 text-[11px] font-medium leading-none tracking-wide" :class="(block.audio_theme ?? 'light') === 'dark' ? 'text-[#bfd4f4]' : 'text-[#7a8ea9]'">
-                                                    <p :data-testid="`builder-audio-current-${block.id}`">{{ displayedAudioCurrentTime(audioPreviewKey(currentStage.clientId, block.id)) }}</p>
-                                                    <p :data-testid="`builder-audio-duration-${block.id}`">{{ displayedAudioDuration(audioPreviewKey(currentStage.clientId, block.id)) }}</p>
+                                                <div
+                                                    class="mt-2 flex items-center justify-between pl-0.5 text-[11px] leading-none font-medium tracking-wide"
+                                                    :class="
+                                                        (block.audio_theme ??
+                                                            'light') === 'dark'
+                                                            ? 'text-[#bfd4f4]'
+                                                            : 'text-[#7a8ea9]'
+                                                    "
+                                                >
+                                                    <p
+                                                        :data-testid="`builder-audio-current-${block.id}`"
+                                                    >
+                                                        {{
+                                                            displayedAudioCurrentTime(
+                                                                audioPreviewKey(
+                                                                    currentStage.clientId,
+                                                                    block.id,
+                                                                ),
+                                                            )
+                                                        }}
+                                                    </p>
+                                                    <p
+                                                        :data-testid="`builder-audio-duration-${block.id}`"
+                                                    >
+                                                        {{
+                                                            displayedAudioDuration(
+                                                                audioPreviewKey(
+                                                                    currentStage.clientId,
+                                                                    block.id,
+                                                                ),
+                                                            )
+                                                        }}
+                                                    </p>
                                                 </div>
                                             </div>
-                                            <div class="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border" :class="(block.audio_theme ?? 'light') === 'dark' ? 'border-[#4f6f9f] bg-[#cad3df]' : 'border-[#d8dde3] bg-[#d2d9e2]'">
+                                            <div
+                                                class="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border"
+                                                :class="
+                                                    (block.audio_theme ??
+                                                        'light') === 'dark'
+                                                        ? 'border-[#4f6f9f] bg-[#cad3df]'
+                                                        : 'border-[#d8dde3] bg-[#d2d9e2]'
+                                                "
+                                            >
                                                 <img
-                                                    v-if="sanitizeStoredAssetUrl(block.audio_avatar_url)"
-                                                    :src="sanitizeStoredAssetUrl(block.audio_avatar_url) ?? undefined"
+                                                    v-if="
+                                                        sanitizeStoredAssetUrl(
+                                                            block.audio_avatar_url,
+                                                        )
+                                                    "
+                                                    :src="
+                                                        sanitizeStoredAssetUrl(
+                                                            block.audio_avatar_url,
+                                                        ) ?? undefined
+                                                    "
                                                     alt="Avatar do audio"
                                                     class="h-full w-full object-cover"
                                                 />
                                                 <template v-else>
-                                                    <div class="absolute left-1/2 top-[6px] h-[10px] w-[10px] -translate-x-1/2 rounded-full bg-[#edf1f6]" />
-                                                    <div class="absolute left-1/2 top-[17px] h-[14px] w-[22px] -translate-x-1/2 rounded-[999px_999px_8px_8px] bg-[#edf1f6]" />
+                                                    <div
+                                                        class="absolute top-[6px] left-1/2 h-[10px] w-[10px] -translate-x-1/2 rounded-full bg-[#edf1f6]"
+                                                    />
+                                                    <div
+                                                        class="absolute top-[17px] left-1/2 h-[14px] w-[22px] -translate-x-1/2 rounded-[999px_999px_8px_8px] bg-[#edf1f6]"
+                                                    />
                                                 </template>
-                                                <div class="absolute bottom-[1px] left-[1px] grid h-[15px] w-[15px] place-items-center rounded-full bg-white shadow-sm">
-                                                    <span class="block h-[7px] w-[4px] rounded-[999px] border-2 border-b-0 border-[#39b6f3]" />
-                                                    <span class="absolute bottom-[4px] h-[3px] w-[2px] bg-[#39b6f3]" />
-                                                    <span class="absolute bottom-[2px] h-[2px] w-[6px] rounded bg-[#39b6f3]" />
+                                                <div
+                                                    class="absolute bottom-[1px] left-[1px] grid h-[15px] w-[15px] place-items-center rounded-full bg-white shadow-sm"
+                                                >
+                                                    <span
+                                                        class="block h-[7px] w-[4px] rounded-[999px] border-2 border-b-0 border-[#39b6f3]"
+                                                    />
+                                                    <span
+                                                        class="absolute bottom-[4px] h-[3px] w-[2px] bg-[#39b6f3]"
+                                                    />
+                                                    <span
+                                                        class="absolute bottom-[2px] h-[2px] w-[6px] rounded bg-[#39b6f3]"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
-                                        <p v-if="safeTrim(block.audio_sender).length" class="pt-2 text-[9px] uppercase tracking-[0.08em]" :class="(block.audio_theme ?? 'light') === 'dark' ? 'text-[#9fb8dd]' : 'text-[#9ca7b7]'">
+                                        <p
+                                            v-if="
+                                                safeTrim(block.audio_sender)
+                                                    .length
+                                            "
+                                            class="pt-2 text-[9px] tracking-[0.08em] uppercase"
+                                            :class="
+                                                (block.audio_theme ??
+                                                    'light') === 'dark'
+                                                    ? 'text-[#9fb8dd]'
+                                                    : 'text-[#9ca7b7]'
+                                            "
+                                        >
                                             {{ block.audio_sender }}
                                         </p>
                                         <p
                                             v-if="!audioSource(block)"
                                             class="pt-2 text-[10px]"
-                                            :class="(block.audio_theme ?? 'light') === 'dark' ? 'text-[#86a2cf]' : 'text-[#8793a5]'"
+                                            :class="
+                                                (block.audio_theme ??
+                                                    'light') === 'dark'
+                                                    ? 'text-[#86a2cf]'
+                                                    : 'text-[#8793a5]'
+                                            "
                                         >
                                             Audio nao configurado
                                         </p>
@@ -5903,7 +8465,11 @@ onBeforeUnmount(() => {
                                 <div
                                     v-else-if="block.type === 'attention'"
                                     class="rounded-[20px] border text-center text-base leading-normal md:text-lg"
-                                    :class="[attentionToneClass(block), attentionPaddingClass(block), attentionHighlightClass(block)]"
+                                    :class="[
+                                        attentionToneClass(block),
+                                        attentionPaddingClass(block),
+                                        attentionHighlightClass(block),
+                                    ]"
                                 >
                                     {{ block.placeholder }}
                                 </div>
@@ -5911,43 +8477,174 @@ onBeforeUnmount(() => {
                                 <div
                                     v-else-if="block.type === 'notification'"
                                     :data-testid="`builder-notification-${block.id}`"
-                                    :class="builderNotificationPreviewShellClass(block)"
+                                    :class="
+                                        builderNotificationPreviewShellClass(
+                                            block,
+                                        )
+                                    "
                                 >
                                     <div
                                         class="flex w-full"
-                                        :class="notificationHasFloatingPosition(block) ? builderNotificationPreviewAlignmentClass(block) : ''"
-                                        :data-testid="notificationHasFloatingPosition(block) ? `builder-notification-preview-frame-${block.id}` : undefined"
+                                        :class="
+                                            notificationHasFloatingPosition(
+                                                block,
+                                            )
+                                                ? builderNotificationPreviewAlignmentClass(
+                                                      block,
+                                                  )
+                                                : ''
+                                        "
+                                        :data-testid="
+                                            notificationHasFloatingPosition(
+                                                block,
+                                            )
+                                                ? `builder-notification-preview-frame-${block.id}`
+                                                : undefined
+                                        "
                                     >
-                                        <div :class="notificationSizeClass(block)">
-                                            <div class="rounded-[22px] border shadow-[0_16px_38px_rgba(9,18,36,0.24)]" :class="[notificationToneClass(block), notificationCardPaddingClass(block)]">
-                                                <div class="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.22em] opacity-65">
-                                                    <span class="inline-flex items-center gap-2" />
-                                                    <span class="inline-flex items-center gap-1.5">
-                                                        <span class="inline-block h-1.5 w-1.5 rounded-full" :class="notificationAccentClass(block)" />
-                                                        {{ notificationTimeBadge(block) }}
+                                        <div
+                                            :class="
+                                                notificationSizeClass(block)
+                                            "
+                                        >
+                                            <div
+                                                class="rounded-[22px] border shadow-[0_16px_38px_rgba(9,18,36,0.24)]"
+                                                :class="[
+                                                    notificationToneClass(
+                                                        block,
+                                                    ),
+                                                    notificationCardPaddingClass(
+                                                        block,
+                                                    ),
+                                                ]"
+                                            >
+                                                <div
+                                                    class="flex items-center justify-between gap-3 text-[10px] tracking-[0.22em] uppercase opacity-65"
+                                                >
+                                                    <span
+                                                        class="inline-flex items-center gap-2"
+                                                    />
+                                                    <span
+                                                        class="inline-flex items-center gap-1.5"
+                                                    >
+                                                        <span
+                                                            class="inline-block h-1.5 w-1.5 rounded-full"
+                                                            :class="
+                                                                notificationAccentClass(
+                                                                    block,
+                                                                )
+                                                            "
+                                                        />
+                                                        {{
+                                                            notificationTimeBadge(
+                                                                block,
+                                                            )
+                                                        }}
                                                     </span>
                                                 </div>
-                                                <div class="mt-2 flex items-start gap-3">
-                                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border" :class="notificationAvatarShellClass(block)">
-                                                <img
-                                                    v-if="notificationAvatarUrl(block, previewNotificationVariation(block))"
-                                                    :src="notificationAvatarUrl(block, previewNotificationVariation(block)) ?? undefined"
-                                                    alt="Avatar da notificacao"
-                                                    class="h-full w-full object-cover"
-                                                />
-                                                        <span v-else class="inline-block h-3 w-3 rounded-full" :class="notificationAccentClass(block)" />
+                                                <div
+                                                    class="mt-2 flex items-start gap-3"
+                                                >
+                                                    <div
+                                                        class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border"
+                                                        :class="
+                                                            notificationAvatarShellClass(
+                                                                block,
+                                                            )
+                                                        "
+                                                    >
+                                                        <img
+                                                            v-if="
+                                                                notificationAvatarUrl(
+                                                                    block,
+                                                                    previewNotificationVariation(
+                                                                        block,
+                                                                    ),
+                                                                )
+                                                            "
+                                                            :src="
+                                                                notificationAvatarUrl(
+                                                                    block,
+                                                                    previewNotificationVariation(
+                                                                        block,
+                                                                    ),
+                                                                ) ?? undefined
+                                                            "
+                                                            alt="Avatar da notificacao"
+                                                            class="h-full w-full object-cover"
+                                                        />
+                                                        <span
+                                                            v-else
+                                                            class="inline-block h-3 w-3 rounded-full"
+                                                            :class="
+                                                                notificationAccentClass(
+                                                                    block,
+                                                                )
+                                                            "
+                                                        />
                                                     </div>
                                                     <div class="min-w-0 flex-1">
-                                                        <p v-if="notificationTitleText(block).length" class="font-semibold leading-tight" :class="notificationTitleClass(block)">
-                                                            {{ replaceNotificationTokens(notificationTitleText(block), previewNotificationVariation(block)) }}
+                                                        <p
+                                                            v-if="
+                                                                notificationTitleText(
+                                                                    block,
+                                                                ).length
+                                                            "
+                                                            class="leading-tight font-semibold"
+                                                            :class="
+                                                                notificationTitleClass(
+                                                                    block,
+                                                                )
+                                                            "
+                                                        >
+                                                            {{
+                                                                replaceNotificationTokens(
+                                                                    notificationTitleText(
+                                                                        block,
+                                                                    ),
+                                                                    previewNotificationVariation(
+                                                                        block,
+                                                                    ),
+                                                                )
+                                                            }}
                                                         </p>
-                                                        <p v-if="notificationDescriptionText(block).length" class="leading-snug opacity-80" :class="[notificationDescriptionClass(block), notificationTitleText(block).length ? 'mt-1.5' : 'mt-0.5']">
-                                                            {{ replaceNotificationTokens(notificationDescriptionText(block), previewNotificationVariation(block)) }}
+                                                        <p
+                                                            v-if="
+                                                                notificationDescriptionText(
+                                                                    block,
+                                                                ).length
+                                                            "
+                                                            class="leading-snug opacity-80"
+                                                            :class="[
+                                                                notificationDescriptionClass(
+                                                                    block,
+                                                                ),
+                                                                notificationTitleText(
+                                                                    block,
+                                                                ).length
+                                                                    ? 'mt-1.5'
+                                                                    : 'mt-0.5',
+                                                            ]"
+                                                        >
+                                                            {{
+                                                                replaceNotificationTokens(
+                                                                    notificationDescriptionText(
+                                                                        block,
+                                                                    ),
+                                                                    previewNotificationVariation(
+                                                                        block,
+                                                                    ),
+                                                                )
+                                                            }}
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-black/10">
-                                                    <div class="h-full w-[58%] rounded-full bg-black/20" />
+                                                <div
+                                                    class="mt-3 h-1.5 overflow-hidden rounded-full bg-black/10"
+                                                >
+                                                    <div
+                                                        class="h-full w-[58%] rounded-full bg-black/20"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
@@ -5957,11 +8654,13 @@ onBeforeUnmount(() => {
                                 <div
                                     v-else-if="block.type === 'timer'"
                                     class="rounded-2xl border px-3 py-2 text-center text-base leading-tight"
-                                    :class="block.timer_style === 'amber'
-                                        ? 'border-[#f0dfb1] bg-[#fff4da] text-[#9f6500]'
-                                        : block.timer_style === 'blue'
-                                            ? 'border-[#c3d8ff] bg-[#eaf2ff] text-[#1f4ea5]'
-                                            : 'border-[#f0c9c9] bg-[#f8dfdf] text-[#c62828]'"
+                                    :class="
+                                        block.timer_style === 'amber'
+                                            ? 'border-[#f0dfb1] bg-[#fff4da] text-[#9f6500]'
+                                            : block.timer_style === 'blue'
+                                              ? 'border-[#c3d8ff] bg-[#eaf2ff] text-[#1f4ea5]'
+                                              : 'border-[#f0c9c9] bg-[#f8dfdf] text-[#c62828]'
+                                    "
                                 >
                                     {{ timerDisplayText(block) }}
                                 </div>
@@ -5970,14 +8669,55 @@ onBeforeUnmount(() => {
                                     v-else-if="block.type === 'loading'"
                                     class="rounded-xl border border-[#e7eaf0] bg-white px-2.5 py-2 text-[#0b1020]"
                                 >
-                                    <div v-if="block.loading_show_title !== false || block.loading_show_progress !== false" class="flex items-center justify-between">
-                                        <p v-if="block.loading_show_title !== false && safeTrim(block.label).length" class="text-sm font-semibold">{{ block.label }}</p>
-                                        <p v-if="block.loading_show_progress !== false" class="text-sm font-semibold text-[#7a7f8a]">{{ loadingPreviewProgress(block) }}%</p>
+                                    <div
+                                        v-if="
+                                            block.loading_show_title !==
+                                                false ||
+                                            block.loading_show_progress !==
+                                                false
+                                        "
+                                        class="flex items-center justify-between"
+                                    >
+                                        <p
+                                            v-if="
+                                                block.loading_show_title !==
+                                                    false &&
+                                                safeTrim(block.label).length
+                                            "
+                                            class="text-sm font-semibold"
+                                        >
+                                            {{ block.label }}
+                                        </p>
+                                        <p
+                                            v-if="
+                                                block.loading_show_progress !==
+                                                false
+                                            "
+                                            class="text-sm font-semibold text-[#7a7f8a]"
+                                        >
+                                            {{ loadingPreviewProgress(block) }}%
+                                        </p>
                                     </div>
-                                    <div v-if="block.loading_show_progress !== false" class="mt-1 h-2.5 overflow-hidden rounded-full bg-[#e3e6ed]">
-                                        <div class="h-full rounded-full bg-[#030a1b] transition-all duration-300" :style="{ width: `${loadingPreviewProgress(block)}%` }" />
+                                    <div
+                                        v-if="
+                                            block.loading_show_progress !==
+                                            false
+                                        "
+                                        class="mt-1 h-2.5 overflow-hidden rounded-full bg-[#e3e6ed]"
+                                    >
+                                        <div
+                                            class="h-full rounded-full bg-[#030a1b] transition-all duration-300"
+                                            :style="{
+                                                width: `${loadingPreviewProgress(block)}%`,
+                                            }"
+                                        />
                                     </div>
-                                    <p v-if="safeTrim(block.placeholder).length" class="mt-2 text-center text-[1.15rem] leading-snug text-[#576a84]">
+                                    <p
+                                        v-if="
+                                            safeTrim(block.placeholder).length
+                                        "
+                                        class="mt-2 text-center text-[1.15rem] leading-snug text-[#576a84]"
+                                    >
                                         {{ block.placeholder }}
                                     </p>
                                 </div>
@@ -5987,114 +8727,400 @@ onBeforeUnmount(() => {
                                     :data-testid="`builder-level-${block.id}`"
                                     class="rounded-xl border border-[#e7eaf0] bg-white px-3 py-2.5 text-[#0b1020]"
                                 >
-                                    <div class="flex items-end justify-between gap-2">
+                                    <div
+                                        class="flex items-end justify-between gap-2"
+                                    >
                                         <div class="min-w-0">
-                                            <p v-if="block.level_title?.trim().length" class="text-lg font-semibold">{{ block.level_title }}</p>
-                                            <p v-if="block.level_subtitle?.trim().length" :data-testid="`builder-level-subtitle-${block.id}`" class="text-[1.35rem] leading-tight text-[#576a84]">{{ block.level_subtitle }}</p>
+                                            <p
+                                                v-if="
+                                                    block.level_title?.trim()
+                                                        .length
+                                                "
+                                                class="text-lg font-semibold"
+                                            >
+                                                {{ block.level_title }}
+                                            </p>
+                                            <p
+                                                v-if="
+                                                    block.level_subtitle?.trim()
+                                                        .length
+                                                "
+                                                :data-testid="`builder-level-subtitle-${block.id}`"
+                                                class="text-[1.35rem] leading-tight text-[#576a84]"
+                                            >
+                                                {{ block.level_subtitle }}
+                                            </p>
                                         </div>
-                                        <p v-if="block.level_show_progress !== false" class="text-[1.35rem] font-semibold text-[#7a7f8a]">{{ levelProgress(block) }}%</p>
+                                        <p
+                                            v-if="
+                                                block.level_show_progress !==
+                                                false
+                                            "
+                                            class="text-[1.35rem] font-semibold text-[#7a7f8a]"
+                                        >
+                                            {{ levelProgress(block) }}%
+                                        </p>
                                     </div>
-                                    <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-[#e3e6ed]">
-                                        <div class="relative h-full rounded-full transition-all duration-300" :class="levelBarColorClass(block)" :style="{ width: `${levelProgress(block)}%` }">
+                                    <div
+                                        class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-[#e3e6ed]"
+                                    >
+                                        <div
+                                            class="relative h-full rounded-full transition-all duration-300"
+                                            :class="levelBarColorClass(block)"
+                                            :style="{
+                                                width: `${levelProgress(block)}%`,
+                                            }"
+                                        >
                                             <span
-                                                v-if="block.level_show_meter !== false"
-                                                class="absolute right-0 top-1/2 h-4 w-4 translate-x-1/2 -translate-y-1/2 rounded-full border-[4px] border-[#d8dce3] bg-[#f8f9fb]"
+                                                v-if="
+                                                    block.level_show_meter !==
+                                                    false
+                                                "
+                                                class="absolute top-1/2 right-0 h-4 w-4 translate-x-1/2 -translate-y-1/2 rounded-full border-[4px] border-[#d8dce3] bg-[#f8f9fb]"
                                             />
                                         </div>
                                     </div>
-                                    <p v-if="block.level_indicator_text?.trim().length" class="mt-2 text-center text-sm text-[#576a84]">{{ block.level_indicator_text }}</p>
-                                    <p v-if="levelLegends(block).length" class="mt-1.5 text-center text-xs text-[#7a7f8a]">{{ levelLegends(block).join(' | ') }}</p>
+                                    <p
+                                        v-if="
+                                            block.level_indicator_text?.trim()
+                                                .length
+                                        "
+                                        class="mt-2 text-center text-sm text-[#576a84]"
+                                    >
+                                        {{ block.level_indicator_text }}
+                                    </p>
+                                    <p
+                                        v-if="levelLegends(block).length"
+                                        class="mt-1.5 text-center text-xs text-[#7a7f8a]"
+                                    >
+                                        {{ levelLegends(block).join(' | ') }}
+                                    </p>
                                 </div>
 
-                                <div v-else-if="isMediaContentBlock(block.type)" class="rounded-xl border border-[#2a4e88] bg-[#0b274f] p-3.5">
-                                    <p class="text-sm font-medium text-white">{{ block.label }}</p>
-                                    <p class="mt-1 text-xs text-[#9cc1ff]">Bloco de {{ blockTitle(block.type).toLowerCase() }}</p>
+                                <div
+                                    v-else-if="isMediaContentBlock(block.type)"
+                                    class="rounded-xl border border-[#2a4e88] bg-[#0b274f] p-3.5"
+                                >
+                                    <p class="text-sm font-medium text-white">
+                                        {{ block.label }}
+                                    </p>
+                                    <p class="mt-1 text-xs text-[#9cc1ff]">
+                                        Bloco de
+                                        {{
+                                            blockTitle(block.type).toLowerCase()
+                                        }}
+                                    </p>
                                 </div>
 
-                                <div v-else class="rounded-xl border border-[#2a4e88] bg-[#0b274f] px-3.5 py-3 text-sm text-[#cde0ff]">
+                                <div
+                                    v-else
+                                    class="rounded-xl border border-[#2a4e88] bg-[#0b274f] px-3.5 py-3 text-sm text-[#cde0ff]"
+                                >
                                     {{ block.label }}
                                 </div>
                             </div>
                         </template>
                     </div>
-
                 </div>
             </section>
 
-            <aside class="min-h-0 overflow-y-auto bg-[#081633] px-3 py-2" @click.stop>
-                <div v-if="flashStatus" class="mb-2 rounded-md border border-[#2e588f] bg-[#0a2146] px-2 py-1 text-[11px] text-[#9ebef5]">
+            <aside
+                class="min-h-0 overflow-y-auto bg-[#081633] px-3 py-2"
+                @click.stop
+            >
+                <div
+                    v-if="flashStatus"
+                    class="mb-2 rounded-md border border-[#2e588f] bg-[#0a2146] px-2 py-1 text-[11px] text-[#9ebef5]"
+                >
                     {{ flashStatus }}
                 </div>
-                <div data-testid="builder-panel-tabs" class="mb-2" :class="selectedBlock ? 'grid grid-cols-3 gap-2' : 'grid grid-cols-2 gap-2'">
+                <div
+                    data-testid="builder-panel-tabs"
+                    class="mb-2"
+                    :class="
+                        selectedBlock
+                            ? 'grid grid-cols-3 gap-2'
+                            : 'grid grid-cols-2 gap-2'
+                    "
+                >
                     <template v-if="selectedBlock">
-                        <button data-testid="builder-component-tab-component" class="rounded-lg py-1.5 text-sm" :class="componentPanelTab === 'component' ? 'bg-[#1a4a99] font-medium text-white' : 'text-[#9bb9ef]'" @click="componentPanelTab = 'component'">Componente</button>
-                        <button data-testid="builder-component-tab-appearance" class="rounded-lg py-1.5 text-sm" :class="componentPanelTab === 'appearance' ? 'bg-[#1a4a99] font-medium text-white' : 'text-[#9bb9ef]'" @click="componentPanelTab = 'appearance'">Aparencia</button>
-                        <button data-testid="builder-component-tab-display" class="rounded-lg py-1.5 text-sm" :class="componentPanelTab === 'display' ? 'bg-[#1a4a99] font-medium text-white' : 'text-[#9bb9ef]'" @click="componentPanelTab = 'display'">Exibicao</button>
+                        <button
+                            data-testid="builder-component-tab-component"
+                            class="rounded-lg py-1.5 text-sm"
+                            :class="
+                                componentPanelTab === 'component'
+                                    ? 'bg-[#1a4a99] font-medium text-white'
+                                    : 'text-[#9bb9ef]'
+                            "
+                            @click="componentPanelTab = 'component'"
+                        >
+                            Componente
+                        </button>
+                        <button
+                            data-testid="builder-component-tab-appearance"
+                            class="rounded-lg py-1.5 text-sm"
+                            :class="
+                                componentPanelTab === 'appearance'
+                                    ? 'bg-[#1a4a99] font-medium text-white'
+                                    : 'text-[#9bb9ef]'
+                            "
+                            @click="componentPanelTab = 'appearance'"
+                        >
+                            Aparencia
+                        </button>
+                        <button
+                            data-testid="builder-component-tab-display"
+                            class="rounded-lg py-1.5 text-sm"
+                            :class="
+                                componentPanelTab === 'display'
+                                    ? 'bg-[#1a4a99] font-medium text-white'
+                                    : 'text-[#9bb9ef]'
+                            "
+                            @click="componentPanelTab = 'display'"
+                        >
+                            Exibicao
+                        </button>
                     </template>
                     <template v-else>
-                        <button data-testid="builder-step-tab" class="rounded-lg py-1.5 text-sm" :class="activePanelTab === 'step' ? 'bg-[#1a4a99] font-medium text-white' : 'text-[#9bb9ef]'" @click="activePanelTab = 'step'">Etapa</button>
-                        <button data-testid="builder-step-appearance-tab" class="rounded-lg py-1.5 text-sm" :class="activePanelTab === 'appearance' ? 'bg-[#1a4a99] font-medium text-white' : 'text-[#9bb9ef]'" @click="activePanelTab = 'appearance'">Aparencia</button>
+                        <button
+                            data-testid="builder-step-tab"
+                            class="rounded-lg py-1.5 text-sm"
+                            :class="
+                                activePanelTab === 'step'
+                                    ? 'bg-[#1a4a99] font-medium text-white'
+                                    : 'text-[#9bb9ef]'
+                            "
+                            @click="activePanelTab = 'step'"
+                        >
+                            Etapa
+                        </button>
+                        <button
+                            data-testid="builder-step-appearance-tab"
+                            class="rounded-lg py-1.5 text-sm"
+                            :class="
+                                activePanelTab === 'appearance'
+                                    ? 'bg-[#1a4a99] font-medium text-white'
+                                    : 'text-[#9bb9ef]'
+                            "
+                            @click="activePanelTab = 'appearance'"
+                        >
+                            Aparencia
+                        </button>
                     </template>
                 </div>
 
-                <div v-if="props.permissions.canEdit" class="mb-2 px-1 text-[11px] text-[#9bb9ef]">
-                    Atalhos: Ctrl/Cmd + S salvar, Ctrl/Cmd + Z desfazer, Ctrl/Cmd + Shift + Z refazer, Ctrl/Cmd + D duplicar bloco, Ctrl/Cmd + Shift + ↑/↓ mover bloco.
+                <div
+                    v-if="props.permissions.canEdit"
+                    class="mb-2 px-1 text-[11px] text-[#9bb9ef]"
+                >
+                    Atalhos: Ctrl/Cmd + S salvar, Ctrl/Cmd + Z desfazer,
+                    Ctrl/Cmd + Shift + Z refazer, Ctrl/Cmd + D duplicar bloco,
+                    Ctrl/Cmd + Shift + ↑/↓ mover bloco.
                 </div>
 
-                <div v-if="currentStage && (selectedBlock || activePanelTab === 'step')" class="space-y-3">
+                <div
+                    v-if="
+                        currentStage &&
+                        (selectedBlock || activePanelTab === 'step')
+                    "
+                    class="space-y-3"
+                >
                     <section v-if="!selectedBlock" class="px-1 pb-2">
-                        <label class="text-xs text-[#8daee7]" for="stage-name">Sem titulo</label>
-                        <input id="stage-name" v-model="currentStage.name" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded-md border border-[#2f568f] bg-[#081a3c] px-2 py-2 text-sm text-white outline-none disabled:opacity-60" />
-                        <div class="mt-3 rounded-md border border-[#23467f] bg-[#0b2148] px-3 py-2 text-xs leading-relaxed text-[#9bb9ef]">
-                            Titulo, subtitulo e CTA agora sao blocos. Use <span class="font-semibold text-white">Texto</span> e <span class="font-semibold text-white">Botao</span> para montar a etapa no preview.
+                        <label class="text-xs text-[#8daee7]" for="stage-name"
+                            >Sem titulo</label
+                        >
+                        <input
+                            id="stage-name"
+                            v-model="currentStage.name"
+                            :disabled="!props.permissions.canEdit"
+                            class="mt-1 w-full rounded-md border border-[#2f568f] bg-[#081a3c] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                        />
+                        <div
+                            class="mt-3 rounded-md border border-[#23467f] bg-[#0b2148] px-3 py-2 text-xs leading-relaxed text-[#9bb9ef]"
+                        >
+                            Titulo, subtitulo e CTA agora sao blocos. Use
+                            <span class="font-semibold text-white">Texto</span>
+                            e
+                            <span class="font-semibold text-white">Botao</span>
+                            para montar a etapa no preview.
                         </div>
 
                         <div class="mt-3 p-0.5">
                             <p class="mb-2 text-xs text-[#8daee7]">Header</p>
-                            <label class="mb-1.5 flex items-center justify-between text-base text-[#dbe8ff]">
+                            <label
+                                class="mb-1.5 flex items-center justify-between text-base text-[#dbe8ff]"
+                            >
                                 <span>Mostrar logo</span>
-                                <input v-model="currentStage.header.show_logo" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <input
+                                    v-model="currentStage.header.show_logo"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="checkbox"
+                                    class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                />
                             </label>
-                            <label class="mb-1.5 flex items-center justify-between text-base text-[#dbe8ff]">
+                            <label
+                                class="mb-1.5 flex items-center justify-between text-base text-[#dbe8ff]"
+                            >
                                 <span>Mostrar progresso</span>
-                                <input v-model="currentStage.header.show_progress" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <input
+                                    v-model="currentStage.header.show_progress"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="checkbox"
+                                    class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                />
                             </label>
-                            <label class="flex items-center justify-between text-base text-[#dbe8ff]">
+                            <label
+                                class="flex items-center justify-between text-base text-[#dbe8ff]"
+                            >
                                 <span>Permitir voltar</span>
-                                <input v-model="currentStage.header.allow_back" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <input
+                                    v-model="currentStage.header.allow_back"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="checkbox"
+                                    class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                />
                             </label>
                         </div>
 
-                        <p v-if="saveForm.errors.name" class="mt-2 text-xs text-rose-300">{{ saveForm.errors.name }}</p>
-                        <p v-if="saveForm.errors.stages" class="mt-1 text-xs text-rose-300">{{ saveForm.errors.stages }}</p>
+                        <p
+                            v-if="saveForm.errors.name"
+                            class="mt-2 text-xs text-rose-300"
+                        >
+                            {{ saveForm.errors.name }}
+                        </p>
+                        <p
+                            v-if="saveForm.errors.stages"
+                            class="mt-1 text-xs text-rose-300"
+                        >
+                            {{ saveForm.errors.stages }}
+                        </p>
                     </section>
 
                     <section v-if="selectedBlock" class="px-1 pb-2">
                         <template v-if="componentPanelTab === 'component'">
-                            <template v-if="selectedBlock.type !== 'attention' && selectedBlock.type !== 'notification' && selectedBlock.type !== 'timer' && selectedBlock.type !== 'loading' && selectedBlock.type !== 'level' && selectedBlock.type !== 'testimonials' && selectedBlock.type !== 'faq' && selectedBlock.type !== 'price' && selectedBlock.type !== 'carousel'">
-                                <label class="text-xs text-[#8daee7]">ID/Name</label>
-                                <input :value="selectedBlock.id" disabled class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-[#c9ddff] outline-none disabled:opacity-80" />
+                            <template
+                                v-if="
+                                    selectedBlock.type !== 'attention' &&
+                                    selectedBlock.type !== 'notification' &&
+                                    selectedBlock.type !== 'timer' &&
+                                    selectedBlock.type !== 'loading' &&
+                                    selectedBlock.type !== 'level' &&
+                                    selectedBlock.type !== 'testimonials' &&
+                                    selectedBlock.type !== 'faq' &&
+                                    selectedBlock.type !== 'price' &&
+                                    selectedBlock.type !== 'carousel'
+                                "
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >ID/Name</label
+                                >
+                                <input
+                                    :value="selectedBlock.id"
+                                    disabled
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-[#c9ddff] outline-none disabled:opacity-80"
+                                />
                             </template>
 
-                            <template v-if="selectedBlock.type !== 'button' && selectedBlock.type !== 'height' && selectedBlock.type !== 'weight' && selectedBlock.type !== 'arguments' && selectedBlock.type !== 'testimonials' && selectedBlock.type !== 'faq' && selectedBlock.type !== 'price' && selectedBlock.type !== 'carousel' && !isOptionsComponentType(selectedBlock.type) && selectedBlock.type !== 'content_text' && selectedBlock.type !== 'image' && selectedBlock.type !== 'video' && selectedBlock.type !== 'audio' && selectedBlock.type !== 'attention' && selectedBlock.type !== 'notification' && selectedBlock.type !== 'timer' && selectedBlock.type !== 'loading' && selectedBlock.type !== 'level'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Titulo</label>
-                                <input data-testid="block-label-input" v-model="selectedBlock.label" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                            <template
+                                v-if="
+                                    selectedBlock.type !== 'button' &&
+                                    selectedBlock.type !== 'height' &&
+                                    selectedBlock.type !== 'weight' &&
+                                    selectedBlock.type !== 'arguments' &&
+                                    selectedBlock.type !== 'testimonials' &&
+                                    selectedBlock.type !== 'faq' &&
+                                    selectedBlock.type !== 'price' &&
+                                    selectedBlock.type !== 'carousel' &&
+                                    !isOptionsComponentType(
+                                        selectedBlock.type,
+                                    ) &&
+                                    selectedBlock.type !== 'content_text' &&
+                                    selectedBlock.type !== 'image' &&
+                                    selectedBlock.type !== 'video' &&
+                                    selectedBlock.type !== 'audio' &&
+                                    selectedBlock.type !== 'attention' &&
+                                    selectedBlock.type !== 'notification' &&
+                                    selectedBlock.type !== 'timer' &&
+                                    selectedBlock.type !== 'loading' &&
+                                    selectedBlock.type !== 'level'
+                                "
+                            >
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Titulo</label
+                                >
+                                <input
+                                    data-testid="block-label-input"
+                                    v-model="selectedBlock.label"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
                             </template>
 
-                            <label v-if="supportsRequired(selectedBlock.type)" class="mt-2 flex items-center justify-between text-xs text-[#dbe8ff]">
+                            <label
+                                v-if="supportsRequired(selectedBlock.type)"
+                                class="mt-2 flex items-center justify-between text-xs text-[#dbe8ff]"
+                            >
                                 <span>Campo obrigatorio</span>
-                                <input v-model="selectedBlock.required" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <input
+                                    v-model="selectedBlock.required"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="checkbox"
+                                    class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                />
                             </label>
 
-                            <template v-if="selectedBlock.type !== 'height' && selectedBlock.type !== 'weight' && selectedBlock.type !== 'arguments' && selectedBlock.type !== 'testimonials' && selectedBlock.type !== 'faq' && selectedBlock.type !== 'price' && selectedBlock.type !== 'carousel' && !isOptionsComponentType(selectedBlock.type) && selectedBlock.type !== 'content_text' && selectedBlock.type !== 'image' && selectedBlock.type !== 'video' && selectedBlock.type !== 'audio' && selectedBlock.type !== 'attention' && selectedBlock.type !== 'notification' && selectedBlock.type !== 'timer' && selectedBlock.type !== 'loading' && selectedBlock.type !== 'level'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tipo</label>
-                                <select :value="selectedBlock.type" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" @change="changeBlockType(selectedBlock, ($event.target as HTMLSelectElement).value as StageBlockType)">
-                                    <option v-for="item in blockCatalog" :key="item.type" :value="item.type">{{ item.label }}</option>
+                            <template
+                                v-if="
+                                    selectedBlock.type !== 'height' &&
+                                    selectedBlock.type !== 'weight' &&
+                                    selectedBlock.type !== 'arguments' &&
+                                    selectedBlock.type !== 'testimonials' &&
+                                    selectedBlock.type !== 'faq' &&
+                                    selectedBlock.type !== 'price' &&
+                                    selectedBlock.type !== 'carousel' &&
+                                    !isOptionsComponentType(
+                                        selectedBlock.type,
+                                    ) &&
+                                    selectedBlock.type !== 'content_text' &&
+                                    selectedBlock.type !== 'image' &&
+                                    selectedBlock.type !== 'video' &&
+                                    selectedBlock.type !== 'audio' &&
+                                    selectedBlock.type !== 'attention' &&
+                                    selectedBlock.type !== 'notification' &&
+                                    selectedBlock.type !== 'timer' &&
+                                    selectedBlock.type !== 'loading' &&
+                                    selectedBlock.type !== 'level'
+                                "
+                            >
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tipo</label
+                                >
+                                <select
+                                    :value="selectedBlock.type"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    @change="
+                                        changeBlockType(
+                                            selectedBlock,
+                                            ($event.target as HTMLSelectElement)
+                                                .value as StageBlockType,
+                                        )
+                                    "
+                                >
+                                    <option
+                                        v-for="item in blockCatalog"
+                                        :key="item.type"
+                                        :value="item.type"
+                                    >
+                                        {{ item.label }}
+                                    </option>
                                 </select>
                             </template>
 
                             <template v-if="selectedBlock.type === 'attention'">
-                                <label class="block text-xs text-[#8daee7]">Descricao</label>
+                                <label class="block text-xs text-[#8daee7]"
+                                    >Descricao</label
+                                >
                                 <input
                                     data-testid="builder-video-url-input"
                                     v-model="selectedBlock.placeholder"
@@ -6103,8 +9129,12 @@ onBeforeUnmount(() => {
                                 />
                             </template>
 
-                            <template v-if="selectedBlock.type === 'notification'">
-                                <label class="block text-xs text-[#8daee7]">Titulo</label>
+                            <template
+                                v-if="selectedBlock.type === 'notification'"
+                            >
+                                <label class="block text-xs text-[#8daee7]"
+                                    >Titulo</label
+                                >
                                 <input
                                     v-model="selectedBlock.notification_title"
                                     :disabled="!props.permissions.canEdit"
@@ -6112,96 +9142,347 @@ onBeforeUnmount(() => {
                                     class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none disabled:opacity-60"
                                 />
                                 <div class="mt-1 flex flex-wrap gap-1.5">
-                                    <button type="button" data-testid="notification-token-title-1" :disabled="!props.permissions.canEdit" class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60" @click="insertNotificationToken('title', '@1')">@1</button>
-                                    <button type="button" data-testid="notification-token-title-2" :disabled="!props.permissions.canEdit" class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60" @click="insertNotificationToken('title', '@2')">@2</button>
-                                    <button type="button" data-testid="notification-token-title-3" :disabled="!props.permissions.canEdit" class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60" @click="insertNotificationToken('title', '@3')">@3</button>
+                                    <button
+                                        type="button"
+                                        data-testid="notification-token-title-1"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60"
+                                        @click="
+                                            insertNotificationToken(
+                                                'title',
+                                                '@1',
+                                            )
+                                        "
+                                    >
+                                        @1
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-testid="notification-token-title-2"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60"
+                                        @click="
+                                            insertNotificationToken(
+                                                'title',
+                                                '@2',
+                                            )
+                                        "
+                                    >
+                                        @2
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-testid="notification-token-title-3"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60"
+                                        @click="
+                                            insertNotificationToken(
+                                                'title',
+                                                '@3',
+                                            )
+                                        "
+                                    >
+                                        @3
+                                    </button>
                                 </div>
-                                <p class="mt-1 text-[11px] leading-relaxed text-[#9bb9ef]">
-                                    O usuario final nao ve a lista de variacoes. Ele ve apenas o titulo final com os tokens substituidos.
+                                <p
+                                    class="mt-1 text-[11px] leading-relaxed text-[#9bb9ef]"
+                                >
+                                    O usuario final nao ve a lista de variacoes.
+                                    Ele ve apenas o titulo final com os tokens
+                                    substituidos.
                                 </p>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Descricao</label>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Descricao</label
+                                >
                                 <textarea
-                                    v-model="selectedBlock.notification_description"
+                                    v-model="
+                                        selectedBlock.notification_description
+                                    "
                                     :disabled="!props.permissions.canEdit"
                                     rows="2"
                                     placeholder="Comprou pelo @2. Restam @3 vagas."
                                     class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none disabled:opacity-60"
                                 />
                                 <div class="mt-1 flex flex-wrap gap-1.5">
-                                    <button type="button" data-testid="notification-token-description-1" :disabled="!props.permissions.canEdit" class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60" @click="insertNotificationToken('description', '@1')">@1</button>
-                                    <button type="button" data-testid="notification-token-description-2" :disabled="!props.permissions.canEdit" class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60" @click="insertNotificationToken('description', '@2')">@2</button>
-                                    <button type="button" data-testid="notification-token-description-3" :disabled="!props.permissions.canEdit" class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60" @click="insertNotificationToken('description', '@3')">@3</button>
+                                    <button
+                                        type="button"
+                                        data-testid="notification-token-description-1"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60"
+                                        @click="
+                                            insertNotificationToken(
+                                                'description',
+                                                '@1',
+                                            )
+                                        "
+                                    >
+                                        @1
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-testid="notification-token-description-2"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60"
+                                        @click="
+                                            insertNotificationToken(
+                                                'description',
+                                                '@2',
+                                            )
+                                        "
+                                    >
+                                        @2
+                                    </button>
+                                    <button
+                                        type="button"
+                                        data-testid="notification-token-description-3"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60"
+                                        @click="
+                                            insertNotificationToken(
+                                                'description',
+                                                '@3',
+                                            )
+                                        "
+                                    >
+                                        @3
+                                    </button>
                                 </div>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Avatar (URL opcional)</label>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Avatar (URL opcional)</label
+                                >
                                 <input
-                                    v-model="selectedBlock.notification_avatar_url"
+                                    v-model="
+                                        selectedBlock.notification_avatar_url
+                                    "
                                     :disabled="!props.permissions.canEdit"
                                     placeholder="https://imagem... ou @4"
                                     class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none disabled:opacity-60"
                                 />
                                 <div class="mt-1 flex flex-wrap gap-1.5">
-                                    <button type="button" data-testid="notification-token-avatar-4" :disabled="!props.permissions.canEdit" class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60" @click="insertNotificationAvatarToken('@4')">@4</button>
+                                    <button
+                                        type="button"
+                                        data-testid="notification-token-avatar-4"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="rounded-full border border-[#365e99] bg-[#0c254f] px-2 py-1 text-[11px] text-[#d9e7ff] hover:bg-[#153668] disabled:opacity-60"
+                                        @click="
+                                            insertNotificationAvatarToken('@4')
+                                        "
+                                    >
+                                        @4
+                                    </button>
                                 </div>
-                                <p class="mt-1 text-[11px] leading-relaxed text-[#9bb9ef]">
-                                    O avatar tambem aceita tokens. Use <span class="font-semibold text-white">@4</span> para trocar a imagem por variacao. O uso de <span class="font-semibold text-white">@3</span> continua funcionando em configuracoes antigas.
+                                <p
+                                    class="mt-1 text-[11px] leading-relaxed text-[#9bb9ef]"
+                                >
+                                    O avatar tambem aceita tokens. Use
+                                    <span class="font-semibold text-white"
+                                        >@4</span
+                                    >
+                                    para trocar a imagem por variacao. O uso de
+                                    <span class="font-semibold text-white"
+                                        >@3</span
+                                    >
+                                    continua funcionando em configuracoes
+                                    antigas.
                                 </p>
 
                                 <div class="mt-2 grid grid-cols-2 gap-2">
                                     <div>
-                                        <label class="text-xs text-[#8daee7]">Duracao (segundos)</label>
-                                        <input v-model.number="selectedBlock.notification_duration_seconds" :disabled="!props.permissions.canEdit" type="number" min="1" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                        <label class="text-xs text-[#8daee7]"
+                                            >Duracao (segundos)</label
+                                        >
+                                        <input
+                                            v-model.number="
+                                                selectedBlock.notification_duration_seconds
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="number"
+                                            min="1"
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                        />
                                     </div>
                                     <div>
-                                        <label class="text-xs text-[#8daee7]">Intervalo (segundos)</label>
-                                        <input v-model.number="selectedBlock.notification_interval_seconds" :disabled="!props.permissions.canEdit" type="number" min="1" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                        <label class="text-xs text-[#8daee7]"
+                                            >Intervalo (segundos)</label
+                                        >
+                                        <input
+                                            v-model.number="
+                                                selectedBlock.notification_interval_seconds
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="number"
+                                            min="1"
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                        />
                                     </div>
                                 </div>
 
-                                <p class="mt-3 text-[11px] uppercase tracking-wide text-[#87a8de]">Variacoes</p>
-                                <p class="mt-1 text-[11px] leading-relaxed text-[#9bb9ef]">
-                                    Cada variacao preenche os tokens <span class="font-semibold text-white">@1</span>, <span class="font-semibold text-white">@2</span>, <span class="font-semibold text-white">@3</span> e <span class="font-semibold text-white">@4</span>.
-                                    Recomendado: <span class="font-semibold text-white">@1</span> nome, <span class="font-semibold text-white">@2</span> origem, <span class="font-semibold text-white">@3</span> contador/texto extra e <span class="font-semibold text-white">@4</span> avatar.
-                                    A notificacao alterna entre elas ao longo do tempo.
+                                <p
+                                    class="mt-3 text-[11px] tracking-wide text-[#87a8de] uppercase"
+                                >
+                                    Variacoes
+                                </p>
+                                <p
+                                    class="mt-1 text-[11px] leading-relaxed text-[#9bb9ef]"
+                                >
+                                    Cada variacao preenche os tokens
+                                    <span class="font-semibold text-white"
+                                        >@1</span
+                                    >,
+                                    <span class="font-semibold text-white"
+                                        >@2</span
+                                    >,
+                                    <span class="font-semibold text-white"
+                                        >@3</span
+                                    >
+                                    e
+                                    <span class="font-semibold text-white"
+                                        >@4</span
+                                    >. Recomendado:
+                                    <span class="font-semibold text-white"
+                                        >@1</span
+                                    >
+                                    nome,
+                                    <span class="font-semibold text-white"
+                                        >@2</span
+                                    >
+                                    origem,
+                                    <span class="font-semibold text-white"
+                                        >@3</span
+                                    >
+                                    contador/texto extra e
+                                    <span class="font-semibold text-white"
+                                        >@4</span
+                                    >
+                                    avatar. A notificacao alterna entre elas ao
+                                    longo do tempo.
                                 </p>
                                 <div
-                                    v-if="notificationHasFilledVariations(selectedBlock) && !notificationUsesVariationTokens(selectedBlock)"
+                                    v-if="
+                                        notificationHasFilledVariations(
+                                            selectedBlock,
+                                        ) &&
+                                        !notificationUsesVariationTokens(
+                                            selectedBlock,
+                                        )
+                                    "
                                     data-testid="notification-variation-warning"
                                     class="mt-2 rounded-xl border border-amber-300/35 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100"
                                 >
-                                    As variacoes estao preenchidas, mas nao vao aparecer na tela enquanto titulo, descricao ou avatar nao usarem os tokens configurados.
+                                    As variacoes estao preenchidas, mas nao vao
+                                    aparecer na tela enquanto titulo, descricao
+                                    ou avatar nao usarem os tokens configurados.
                                 </div>
                                 <div class="mt-1.5 space-y-1.5">
                                     <div
-                                        v-for="variation in selectedBlock.notification_variations ?? []"
+                                        v-for="variation in selectedBlock.notification_variations ??
+                                        []"
                                         :key="variation.id"
                                         class="flex items-center gap-1.5 rounded border border-[#2f568f] bg-[#0b234d] p-1.5"
-                                        :class="dragOverNotificationVariationId === variation.id ? 'ring-1 ring-[#6aa3ff]' : ''"
+                                        :class="
+                                            dragOverNotificationVariationId ===
+                                            variation.id
+                                                ? 'ring-1 ring-[#6aa3ff]'
+                                                : ''
+                                        "
                                         :draggable="props.permissions.canEdit"
-                                        @dragstart="onNotificationVariationDragStart(variation.id)"
-                                        @dragover.prevent="onNotificationVariationDragOver(variation.id)"
-                                        @drop.prevent="onNotificationVariationDrop(selectedBlock, variation.id)"
-                                        @dragend="onNotificationVariationDragEnd"
+                                        @dragstart="
+                                            onNotificationVariationDragStart(
+                                                variation.id,
+                                            )
+                                        "
+                                        @dragover.prevent="
+                                            onNotificationVariationDragOver(
+                                                variation.id,
+                                            )
+                                        "
+                                        @drop.prevent="
+                                            onNotificationVariationDrop(
+                                                selectedBlock,
+                                                variation.id,
+                                            )
+                                        "
+                                        @dragend="
+                                            onNotificationVariationDragEnd
+                                        "
                                     >
-                                        <span class="cursor-grab px-1 text-[#9bb9ef]">=</span>
-                                        <input v-model="variation.value1" :disabled="!props.permissions.canEdit" placeholder="@1" class="min-w-0 flex-1 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
-                                        <input v-model="variation.value2" :disabled="!props.permissions.canEdit" placeholder="@2" class="min-w-0 flex-1 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
-                                        <input v-model="variation.value3" :disabled="!props.permissions.canEdit" placeholder="@3" class="w-16 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
-                                        <input v-model="variation.value4" :disabled="!props.permissions.canEdit" placeholder="@4" class="min-w-0 flex-1 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
-                                        <button type="button" :disabled="!props.permissions.canEdit" class="rounded p-1 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40" @click="removeNotificationVariation(selectedBlock, variation.id)">
+                                        <span
+                                            class="cursor-grab px-1 text-[#9bb9ef]"
+                                            >=</span
+                                        >
+                                        <input
+                                            v-model="variation.value1"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            placeholder="@1"
+                                            class="min-w-0 flex-1 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                        />
+                                        <input
+                                            v-model="variation.value2"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            placeholder="@2"
+                                            class="min-w-0 flex-1 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                        />
+                                        <input
+                                            v-model="variation.value3"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            placeholder="@3"
+                                            class="w-16 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                        />
+                                        <input
+                                            v-model="variation.value4"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            placeholder="@4"
+                                            class="min-w-0 flex-1 rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                        />
+                                        <button
+                                            type="button"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            class="rounded p-1 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40"
+                                            @click="
+                                                removeNotificationVariation(
+                                                    selectedBlock,
+                                                    variation.id,
+                                                )
+                                            "
+                                        >
                                             <Trash2 class="size-3.5" />
                                         </button>
                                     </div>
                                 </div>
 
-                                <button type="button" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] py-2 text-sm text-[#dbe8ff] hover:bg-[#123367] disabled:opacity-60" @click="addNotificationVariation(selectedBlock)">
+                                <button
+                                    type="button"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] py-2 text-sm text-[#dbe8ff] hover:bg-[#123367] disabled:opacity-60"
+                                    @click="
+                                        addNotificationVariation(selectedBlock)
+                                    "
+                                >
                                     + Adicionar
                                 </button>
                             </template>
 
                             <template v-if="selectedBlock.type === 'timer'">
-                                <label class="block text-xs text-[#8daee7]">Tempo (seg.)</label>
+                                <label class="block text-xs text-[#8daee7]"
+                                    >Tempo (seg.)</label
+                                >
                                 <input
                                     v-model.number="selectedBlock.timer_seconds"
                                     :disabled="!props.permissions.canEdit"
@@ -6210,11 +9491,19 @@ onBeforeUnmount(() => {
                                     class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-center text-base text-white outline-none disabled:opacity-60"
                                 />
 
-                                <p class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-[#9bb9ef]">
-                                    Utilize <span class="font-semibold text-[#cfe1ff]">[time]</span> no texto abaixo para posicionar a contagem
+                                <p
+                                    class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-[#9bb9ef]"
+                                >
+                                    Utilize
+                                    <span class="font-semibold text-[#cfe1ff]"
+                                        >[time]</span
+                                    >
+                                    no texto abaixo para posicionar a contagem
                                 </p>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Texto</label>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Texto</label
+                                >
                                 <input
                                     v-model="selectedBlock.timer_text"
                                     :disabled="!props.permissions.canEdit"
@@ -6223,217 +9512,683 @@ onBeforeUnmount(() => {
                             </template>
 
                             <template v-if="selectedBlock.type === 'loading'">
-                                <label class="text-xs text-[#8daee7]">ID/Name</label>
-                                <input :value="selectedBlock.id" disabled class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-[#c9ddff] outline-none disabled:opacity-80" />
+                                <label class="text-xs text-[#8daee7]"
+                                    >ID/Name</label
+                                >
+                                <input
+                                    :value="selectedBlock.id"
+                                    disabled
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-[#c9ddff] outline-none disabled:opacity-80"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Titulo</label>
-                                <input v-model="selectedBlock.label" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Titulo</label
+                                >
+                                <input
+                                    v-model="selectedBlock.label"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
                                 <div class="mt-2 grid grid-cols-2 gap-2">
                                     <div>
-                                        <label class="text-xs text-[#8daee7]">Comecar em</label>
-                                        <input v-model.number="selectedBlock.loading_start_seconds" :disabled="!props.permissions.canEdit" type="number" min="0" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                        <label class="text-xs text-[#8daee7]"
+                                            >Comecar em</label
+                                        >
+                                        <input
+                                            v-model.number="
+                                                selectedBlock.loading_start_seconds
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="number"
+                                            min="0"
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                        />
                                     </div>
                                     <div>
-                                        <label class="text-xs text-[#8daee7]">Durar</label>
-                                        <input v-model.number="selectedBlock.loading_duration_seconds" :disabled="!props.permissions.canEdit" type="number" min="1" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                        <label class="text-xs text-[#8daee7]"
+                                            >Durar</label
+                                        >
+                                        <input
+                                            v-model.number="
+                                                selectedBlock.loading_duration_seconds
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="number"
+                                            min="1"
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                        />
                                     </div>
                                 </div>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tipo de navegacao</label>
-                                <select v-model="selectedBlock.loading_navigation_action" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" @change="onLoadingNavigationChange(selectedBlock)">
-                                    <option value="none">Nao redirecionar</option>
-                                    <option value="next_stage">Navegar entre etapas</option>
-                                    <option value="open_link">Redirecionar</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tipo de navegacao</label
+                                >
+                                <select
+                                    v-model="
+                                        selectedBlock.loading_navigation_action
+                                    "
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    @change="
+                                        onLoadingNavigationChange(selectedBlock)
+                                    "
+                                >
+                                    <option value="none">
+                                        Nao redirecionar
+                                    </option>
+                                    <option value="next_stage">
+                                        Navegar entre etapas
+                                    </option>
+                                    <option value="open_link">
+                                        Redirecionar
+                                    </option>
                                 </select>
 
-                                <template v-if="selectedBlock.loading_navigation_action === 'next_stage'">
-                                    <label class="mt-2 block text-xs text-[#8daee7]">Destino do redirecionamento</label>
-                                    <select v-model="selectedBlock.loading_target_stage_order" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                        <option v-for="option in stageDestinationOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                <template
+                                    v-if="
+                                        selectedBlock.loading_navigation_action ===
+                                        'next_stage'
+                                    "
+                                >
+                                    <label
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                        >Destino do redirecionamento</label
+                                    >
+                                    <select
+                                        v-model="
+                                            selectedBlock.loading_target_stage_order
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    >
+                                        <option
+                                            v-for="option in stageDestinationOptions"
+                                            :key="option.value"
+                                            :value="option.value"
+                                        >
+                                            {{ option.label }}
+                                        </option>
                                     </select>
                                 </template>
-                                <template v-else-if="selectedBlock.loading_navigation_action === 'open_link'">
-                                    <label class="mt-2 block text-xs text-[#8daee7]">Destino do redirecionamento</label>
-                                    <input v-model="selectedBlock.loading_link" :disabled="!props.permissions.canEdit" placeholder="https://..." class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <template
+                                    v-else-if="
+                                        selectedBlock.loading_navigation_action ===
+                                        'open_link'
+                                    "
+                                >
+                                    <label
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                        >Destino do redirecionamento</label
+                                    >
+                                    <input
+                                        v-model="selectedBlock.loading_link"
+                                        :disabled="!props.permissions.canEdit"
+                                        placeholder="https://..."
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    />
                                 </template>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Descricao</label>
-                                <input v-model="selectedBlock.placeholder" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Descricao</label
+                                >
+                                <input
+                                    v-model="selectedBlock.placeholder"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <div class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2">
-                                    <p class="mb-1 text-xs text-[#8daee7]">Opcoes</p>
-                                    <label class="mb-1 flex items-center justify-between text-xs text-[#dbe8ff]">
+                                <div
+                                    class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2"
+                                >
+                                    <p class="mb-1 text-xs text-[#8daee7]">
+                                        Opcoes
+                                    </p>
+                                    <label
+                                        class="mb-1 flex items-center justify-between text-xs text-[#dbe8ff]"
+                                    >
                                         <span>Mostrar titulo</span>
-                                        <input v-model="selectedBlock.loading_show_title" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                        <input
+                                            v-model="
+                                                selectedBlock.loading_show_title
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                     </label>
-                                    <label class="flex items-center justify-between text-xs text-[#dbe8ff]">
+                                    <label
+                                        class="flex items-center justify-between text-xs text-[#dbe8ff]"
+                                    >
                                         <span>Mostrar progresso</span>
-                                        <input v-model="selectedBlock.loading_show_progress" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                        <input
+                                            v-model="
+                                                selectedBlock.loading_show_progress
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                     </label>
                                 </div>
                             </template>
 
                             <template v-if="selectedBlock.type === 'level'">
-                                <label class="block text-xs text-[#8daee7]">Titulo</label>
-                                <input v-model="selectedBlock.level_title" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="block text-xs text-[#8daee7]"
+                                    >Titulo</label
+                                >
+                                <input
+                                    v-model="selectedBlock.level_title"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Subtitulo</label>
-                                <input v-model="selectedBlock.level_subtitle" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Subtitulo</label
+                                >
+                                <input
+                                    v-model="selectedBlock.level_subtitle"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Porcentagem</label>
-                                <input v-model.number="selectedBlock.level_percentage" :disabled="!props.permissions.canEdit" type="number" min="0" max="100" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Porcentagem</label
+                                >
+                                <input
+                                    v-model.number="
+                                        selectedBlock.level_percentage
+                                    "
+                                    :disabled="!props.permissions.canEdit"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Texto do indicador</label>
-                                <input v-model="selectedBlock.level_indicator_text" :disabled="!props.permissions.canEdit" placeholder="Ex: Voce esta aqui" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Texto do indicador</label
+                                >
+                                <input
+                                    v-model="selectedBlock.level_indicator_text"
+                                    :disabled="!props.permissions.canEdit"
+                                    placeholder="Ex: Voce esta aqui"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Legendas (separe por virgula)</label>
-                                <input v-model="selectedBlock.level_legends" :disabled="!props.permissions.canEdit" placeholder="Ex: Normal, Medio, Muito" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Legendas (separe por virgula)</label
+                                >
+                                <input
+                                    v-model="selectedBlock.level_legends"
+                                    :disabled="!props.permissions.canEdit"
+                                    placeholder="Ex: Normal, Medio, Muito"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <div class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2">
-                                    <label class="mb-1 flex items-center gap-2 text-xs text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.level_show_meter" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <div
+                                    class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2"
+                                >
+                                    <label
+                                        class="mb-1 flex items-center gap-2 text-xs text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.level_show_meter
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Mostrar Medidor?</span>
                                     </label>
-                                    <label class="flex items-center gap-2 text-xs text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.level_show_progress" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                    <label
+                                        class="flex items-center gap-2 text-xs text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.level_show_progress
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Mostrar progresso?</span>
                                     </label>
                                 </div>
                             </template>
 
                             <template v-if="selectedBlock.type === 'button'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Texto do botao</label>
-                                <input v-model="selectedBlock.label" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Texto do botao</label
+                                >
+                                <input
+                                    v-model="selectedBlock.label"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tipo de navegacao</label>
-                                <select v-model="selectedBlock.button_action" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" @change="onButtonActionChange(selectedBlock)">
-                                    <option value="next_stage">Navegar entre etapas</option>
-                                    <option value="open_link">Redirecionar</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tipo de navegacao</label
+                                >
+                                <select
+                                    v-model="selectedBlock.button_action"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    @change="
+                                        onButtonActionChange(selectedBlock)
+                                    "
+                                >
+                                    <option value="next_stage">
+                                        Navegar entre etapas
+                                    </option>
+                                    <option value="open_link">
+                                        Redirecionar
+                                    </option>
                                 </select>
 
-                                <template v-if="selectedBlock.button_action === 'next_stage'">
-                                    <label class="mt-2 block text-xs text-[#8daee7]">Destino do redirecionamento</label>
-                                    <select v-model="selectedBlock.button_target_stage_order" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                        <option v-for="option in stageDestinationOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                <template
+                                    v-if="
+                                        selectedBlock.button_action ===
+                                        'next_stage'
+                                    "
+                                >
+                                    <label
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                        >Destino do redirecionamento</label
+                                    >
+                                    <select
+                                        v-model="
+                                            selectedBlock.button_target_stage_order
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    >
+                                        <option
+                                            v-for="option in stageDestinationOptions"
+                                            :key="option.value"
+                                            :value="option.value"
+                                        >
+                                            {{ option.label }}
+                                        </option>
                                     </select>
                                 </template>
                                 <template v-else>
-                                    <label class="mt-2 block text-xs text-[#8daee7]">Destino do redirecionamento</label>
-                                    <input v-model="selectedBlock.button_link" :disabled="!props.permissions.canEdit" placeholder="https://..." class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                    <label
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                        >Destino do redirecionamento</label
+                                    >
+                                    <input
+                                        v-model="selectedBlock.button_link"
+                                        :disabled="!props.permissions.canEdit"
+                                        placeholder="https://..."
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    />
 
-                                    <label class="mt-2 flex items-center justify-between text-xs text-[#dbe8ff]">
+                                    <label
+                                        class="mt-2 flex items-center justify-between text-xs text-[#dbe8ff]"
+                                    >
                                         <span>Abrir em nova aba</span>
-                                        <input v-model="selectedBlock.button_open_new_tab" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                        <input
+                                            v-model="
+                                                selectedBlock.button_open_new_tab
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                     </label>
                                 </template>
                             </template>
 
                             <template v-if="selectedBlock.type === 'spacer'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Altura do espaco (px)</label>
-                                <input v-model="selectedBlock.placeholder" :disabled="!props.permissions.canEdit" type="number" min="8" max="120" placeholder="28" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Altura do espaco (px)</label
+                                >
+                                <input
+                                    v-model="selectedBlock.placeholder"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="number"
+                                    min="8"
+                                    max="120"
+                                    placeholder="28"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
                             </template>
 
-                            <template v-if="supportsPlaceholder(selectedBlock.type) && selectedBlock.type !== 'content_text' && selectedBlock.type !== 'image' && !(selectedBlock.type === 'height' && (selectedBlock.height_mode ?? 'ruler') === 'ruler') && !(selectedBlock.type === 'weight' && (selectedBlock.weight_mode ?? 'ruler') === 'ruler')">
-                                <label class="mt-2 block text-xs text-[#8daee7]">{{ placeholderLabel(selectedBlock.type) }}</label>
-                                <input v-model="selectedBlock.placeholder" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                            <template
+                                v-if="
+                                    supportsPlaceholder(selectedBlock.type) &&
+                                    selectedBlock.type !== 'content_text' &&
+                                    selectedBlock.type !== 'image' &&
+                                    !(
+                                        selectedBlock.type === 'height' &&
+                                        (selectedBlock.height_mode ??
+                                            'ruler') === 'ruler'
+                                    ) &&
+                                    !(
+                                        selectedBlock.type === 'weight' &&
+                                        (selectedBlock.weight_mode ??
+                                            'ruler') === 'ruler'
+                                    )
+                                "
+                            >
+                                <label
+                                    class="mt-2 block text-xs text-[#8daee7]"
+                                    >{{
+                                        placeholderLabel(selectedBlock.type)
+                                    }}</label
+                                >
+                                <input
+                                    v-model="selectedBlock.placeholder"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
                             </template>
 
-                            <template v-if="selectedBlock.type === 'content_text'">
-                                <div class="mt-1 rounded border border-[#2f568f] bg-[#0b234d]" @click.stop>
-                                    <div class="flex flex-wrap items-center gap-1 border-b border-[#2f568f] bg-[#0d2a57] p-2">
+                            <template
+                                v-if="selectedBlock.type === 'content_text'"
+                            >
+                                <div
+                                    class="mt-1 rounded border border-[#2f568f] bg-[#0b234d]"
+                                    @click.stop
+                                >
+                                    <div
+                                        class="flex flex-wrap items-center gap-1 border-b border-[#2f568f] bg-[#0d2a57] p-2"
+                                    >
                                         <select
                                             class="h-8 min-w-[116px] rounded border border-[#2f568f] bg-[#081a3a] px-2 text-[11px] text-white outline-none"
-                                            @change="applyContentTextHeading(($event.target as HTMLSelectElement).value as 'h1' | 'h2' | 'h3' | 'p')"
+                                            @change="
+                                                applyContentTextHeading(
+                                                    (
+                                                        $event.target as HTMLSelectElement
+                                                    ).value as
+                                                        | 'h1'
+                                                        | 'h2'
+                                                        | 'h3'
+                                                        | 'p',
+                                                )
+                                            "
                                         >
-                                            <option value="h1">Heading 1</option>
-                                            <option value="h2" selected>Heading 2</option>
-                                            <option value="h3">Heading 3</option>
+                                            <option value="h1">
+                                                Heading 1
+                                            </option>
+                                            <option value="h2" selected>
+                                                Heading 2
+                                            </option>
+                                            <option value="h3">
+                                                Heading 3
+                                            </option>
                                             <option value="p">Paragrafo</option>
                                         </select>
                                         <select
                                             class="h-8 min-w-[96px] rounded border border-[#2f568f] bg-[#081a3a] px-2 text-[11px] text-white outline-none"
-                                            @change="applyContentTextEditorValueCommand('fontName', ($event.target as HTMLSelectElement).value)"
+                                            @change="
+                                                applyContentTextEditorValueCommand(
+                                                    'fontName',
+                                                    (
+                                                        $event.target as HTMLSelectElement
+                                                    ).value,
+                                                )
+                                            "
                                         >
-                                            <option value="inherit" selected>Instrument Sans</option>
+                                            <option value="inherit" selected>
+                                                Instrument Sans
+                                            </option>
                                             <option value="Sora">Sora</option>
-                                            <option value="'Playfair Display'">Playfair</option>
-                                            <option value="'IBM Plex Mono'">IBM Plex Mono</option>
+                                            <option value="'Playfair Display'">
+                                                Playfair
+                                            </option>
+                                            <option value="'IBM Plex Mono'">
+                                                IBM Plex Mono
+                                            </option>
                                             <option value="serif">Serif</option>
-                                            <option value="monospace">Mono</option>
+                                            <option value="monospace">
+                                                Mono
+                                            </option>
                                         </select>
-                                        <div class="ml-auto flex items-center gap-0.5">
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm font-semibold text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextEditorCommand('bold')">B</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm italic text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextEditorCommand('italic')">I</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm underline text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextEditorCommand('underline')">U</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm line-through text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextEditorCommand('strikeThrough')">S</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]" @click="insertContentTextLink">Link</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextEditorCommand('insertUnorderedList')">Lista</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextAlignment('left')">Esq</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextAlignment('center')">Centro</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyContentTextAlignment('right')">Dir</button>
+                                        <div
+                                            class="ml-auto flex items-center gap-0.5"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm font-semibold text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextEditorCommand(
+                                                        'bold',
+                                                    )
+                                                "
+                                            >
+                                                B
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] italic hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextEditorCommand(
+                                                        'italic',
+                                                    )
+                                                "
+                                            >
+                                                I
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] underline hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextEditorCommand(
+                                                        'underline',
+                                                    )
+                                                "
+                                            >
+                                                U
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] line-through hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextEditorCommand(
+                                                        'strikeThrough',
+                                                    )
+                                                "
+                                            >
+                                                S
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="insertContentTextLink"
+                                            >
+                                                Link
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextEditorCommand(
+                                                        'insertUnorderedList',
+                                                    )
+                                                "
+                                            >
+                                                Lista
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextAlignment(
+                                                        'left',
+                                                    )
+                                                "
+                                            >
+                                                Esq
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextAlignment(
+                                                        'center',
+                                                    )
+                                                "
+                                            >
+                                                Centro
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyContentTextAlignment(
+                                                        'right',
+                                                    )
+                                                "
+                                            >
+                                                Dir
+                                            </button>
                                         </div>
                                     </div>
                                     <div class="p-2">
                                         <div
                                             :ref="bindContentTextEditorElement"
                                             data-testid="content-text-editor"
-                                            class="min-h-[220px] cursor-text rounded-lg border border-[#23497f] bg-[#0c2853] px-4 py-4 text-[#dce8ff] outline-none [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:leading-tight [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:leading-tight [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:leading-tight [&_p]:mt-2 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-[#9cc1ff] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_li]:text-left [&_a]:text-[#9fc2ff] [&_a]:underline empty:before:pointer-events-none empty:before:text-[#6f8fbf] empty:before:content-['Escreva_o_conteudo_aqui...']"
+                                            class="min-h-[220px] cursor-text rounded-lg border border-[#23497f] bg-[#0c2853] px-4 py-4 text-[#dce8ff] outline-none empty:before:pointer-events-none empty:before:text-[#6f8fbf] empty:before:content-['Escreva_o_conteudo_aqui...'] [&_a]:text-[#9fc2ff] [&_a]:underline [&_h1]:text-3xl [&_h1]:leading-tight [&_h1]:font-bold [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-bold [&_h3]:text-xl [&_h3]:leading-tight [&_h3]:font-semibold [&_li]:text-left [&_p]:mt-2 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-[#9cc1ff] [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5"
                                             contenteditable="true"
                                             spellcheck="false"
-                                            @focus="activateContentTextEditor($event)"
+                                            @focus="
+                                                activateContentTextEditor(
+                                                    $event,
+                                                )
+                                            "
                                             @paste="handleContentTextPaste"
-                                            @input="syncContentTextMarkupFromEditor"
-                                            @blur="syncContentTextMarkupFromEditor"
+                                            @input="
+                                                syncContentTextMarkupFromEditor
+                                            "
+                                            @blur="
+                                                syncContentTextMarkupFromEditor
+                                            "
                                         ></div>
                                     </div>
-                                    </div>
+                                </div>
                             </template>
 
                             <template v-if="selectedBlock.type === 'image'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Imagem</label>
-                                <div class="mt-1 rounded border border-[#2f568f] bg-[#0b234d] p-1.5">
-                                    <div class="grid grid-cols-2 gap-1 rounded bg-[#091f43] p-1">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Imagem</label
+                                >
+                                <div
+                                    class="mt-1 rounded border border-[#2f568f] bg-[#0b234d] p-1.5"
+                                >
+                                    <div
+                                        class="grid grid-cols-2 gap-1 rounded bg-[#091f43] p-1"
+                                    >
                                         <button
                                             type="button"
                                             class="rounded py-1.5 text-sm"
-                                            :class="imageComponentTab === 'image' ? 'bg-[#e8f0ff] text-[#0a2146]' : 'text-[#b7cff5]'"
-                                            @click="setImageComponentTab('image')"
+                                            :class="
+                                                imageComponentTab === 'image'
+                                                    ? 'bg-[#e8f0ff] text-[#0a2146]'
+                                                    : 'text-[#b7cff5]'
+                                            "
+                                            @click="
+                                                setImageComponentTab('image')
+                                            "
                                         >
                                             Imagem
                                         </button>
                                         <button
                                             type="button"
                                             class="rounded py-1.5 text-sm"
-                                            :class="imageComponentTab === 'url' ? 'bg-[#e8f0ff] text-[#0a2146]' : 'text-[#b7cff5]'"
+                                            :class="
+                                                imageComponentTab === 'url'
+                                                    ? 'bg-[#e8f0ff] text-[#0a2146]'
+                                                    : 'text-[#b7cff5]'
+                                            "
                                             @click="setImageComponentTab('url')"
                                         >
                                             URL
                                         </button>
                                     </div>
 
-                                    <div class="mt-1.5 rounded border border-[#2f568f] bg-[#091f43] p-2">
-                                        <template v-if="imageComponentTab === 'image'">
+                                    <div
+                                        class="mt-1.5 rounded border border-[#2f568f] bg-[#091f43] p-2"
+                                    >
+                                        <template
+                                            v-if="imageComponentTab === 'image'"
+                                        >
                                             <button
                                                 type="button"
                                                 class="w-full rounded border border-[#2f568f] bg-[#0b234d] py-4 text-sm text-[#dbe8ff] hover:bg-[#123367]"
-                                                :disabled="!props.permissions.canEdit"
+                                                :disabled="
+                                                    !props.permissions
+                                                        .canEdit ||
+                                                    uploadingImageBlockId !==
+                                                        null
+                                                "
                                                 @click="triggerImageFilePicker"
                                             >
-                                                Selecionar imagem
+                                                {{
+                                                    uploadingImageBlockId ===
+                                                    selectedBlock.id
+                                                        ? 'Carregando imagem...'
+                                                        : 'Selecionar imagem'
+                                                }}
                                             </button>
-                                            <input ref="imagePickerInput" data-testid="builder-image-file-input" type="file" accept="image/*" class="hidden" @change="handleImageFileChange" />
+                                            <input
+                                                ref="imagePickerInput"
+                                                data-testid="builder-image-file-input"
+                                                type="file"
+                                                accept="image/*"
+                                                class="hidden"
+                                                @change="handleImageFileChange"
+                                            />
                                             <img
-                                                v-if="sanitizeStoredAssetUrl(selectedBlock.placeholder)"
-                                                :src="sanitizeStoredAssetUrl(selectedBlock.placeholder) ?? undefined"
+                                                v-if="
+                                                    sanitizeStoredAssetUrl(
+                                                        selectedBlock.placeholder,
+                                                    )
+                                                "
+                                                :src="
+                                                    sanitizeStoredAssetUrl(
+                                                        selectedBlock.placeholder,
+                                                    ) ?? undefined
+                                                "
                                                 alt="Preview da imagem"
                                                 class="mt-2 h-28 w-full rounded border border-[#2f568f] object-cover"
                                             />
+                                            <p
+                                                v-if="
+                                                    uploadingImageBlockId ===
+                                                    selectedBlock.id
+                                                "
+                                                data-testid="builder-image-uploading-status"
+                                                role="status"
+                                                class="mt-2 animate-pulse text-center text-xs font-medium text-[#b9d2ff]"
+                                            >
+                                                Carregando imagem...
+                                            </p>
                                         </template>
                                         <template v-else>
                                             <input
-                                                v-model="selectedBlock.placeholder"
-                                                :disabled="!props.permissions.canEdit"
+                                                v-model="
+                                                    selectedBlock.placeholder
+                                                "
+                                                :disabled="
+                                                    !props.permissions.canEdit
+                                                "
                                                 placeholder="https://..."
                                                 class="w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none disabled:opacity-60"
                                             />
@@ -6443,7 +10198,9 @@ onBeforeUnmount(() => {
                             </template>
 
                             <template v-if="selectedBlock.type === 'video'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">URL de embed</label>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >URL de embed</label
+                                >
                                 <input
                                     v-model="selectedBlock.placeholder"
                                     :disabled="!props.permissions.canEdit"
@@ -6453,7 +10210,9 @@ onBeforeUnmount(() => {
                             </template>
 
                             <template v-if="selectedBlock.type === 'audio'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Enviado por</label>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Enviado por</label
+                                >
                                 <input
                                     v-model="selectedBlock.audio_sender"
                                     :disabled="!props.permissions.canEdit"
@@ -6469,9 +10228,18 @@ onBeforeUnmount(() => {
                                 >
                                     Selecionar audio (.mp3)
                                 </button>
-                                <input ref="audioFileInput" data-testid="builder-audio-file-input" type="file" accept=".mp3,audio/mpeg,audio/mp3" class="hidden" @change="handleAudioFileChange" />
+                                <input
+                                    ref="audioFileInput"
+                                    data-testid="builder-audio-file-input"
+                                    type="file"
+                                    accept=".mp3,audio/mpeg,audio/mp3"
+                                    class="hidden"
+                                    @change="handleAudioFileChange"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">URL do audio (.mp3)</label>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >URL do audio (.mp3)</label
+                                >
                                 <input
                                     data-testid="builder-audio-src-input"
                                     v-model="selectedBlock.audio_src"
@@ -6482,571 +10250,1679 @@ onBeforeUnmount(() => {
                             </template>
 
                             <template v-if="selectedBlock.type === 'phone'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Mascara</label>
-                                <select v-model="selectedBlock.phone_mask" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="mask in phoneMaskOptions" :key="mask.value" :value="mask.value">{{ mask.label }}</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Mascara</label
+                                >
+                                <select
+                                    v-model="selectedBlock.phone_mask"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="mask in phoneMaskOptions"
+                                        :key="mask.value"
+                                        :value="mask.value"
+                                    >
+                                        {{ mask.label }}
+                                    </option>
                                 </select>
                             </template>
 
                             <template v-if="selectedBlock.type === 'number'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Mascara</label>
-                                <select v-model="selectedBlock.number_mask" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="mask in numberMaskOptions" :key="mask.value" :value="mask.value">{{ mask.label }}</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Mascara</label
+                                >
+                                <select
+                                    v-model="selectedBlock.number_mask"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="mask in numberMaskOptions"
+                                        :key="mask.value"
+                                        :value="mask.value"
+                                    >
+                                        {{ mask.label }}
+                                    </option>
                                 </select>
                             </template>
 
                             <template v-if="selectedBlock.type === 'height'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tipo</label>
-                                <select v-model="selectedBlock.height_mode" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tipo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.height_mode"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="ruler">Regua</option>
                                     <option value="input">Input</option>
                                 </select>
                             </template>
 
                             <template v-if="selectedBlock.type === 'weight'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tipo</label>
-                                <select v-model="selectedBlock.weight_mode" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tipo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.weight_mode"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="ruler">Regua</option>
                                     <option value="input">Input</option>
                                 </select>
                             </template>
 
-                            <template v-if="isOptionsComponentType(selectedBlock.type)">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Introducao</label>
-                                <select v-model="selectedBlock.options_intro_type" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-if="
+                                    isOptionsComponentType(selectedBlock.type)
+                                "
+                            >
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Introducao</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_intro_type"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="text">Texto</option>
                                     <option value="none">Sem introducao</option>
                                 </select>
 
-                                <template v-if="selectedBlock.options_intro_type !== 'none'">
-                                    <label class="mt-2 block text-xs text-[#8daee7]">Titulo da introducao</label>
-                                    <input data-testid="options-intro-title" v-model="selectedBlock.options_intro_title" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <template
+                                    v-if="
+                                        selectedBlock.options_intro_type !==
+                                        'none'
+                                    "
+                                >
+                                    <label
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                        >Titulo da introducao</label
+                                    >
+                                    <input
+                                        data-testid="options-intro-title"
+                                        v-model="
+                                            selectedBlock.options_intro_title
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    />
 
-                                    <label class="mt-2 block text-xs text-[#8daee7]">Descricao da introducao</label>
-                                    <textarea data-testid="options-intro-description" v-model="selectedBlock.options_intro_description" :disabled="!props.permissions.canEdit" rows="3" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none disabled:opacity-60" />
+                                    <label
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                        >Descricao da introducao</label
+                                    >
+                                    <textarea
+                                        data-testid="options-intro-description"
+                                        v-model="
+                                            selectedBlock.options_intro_description
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        rows="3"
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none disabled:opacity-60"
+                                    />
                                 </template>
 
-                                <div v-if="selectedBlock.options_intro_type !== 'none'" class="mt-2 rounded border border-[#2f568f] bg-[#0b234d]" @click.stop>
-                                    <div v-if="introEditorTarget !== null" class="space-y-1 border-b border-[#2f568f] bg-[#0d2a57] p-1.5">
+                                <div
+                                    v-if="
+                                        selectedBlock.options_intro_type !==
+                                        'none'
+                                    "
+                                    class="mt-2 rounded border border-[#2f568f] bg-[#0b234d]"
+                                    @click.stop
+                                >
+                                    <div
+                                        v-if="introEditorTarget !== null"
+                                        class="space-y-1 border-b border-[#2f568f] bg-[#0d2a57] p-1.5"
+                                    >
                                         <div class="flex items-center gap-1">
                                             <select
-                                                v-if="introEditorTarget === 'title'"
+                                                v-if="
+                                                    introEditorTarget ===
+                                                    'title'
+                                                "
                                                 class="h-7 min-w-[110px] rounded border border-[#2f568f] bg-[#081a3a] px-1.5 text-[11px] text-white outline-none"
-                                                @change="applyIntroHeading(($event.target as HTMLSelectElement).value as 'h1' | 'h2' | 'h3' | 'p')"
+                                                @change="
+                                                    applyIntroHeading(
+                                                        (
+                                                            $event.target as HTMLSelectElement
+                                                        ).value as
+                                                            | 'h1'
+                                                            | 'h2'
+                                                            | 'h3'
+                                                            | 'p',
+                                                    )
+                                                "
                                             >
-                                                <option value="h1">Heading 1</option>
-                                                <option value="h2" selected>Heading 2</option>
-                                                <option value="h3">Heading 3</option>
-                                                <option value="p">Paragrafo</option>
+                                                <option value="h1">
+                                                    Heading 1
+                                                </option>
+                                                <option value="h2" selected>
+                                                    Heading 2
+                                                </option>
+                                                <option value="h3">
+                                                    Heading 3
+                                                </option>
+                                                <option value="p">
+                                                    Paragrafo
+                                                </option>
                                             </select>
                                             <select
                                                 v-else
                                                 class="h-7 min-w-[110px] rounded border border-[#2f568f] bg-[#081a3a] px-1.5 text-[11px] text-white outline-none"
-                                                @change="applyIntroEditorValueCommand('fontName', ($event.target as HTMLSelectElement).value)"
+                                                @change="
+                                                    applyIntroEditorValueCommand(
+                                                        'fontName',
+                                                        (
+                                                            $event.target as HTMLSelectElement
+                                                        ).value,
+                                                    )
+                                                "
                                             >
-                                                <option value="inherit" selected>Instrument Sans</option>
-                                                <option value="Sora">Sora</option>
-                                                <option value="'Playfair Display'">Playfair</option>
-                                                <option value="'IBM Plex Mono'">IBM Plex Mono</option>
-                                                <option value="serif">Serif</option>
-                                                <option value="monospace">Monospace</option>
+                                                <option
+                                                    value="inherit"
+                                                    selected
+                                                >
+                                                    Instrument Sans
+                                                </option>
+                                                <option value="Sora">
+                                                    Sora
+                                                </option>
+                                                <option
+                                                    value="'Playfair Display'"
+                                                >
+                                                    Playfair
+                                                </option>
+                                                <option value="'IBM Plex Mono'">
+                                                    IBM Plex Mono
+                                                </option>
+                                                <option value="serif">
+                                                    Serif
+                                                </option>
+                                                <option value="monospace">
+                                                    Monospace
+                                                </option>
                                             </select>
                                             <select
-                                                v-if="introEditorTarget === 'title'"
+                                                v-if="
+                                                    introEditorTarget ===
+                                                    'title'
+                                                "
                                                 class="h-7 min-w-[90px] rounded border border-[#2f568f] bg-[#081a3a] px-1.5 text-[11px] text-white outline-none"
-                                                @change="applyIntroEditorValueCommand('fontName', ($event.target as HTMLSelectElement).value)"
+                                                @change="
+                                                    applyIntroEditorValueCommand(
+                                                        'fontName',
+                                                        (
+                                                            $event.target as HTMLSelectElement
+                                                        ).value,
+                                                    )
+                                                "
                                             >
-                                                <option value="inherit" selected>Instrument Sans</option>
-                                                <option value="Sora">Sora</option>
-                                                <option value="'Playfair Display'">Playfair</option>
-                                                <option value="'IBM Plex Mono'">IBM Plex Mono</option>
-                                                <option value="serif">Serif</option>
-                                                <option value="monospace">Mono</option>
+                                                <option
+                                                    value="inherit"
+                                                    selected
+                                                >
+                                                    Instrument Sans
+                                                </option>
+                                                <option value="Sora">
+                                                    Sora
+                                                </option>
+                                                <option
+                                                    value="'Playfair Display'"
+                                                >
+                                                    Playfair
+                                                </option>
+                                                <option value="'IBM Plex Mono'">
+                                                    IBM Plex Mono
+                                                </option>
+                                                <option value="serif">
+                                                    Serif
+                                                </option>
+                                                <option value="monospace">
+                                                    Mono
+                                                </option>
                                             </select>
-                                            <button type="button" class="ml-auto rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]" @click="closeIntroInlineEditor">Fechar</button>
+                                            <button
+                                                type="button"
+                                                class="ml-auto rounded px-1.5 py-1 text-[11px] text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="closeIntroInlineEditor"
+                                            >
+                                                Fechar
+                                            </button>
                                         </div>
                                         <div class="flex items-center gap-0.5">
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm font-semibold text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroEditorCommand('bold')">B</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm italic text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroEditorCommand('italic')">I</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm underline text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroEditorCommand('underline')">U</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm line-through text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroEditorCommand('strikeThrough')">S</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]" @click="insertIntroLink">🔗</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroEditorCommand('insertUnorderedList')">≣</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroAlignment('left')">≡</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroAlignment('center')">☰</button>
-                                            <button type="button" class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]" @click="applyIntroAlignment('right')">≡</button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm font-semibold text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroEditorCommand(
+                                                        'bold',
+                                                    )
+                                                "
+                                            >
+                                                B
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] italic hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroEditorCommand(
+                                                        'italic',
+                                                    )
+                                                "
+                                            >
+                                                I
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] underline hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroEditorCommand(
+                                                        'underline',
+                                                    )
+                                                "
+                                            >
+                                                U
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] line-through hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroEditorCommand(
+                                                        'strikeThrough',
+                                                    )
+                                                "
+                                            >
+                                                S
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="insertIntroLink"
+                                            >
+                                                🔗
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroEditorCommand(
+                                                        'insertUnorderedList',
+                                                    )
+                                                "
+                                            >
+                                                ≣
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroAlignment('left')
+                                                "
+                                            >
+                                                ≡
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroAlignment(
+                                                        'center',
+                                                    )
+                                                "
+                                            >
+                                                ☰
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="rounded px-1.5 py-1 text-sm text-[#dbe8ff] hover:bg-[#1a4a99]"
+                                                @click="
+                                                    applyIntroAlignment('right')
+                                                "
+                                            >
+                                                ≡
+                                            </button>
                                         </div>
                                     </div>
                                     <div class="p-2">
                                         <h4
-                                            class="cursor-text text-center text-2xl font-bold leading-tight text-white outline-none"
+                                            class="cursor-text text-center text-2xl leading-tight font-bold text-white outline-none"
                                             contenteditable="true"
                                             spellcheck="false"
-                                            @focus="openIntroInlineEditor('title', $event)"
-                                            @input="syncIntroInlineText($event, 'title')"
-                                            @blur="syncIntroInlineText($event, 'title')"
-                                        >{{ selectedBlock.options_intro_title }}</h4>
+                                            @focus="
+                                                openIntroInlineEditor(
+                                                    'title',
+                                                    $event,
+                                                )
+                                            "
+                                            @input="
+                                                syncIntroInlineText(
+                                                    $event,
+                                                    'title',
+                                                )
+                                            "
+                                            @blur="
+                                                syncIntroInlineText(
+                                                    $event,
+                                                    'title',
+                                                )
+                                            "
+                                        >
+                                            {{
+                                                selectedBlock.options_intro_title
+                                            }}
+                                        </h4>
                                         <p
                                             class="mt-2 cursor-text text-center text-sm text-[#cfe1ff] outline-none"
                                             contenteditable="true"
                                             spellcheck="false"
-                                            @focus="openIntroInlineEditor('description', $event)"
-                                            @input="syncIntroInlineText($event, 'description')"
-                                            @blur="syncIntroInlineText($event, 'description')"
-                                        >{{ selectedBlock.options_intro_description }}</p>
+                                            @focus="
+                                                openIntroInlineEditor(
+                                                    'description',
+                                                    $event,
+                                                )
+                                            "
+                                            @input="
+                                                syncIntroInlineText(
+                                                    $event,
+                                                    'description',
+                                                )
+                                            "
+                                            @blur="
+                                                syncIntroInlineText(
+                                                    $event,
+                                                    'description',
+                                                )
+                                            "
+                                        >
+                                            {{
+                                                selectedBlock.options_intro_description
+                                            }}
+                                        </p>
                                     </div>
                                 </div>
 
-                                <p class="mt-2 text-[11px] uppercase tracking-wide text-[#87a8de]">Opcoes</p>
+                                <p
+                                    class="mt-2 text-[11px] tracking-wide text-[#87a8de] uppercase"
+                                >
+                                    Opcoes
+                                </p>
                                 <div class="mt-2 space-y-2">
                                     <div
-                                        v-for="(item, itemIndex) in selectedBlock.option_items ?? []"
+                                        v-for="(
+                                            item, itemIndex
+                                        ) in selectedBlock.option_items ?? []"
                                         :key="`${selectedBlock.id}-opt-item-${item.id}`"
                                         :data-testid="`option-item-${item.id}`"
                                         class="rounded border bg-[#0b234d] p-2"
                                         :class="[
-                                            dragOverOptionItemId === item.id ? 'border-[#6aa3ff]' : 'border-[#2f568f]',
-                                            reorderedOptionItemId === item.id ? 'ring-1 ring-[#6aa3ff] bg-[#103265] transition-colors duration-300' : '',
+                                            dragOverOptionItemId === item.id
+                                                ? 'border-[#6aa3ff]'
+                                                : 'border-[#2f568f]',
+                                            reorderedOptionItemId === item.id
+                                                ? 'bg-[#103265] ring-1 ring-[#6aa3ff] transition-colors duration-300'
+                                                : '',
                                         ]"
                                         :draggable="props.permissions.canEdit"
-                                        @dragstart="onOptionItemDragStart(item.id)"
-                                        @dragover.prevent="onOptionItemDragOver(item.id)"
-                                        @drop.prevent="onOptionItemDrop(selectedBlock, item.id)"
+                                        @dragstart="
+                                            onOptionItemDragStart(item.id)
+                                        "
+                                        @dragover.prevent="
+                                            onOptionItemDragOver(item.id)
+                                        "
+                                        @drop.prevent="
+                                            onOptionItemDrop(
+                                                selectedBlock,
+                                                item.id,
+                                            )
+                                        "
                                         @dragend="onOptionItemDragEnd"
                                     >
                                         <div class="flex items-start gap-2">
-                                            <button type="button" class="mt-1 w-4 cursor-grab text-[#97b7ea] hover:text-white active:cursor-grabbing" :disabled="!props.permissions.canEdit" title="Arraste para ordenar">
+                                            <button
+                                                type="button"
+                                                class="mt-1 w-4 cursor-grab text-[#97b7ea] hover:text-white active:cursor-grabbing"
+                                                :disabled="
+                                                    !props.permissions.canEdit
+                                                "
+                                                title="Arraste para ordenar"
+                                            >
                                                 ::
                                             </button>
-                                            <input :data-testid="`option-item-label-${item.id}`" v-model="item.label" :disabled="!props.permissions.canEdit" class="mt-0.5 w-full border-0 bg-transparent px-0 py-1 text-sm text-white outline-none disabled:opacity-60" @input="selectedBlock.options = (selectedBlock.option_items ?? []).map((entry) => entry.label)" />
-                                            <button :data-testid="`option-item-settings-${item.id}`" @click="toggleOptionItemSettings(item.id)" :disabled="!props.permissions.canEdit" class="mt-1 rounded p-1 text-[#8fb0e6] hover:bg-[#1a4a99] hover:text-white disabled:opacity-40">
+                                            <input
+                                                :data-testid="`option-item-label-${item.id}`"
+                                                v-model="item.label"
+                                                :disabled="
+                                                    !props.permissions.canEdit
+                                                "
+                                                class="mt-0.5 w-full border-0 bg-transparent px-0 py-1 text-sm text-white outline-none disabled:opacity-60"
+                                                @input="
+                                                    selectedBlock.options = (
+                                                        selectedBlock.option_items ??
+                                                        []
+                                                    ).map(
+                                                        (entry) => entry.label,
+                                                    )
+                                                "
+                                            />
+                                            <button
+                                                :data-testid="`option-item-settings-${item.id}`"
+                                                @click="
+                                                    toggleOptionItemSettings(
+                                                        item.id,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    !props.permissions.canEdit
+                                                "
+                                                class="mt-1 rounded p-1 text-[#8fb0e6] hover:bg-[#1a4a99] hover:text-white disabled:opacity-40"
+                                            >
                                                 <Settings class="size-3.5" />
                                             </button>
                                         </div>
-                                        <div v-if="expandedOptionItemId === item.id" class="mt-2 border-t border-[#2f568f] pt-2">
-                                            <div class="mb-2 flex justify-start">
-                                                <button @click="removeBlockOption(selectedBlock, itemIndex)" :disabled="!props.permissions.canEdit || (selectedBlock.option_items?.length ?? 0) <= minimumOptions(selectedBlock.type)" class="rounded p-1 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40">
+                                        <div
+                                            v-if="
+                                                expandedOptionItemId === item.id
+                                            "
+                                            class="mt-2 border-t border-[#2f568f] pt-2"
+                                        >
+                                            <div
+                                                class="mb-2 flex justify-start"
+                                            >
+                                                <button
+                                                    @click="
+                                                        removeBlockOption(
+                                                            selectedBlock,
+                                                            itemIndex,
+                                                        )
+                                                    "
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit ||
+                                                        (selectedBlock
+                                                            .option_items
+                                                            ?.length ?? 0) <=
+                                                            minimumOptions(
+                                                                selectedBlock.type,
+                                                            )
+                                                    "
+                                                    class="rounded p-1 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40"
+                                                >
                                                     <Trash2 class="size-3.5" />
                                                 </button>
                                             </div>
-                                            <div v-if="selectedBlock.options_disposition !== 'text'" class="mb-2">
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">Imagem (URL)</label>
+                                            <div
+                                                v-if="
+                                                    selectedBlock.options_disposition !==
+                                                    'text'
+                                                "
+                                                class="mb-2"
+                                            >
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >Imagem (URL)</label
+                                                >
                                                 <input
                                                     :data-testid="`option-item-image-url-${item.id}`"
                                                     v-model="item.image_url"
-                                                    :disabled="!props.permissions.canEdit"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
                                                     placeholder="https://..."
                                                     class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
                                                 />
                                             </div>
                                             <div class="grid grid-cols-3 gap-2">
                                                 <div>
-                                                    <label class="mb-1 block text-[11px] text-[#8daee7]">Pontos:</label>
-                                                    <input v-model.number="item.points" :disabled="!props.permissions.canEdit" type="number" placeholder="1" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
+                                                    <label
+                                                        class="mb-1 block text-[11px] text-[#8daee7]"
+                                                        >Pontos:</label
+                                                    >
+                                                    <input
+                                                        v-model.number="
+                                                            item.points
+                                                        "
+                                                        :disabled="
+                                                            !props.permissions
+                                                                .canEdit
+                                                        "
+                                                        type="number"
+                                                        placeholder="1"
+                                                        class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                                    />
                                                 </div>
                                                 <div>
-                                                    <label class="mb-1 block text-[11px] text-[#8daee7]">Valor:</label>
-                                                    <input v-model="item.value" :disabled="!props.permissions.canEdit" placeholder="A" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
+                                                    <label
+                                                        class="mb-1 block text-[11px] text-[#8daee7]"
+                                                        >Valor:</label
+                                                    >
+                                                    <input
+                                                        v-model="item.value"
+                                                        :disabled="
+                                                            !props.permissions
+                                                                .canEdit
+                                                        "
+                                                        placeholder="A"
+                                                        class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                                    />
                                                 </div>
                                                 <div>
-                                                    <label class="mb-1 block text-[11px] text-[#8daee7]">Destino:</label>
-                                                    <input v-model="item.destination" :disabled="!props.permissions.canEdit" placeholder="Proxima etapa" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
+                                                    <label
+                                                        class="mb-1 block text-[11px] text-[#8daee7]"
+                                                        >Destino:</label
+                                                    >
+                                                    <input
+                                                        v-model="
+                                                            item.destination
+                                                        "
+                                                        :disabled="
+                                                            !props.permissions
+                                                                .canEdit
+                                                        "
+                                                        placeholder="Proxima etapa"
+                                                        class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                                    />
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <button @click="addBlockOption(selectedBlock)" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40">
+                                <button
+                                    @click="addBlockOption(selectedBlock)"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40"
+                                >
                                     + adicionar opcao
                                 </button>
 
                                 <div class="mt-2 space-y-2 text-[#dbe8ff]">
                                     <label class="flex items-start gap-2">
-                                        <input v-model="selectedBlock.options_required_selection" :disabled="!props.permissions.canEdit" type="checkbox" class="mt-0.5 h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                        <input
+                                            v-model="
+                                                selectedBlock.options_required_selection
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="mt-0.5 h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span class="block">
-                                            <span class="block text-sm font-semibold leading-5 text-[#dfeaff]">Selecao obrigatoria</span>
-                                            <span class="mt-0.5 block text-[13px] leading-5 text-[#98a7c2]">O usuario e obrigado a selecionar alguma opcao para prosseguir.</span>
+                                            <span
+                                                class="block text-sm leading-5 font-semibold text-[#dfeaff]"
+                                                >Selecao obrigatoria</span
+                                            >
+                                            <span
+                                                class="mt-0.5 block text-[13px] leading-5 text-[#98a7c2]"
+                                                >O usuario e obrigado a
+                                                selecionar alguma opcao para
+                                                prosseguir.</span
+                                            >
                                         </span>
                                     </label>
                                     <label class="flex items-start gap-2">
-                                        <input v-model="selectedBlock.options_allow_multiple" :disabled="!props.permissions.canEdit || selectedBlock.type === 'single_choice'" type="checkbox" class="mt-0.5 h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                        <input
+                                            v-model="
+                                                selectedBlock.options_allow_multiple
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit ||
+                                                selectedBlock.type ===
+                                                    'single_choice'
+                                            "
+                                            type="checkbox"
+                                            class="mt-0.5 h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span class="block">
-                                            <span class="block text-sm font-semibold leading-5 text-[#dfeaff]">Permitir multipla escolha</span>
-                                            <span class="mt-0.5 block text-[13px] leading-5 text-[#98a7c2]">O usuario podera selecionar mais de uma opcao, porem, a proxima etapa tera que ser definida atraves de um componente do tipo "botao".</span>
+                                            <span
+                                                class="block text-sm leading-5 font-semibold text-[#dfeaff]"
+                                                >Permitir multipla escolha</span
+                                            >
+                                            <span
+                                                class="mt-0.5 block text-[13px] leading-5 text-[#98a7c2]"
+                                                >O usuario podera selecionar
+                                                mais de uma opcao, porem, a
+                                                proxima etapa tera que ser
+                                                definida atraves de um
+                                                componente do tipo
+                                                "botao".</span
+                                            >
                                         </span>
                                     </label>
                                     <label class="flex items-start gap-2">
-                                        <input v-model="selectedBlock.options_disable_auto_follow" :disabled="!props.permissions.canEdit" type="checkbox" class="mt-0.5 h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                        <input
+                                            v-model="
+                                                selectedBlock.options_disable_auto_follow
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="mt-0.5 h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span class="block">
-                                            <span class="block text-sm font-semibold leading-5 text-[#dfeaff]">Nao seguir automaticamente</span>
-                                            <span class="mt-0.5 block text-[13px] leading-5 text-[#98a7c2]">O usuario tera que clicar em um componente do tipo "botao" para avancar. A proxima etapa configurada nas opcoes tera prioridade maior que a definida no botao.</span>
+                                            <span
+                                                class="block text-sm leading-5 font-semibold text-[#dfeaff]"
+                                                >Nao seguir
+                                                automaticamente</span
+                                            >
+                                            <span
+                                                class="mt-0.5 block text-[13px] leading-5 text-[#98a7c2]"
+                                                >O usuario tera que clicar em um
+                                                componente do tipo "botao" para
+                                                avancar. A proxima etapa
+                                                configurada nas opcoes tera
+                                                prioridade maior que a definida
+                                                no botao.</span
+                                            >
                                         </span>
                                     </label>
                                 </div>
                             </template>
 
                             <template v-else-if="selectedBlock.type === 'faq'">
-                                <p class="mt-2 text-[11px] uppercase tracking-wide text-[#87a8de]">Perguntas</p>
+                                <p
+                                    class="mt-2 text-[11px] tracking-wide text-[#87a8de] uppercase"
+                                >
+                                    Perguntas
+                                </p>
                                 <div class="mt-2 space-y-2">
                                     <div
-                                        v-for="(item, itemIndex) in (selectedBlock.option_items ?? [])"
+                                        v-for="(
+                                            item, itemIndex
+                                        ) in selectedBlock.option_items ?? []"
                                         :key="`${selectedBlock.id}-faq-${item.id}`"
                                         class="rounded border border-[#2f568f] bg-[#0b234d] p-2"
                                     >
-                                        <div class="grid grid-cols-[16px_1fr_auto] items-start gap-2">
-                                            <button type="button" class="mt-2 w-4 cursor-grab text-[#97b7ea] active:cursor-grabbing" :disabled="!props.permissions.canEdit">::</button>
+                                        <div
+                                            class="grid grid-cols-[16px_1fr_auto] items-start gap-2"
+                                        >
+                                            <button
+                                                type="button"
+                                                class="mt-2 w-4 cursor-grab text-[#97b7ea] active:cursor-grabbing"
+                                                :disabled="
+                                                    !props.permissions.canEdit
+                                                "
+                                            >
+                                                ::
+                                            </button>
                                             <div>
-                                            <input :data-testid="`option-item-label-${item.id}`" v-model="item.label" :disabled="!props.permissions.canEdit" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60" />
-                                                <textarea v-model="item.description" :disabled="!props.permissions.canEdit" rows="3" class="mt-2 w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-[#dbe8ff] outline-none disabled:opacity-60" />
+                                                <input
+                                                    :data-testid="`option-item-label-${item.id}`"
+                                                    v-model="item.label"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60"
+                                                />
+                                                <textarea
+                                                    :data-testid="`builder-faq-answer-${item.id}`"
+                                                    v-model="item.description"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    rows="3"
+                                                    class="mt-2 w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-[#dbe8ff] outline-none disabled:opacity-60"
+                                                />
                                             </div>
-                                            <button @click="removeBlockOption(selectedBlock, itemIndex)" :disabled="!props.permissions.canEdit || (selectedBlock.option_items?.length ?? 0) <= 1" class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40">
+                                            <button
+                                                @click="
+                                                    removeBlockOption(
+                                                        selectedBlock,
+                                                        itemIndex,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    !props.permissions
+                                                        .canEdit ||
+                                                    (selectedBlock.option_items
+                                                        ?.length ?? 0) <= 1
+                                                "
+                                                class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40"
+                                            >
                                                 <Trash2 class="size-3" />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <button @click="addBlockOption(selectedBlock)" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40">
+                                <button
+                                    @click="addBlockOption(selectedBlock)"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40"
+                                >
                                     + adicionar pergunta
                                 </button>
 
-                                <div class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2">
-                                    <label class="flex items-center gap-2 text-sm text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.faq_first_active" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <div
+                                    class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2"
+                                >
+                                    <label
+                                        class="flex items-center gap-2 text-sm text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.faq_first_active
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Primeira pergunta ativa</span>
                                     </label>
                                 </div>
                             </template>
 
-                            <template v-else-if="selectedBlock.type === 'testimonials'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tipo</label>
-                                <select v-model="selectedBlock.testimonials_layout" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-else-if="
+                                    selectedBlock.type === 'testimonials'
+                                "
+                            >
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tipo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.testimonials_layout"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="list">Lista</option>
                                     <option value="slide">Slide</option>
                                     <option value="grid">Grade</option>
                                 </select>
 
-                                <p class="mt-2 text-[11px] uppercase tracking-wide text-[#87a8de]">Depoimentos</p>
+                                <p
+                                    class="mt-2 text-[11px] tracking-wide text-[#87a8de] uppercase"
+                                >
+                                    Depoimentos
+                                </p>
                                 <div class="mt-2 space-y-2">
                                     <div
-                                        v-for="(item, itemIndex) in (selectedBlock.option_items ?? [])"
+                                        v-for="(
+                                            item, itemIndex
+                                        ) in selectedBlock.option_items ?? []"
                                         :key="`${selectedBlock.id}-testimonial-${item.id}`"
                                         class="rounded border border-[#2f568f] bg-[#0b234d] p-2"
                                     >
                                         <div class="grid grid-cols-2 gap-2">
                                             <div>
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">Nome</label>
-                                                <input v-model="item.label" :disabled="!props.permissions.canEdit" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >Nome</label
+                                                >
+                                                <input
+                                                    :data-testid="`builder-testimonial-name-${item.id}`"
+                                                    v-model="item.label"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                                />
                                             </div>
                                             <div>
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">@usuario</label>
-                                                <input v-model="item.subtitle" :disabled="!props.permissions.canEdit" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >@usuario</label
+                                                >
+                                                <input
+                                                    :data-testid="`builder-testimonial-handle-${item.id}`"
+                                                    v-model="item.subtitle"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                                />
                                             </div>
                                         </div>
-                                        <div class="mt-2 grid grid-cols-[1fr_86px] gap-2">
+                                        <div
+                                            class="mt-2 grid grid-cols-[1fr_86px] gap-2"
+                                        >
                                             <div>
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">Depoimento</label>
-                                                <textarea v-model="item.description" :disabled="!props.permissions.canEdit" rows="3" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >Depoimento</label
+                                                >
+                                                <textarea
+                                                    :data-testid="`builder-testimonial-description-${item.id}`"
+                                                    v-model="item.description"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    rows="3"
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                                />
                                             </div>
                                             <div>
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">Nota</label>
-                                                <input v-model.number="item.rating" :disabled="!props.permissions.canEdit" type="number" min="1" max="5" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60" />
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >Nota</label
+                                                >
+                                                <input
+                                                    v-model.number="item.rating"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    type="number"
+                                                    min="1"
+                                                    max="5"
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
+                                                />
                                             </div>
                                         </div>
                                         <div class="mt-2 flex justify-end">
-                                            <button @click="removeBlockOption(selectedBlock, itemIndex)" :disabled="!props.permissions.canEdit || (selectedBlock.option_items?.length ?? 0) <= 1" class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40">
+                                            <button
+                                                @click="
+                                                    removeBlockOption(
+                                                        selectedBlock,
+                                                        itemIndex,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    !props.permissions
+                                                        .canEdit ||
+                                                    (selectedBlock.option_items
+                                                        ?.length ?? 0) <= 1
+                                                "
+                                                class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40"
+                                            >
                                                 <Trash2 class="size-3" />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <button @click="addBlockOption(selectedBlock)" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40">
+                                <button
+                                    @click="addBlockOption(selectedBlock)"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40"
+                                >
                                     + adicionar depoimento
                                 </button>
                             </template>
 
-                            <template v-else-if="selectedBlock.type === 'price'">
-                                <label class="block text-xs text-[#8daee7]">Titulo</label>
-                                <input v-model="selectedBlock.price_title" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60" />
+                            <template
+                                v-else-if="selectedBlock.type === 'price'"
+                            >
+                                <label class="block text-xs text-[#8daee7]"
+                                    >Titulo</label
+                                >
+                                <input
+                                    v-model="selectedBlock.price_title"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                />
 
                                 <div class="mt-2 grid grid-cols-3 gap-2">
                                     <div>
-                                        <label class="block text-xs text-[#8daee7]">Prefixo</label>
-                                        <input v-model="selectedBlock.price_prefix" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60" />
+                                        <label
+                                            class="block text-xs text-[#8daee7]"
+                                            >Prefixo</label
+                                        >
+                                        <input
+                                            v-model="selectedBlock.price_prefix"
+                                            :disabled="
+                                                !props.permissions.canEdit ||
+                                                uploadingCarouselItemId !== null
+                                            "
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                        />
                                     </div>
                                     <div>
-                                        <label class="block text-xs text-[#8daee7]">Valor</label>
-                                        <input v-model="selectedBlock.price_value" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60" />
+                                        <label
+                                            class="block text-xs text-[#8daee7]"
+                                            >Valor</label
+                                        >
+                                        <input
+                                            v-model="selectedBlock.price_value"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                        />
                                     </div>
                                     <div>
-                                        <label class="block text-xs text-[#8daee7]">Sufixo</label>
-                                        <input v-model="selectedBlock.price_suffix" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60" />
+                                        <label
+                                            class="block text-xs text-[#8daee7]"
+                                            >Sufixo</label
+                                        >
+                                        <input
+                                            v-model="selectedBlock.price_suffix"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                        />
                                     </div>
                                 </div>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Texto destaque</label>
-                                <input v-model="selectedBlock.price_badge_text" :disabled="!props.permissions.canEdit" placeholder="Ex: popular, destaque..." class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60" />
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Texto destaque</label
+                                >
+                                <input
+                                    v-model="selectedBlock.price_badge_text"
+                                    :disabled="!props.permissions.canEdit"
+                                    placeholder="Ex: popular, destaque..."
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                />
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tipo de preco</label>
-                                <select v-model="selectedBlock.price_mode" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60">
-                                    <option value="illustrative">Ilustrativo</option>
-                                    <option value="redirect">Redirecionar</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tipo de preco</label
+                                >
+                                <select
+                                    v-model="selectedBlock.price_mode"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                >
+                                    <option value="illustrative">
+                                        Ilustrativo
+                                    </option>
+                                    <option value="redirect">
+                                        Redirecionar
+                                    </option>
                                 </select>
 
-                                <template v-if="selectedBlock.price_mode === 'redirect'">
-                                    <label class="mt-2 block text-xs text-[#8daee7]">URL de redirecionamento</label>
-                                    <input v-model="selectedBlock.price_link" :disabled="!props.permissions.canEdit" placeholder="https://..." class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60" />
+                                <template
+                                    v-if="
+                                        selectedBlock.price_mode === 'redirect'
+                                    "
+                                >
+                                    <label
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                        >URL de redirecionamento</label
+                                    >
+                                    <input
+                                        v-model="selectedBlock.price_link"
+                                        :disabled="!props.permissions.canEdit"
+                                        placeholder="https://..."
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                    />
                                 </template>
                             </template>
 
-                            <template v-else-if="selectedBlock.type === 'carousel'">
-                                <label class="block text-xs text-[#8daee7]">Layout</label>
-                                <select v-model="selectedBlock.carousel_layout" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60">
-                                    <option value="image_text">Imagem e Texto</option>
-                                    <option value="image_only">Somente imagem</option>
-                                    <option value="text_only">Somente texto</option>
+                            <template
+                                v-else-if="selectedBlock.type === 'carousel'"
+                            >
+                                <label class="block text-xs text-[#8daee7]"
+                                    >Layout</label
+                                >
+                                <select
+                                    v-model="selectedBlock.carousel_layout"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-white outline-none disabled:opacity-60"
+                                >
+                                    <option value="image_text">
+                                        Imagem e Texto
+                                    </option>
+                                    <option value="image_only">
+                                        Somente imagem
+                                    </option>
+                                    <option value="text_only">
+                                        Somente texto
+                                    </option>
                                 </select>
 
-                                <div class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2">
-                                    <label class="mb-1 flex items-center gap-2 text-sm text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.carousel_pagination" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <div
+                                    class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2"
+                                >
+                                    <label
+                                        class="mb-1 flex items-center gap-2 text-sm text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.carousel_pagination
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Paginacao</span>
                                     </label>
-                                    <label class="flex items-center gap-2 text-sm text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.carousel_autoplay" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                    <label
+                                        class="flex items-center gap-2 text-sm text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.carousel_autoplay
+                                            "
+                                            data-testid="builder-carousel-autoplay"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Autoplay</span>
+                                    </label>
+                                    <label
+                                        v-if="selectedBlock.carousel_autoplay"
+                                        class="mt-2 block text-xs text-[#8daee7]"
+                                    >
+                                        Velocidade por item (segundos)
+                                        <input
+                                            v-model.number="
+                                                selectedBlock.carousel_autoplay_seconds
+                                            "
+                                            data-testid="builder-carousel-autoplay-seconds"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="number"
+                                            min="1"
+                                            max="60"
+                                            step="1"
+                                            class="mt-1 w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60"
+                                        />
                                     </label>
                                 </div>
 
-                                <p class="mt-2 text-[11px] uppercase tracking-wide text-[#87a8de]">Items</p>
+                                <p
+                                    class="mt-2 text-[11px] tracking-wide text-[#87a8de] uppercase"
+                                >
+                                    Items
+                                </p>
                                 <div class="mt-2 space-y-2">
-                                    <div v-for="(item, itemIndex) in selectedBlock.option_items ?? []" :key="`${selectedBlock.id}-carousel-${item.id}`" class="rounded border border-[#2f568f] bg-[#0b234d] p-2">
-                                        <div class="mb-2 text-center text-[#8daee7]">::</div>
+                                    <div
+                                        v-for="(
+                                            item, itemIndex
+                                        ) in selectedBlock.option_items ?? []"
+                                        :key="`${selectedBlock.id}-carousel-${item.id}`"
+                                        class="rounded border border-[#2f568f] bg-[#0b234d] p-2"
+                                    >
+                                        <div
+                                            class="mb-2 text-center text-[#8daee7]"
+                                        >
+                                            ::
+                                        </div>
                                         <button
                                             type="button"
                                             :data-testid="`builder-carousel-select-image-${item.id}`"
                                             class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-2 text-xs text-[#dbe8ff] hover:bg-[#123367]"
-                                            :disabled="!props.permissions.canEdit"
-                                            @click="triggerCarouselImagePicker(item.id)"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            @click="
+                                                triggerCarouselImagePicker(
+                                                    item.id,
+                                                )
+                                            "
                                         >
-                                            Selecionar imagem
+                                            {{
+                                                uploadingCarouselItemId ===
+                                                item.id
+                                                    ? 'Carregando imagem...'
+                                                    : 'Selecionar imagem'
+                                            }}
                                         </button>
                                         <img
                                             v-if="carouselItemImageUrl(item)"
-                                            :src="carouselItemImageUrl(item) ?? undefined"
+                                            :src="
+                                                carouselItemImageUrl(item) ??
+                                                undefined
+                                            "
                                             alt="Imagem do item"
                                             class="mt-2 h-24 w-full rounded border border-[#385f98] object-cover"
                                         />
-                                        <input :data-testid="`builder-carousel-image-url-${item.id}`" v-model="item.value" :disabled="!props.permissions.canEdit" placeholder="URL da imagem (opcional)" class="mt-2 w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" @input="item.image_url = item.value" />
-                                        <textarea v-model="item.description" :disabled="!props.permissions.canEdit" rows="2" placeholder="" class="mt-2 w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-[#dbe8ff] outline-none disabled:opacity-60" />
+                                        <input
+                                            :data-testid="`builder-carousel-image-url-${item.id}`"
+                                            v-model="item.value"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            placeholder="URL da imagem (opcional)"
+                                            class="mt-2 w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                            @input="item.image_url = item.value"
+                                        />
+                                        <textarea
+                                            :data-testid="`builder-carousel-description-${item.id}`"
+                                            v-model="item.description"
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            rows="2"
+                                            placeholder=""
+                                            class="mt-2 w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-[#dbe8ff] outline-none disabled:opacity-60"
+                                        />
                                         <div class="mt-2 flex justify-end">
-                                            <button @click="removeBlockOption(selectedBlock, itemIndex)" :disabled="!props.permissions.canEdit || (selectedBlock.option_items?.length ?? 0) <= 1" class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40">
+                                            <button
+                                                @click="
+                                                    removeBlockOption(
+                                                        selectedBlock,
+                                                        itemIndex,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    !props.permissions
+                                                        .canEdit ||
+                                                    (selectedBlock.option_items
+                                                        ?.length ?? 0) <= 1
+                                                "
+                                                class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40"
+                                            >
                                                 <Trash2 class="size-3" />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <button @click="addBlockOption(selectedBlock)" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40">
+                                <button
+                                    @click="addBlockOption(selectedBlock)"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40"
+                                >
                                     + adicionar item
                                 </button>
-                                <input ref="carouselImageInput" data-testid="builder-carousel-file-input" type="file" accept="image/*" class="hidden" @change="handleCarouselImageFileChange" />
+                                <input
+                                    ref="carouselImageInput"
+                                    data-testid="builder-carousel-file-input"
+                                    type="file"
+                                    accept="image/*"
+                                    class="hidden"
+                                    @change="handleCarouselImageFileChange"
+                                />
                             </template>
 
-                            <template v-else-if="selectedBlock.type === 'metrics'">
-                                <p class="mt-2 text-[11px] uppercase tracking-wide text-[#87a8de]">Metricas</p>
+                            <template
+                                v-else-if="selectedBlock.type === 'metrics'"
+                            >
+                                <p
+                                    class="mt-2 text-[11px] tracking-wide text-[#87a8de] uppercase"
+                                >
+                                    Metricas
+                                </p>
                                 <div class="mt-2 space-y-2">
                                     <div
-                                        v-for="(item, itemIndex) in selectedBlock.option_items ?? []"
+                                        v-for="(
+                                            item, itemIndex
+                                        ) in selectedBlock.option_items ?? []"
                                         :key="`${selectedBlock.id}-metric-${item.id}`"
                                         class="rounded border border-[#2f568f] bg-[#0b234d] p-2"
                                     >
                                         <div class="grid gap-2">
                                             <div>
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">Nome da metrica</label>
-                                                <input v-model="item.label" :disabled="!props.permissions.canEdit" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60" @input="normalizeMetricsBlock(selectedBlock)" />
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >Nome da metrica</label
+                                                >
+                                                <input
+                                                    :data-testid="`builder-metric-label-${item.id}`"
+                                                    v-model="item.label"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60"
+                                                />
                                             </div>
                                             <div>
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">Valor</label>
-                                                <input v-model="item.value" :disabled="!props.permissions.canEdit" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60" />
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >Valor</label
+                                                >
+                                                <input
+                                                    :data-testid="`builder-metric-value-${item.id}`"
+                                                    v-model="item.value"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60"
+                                                />
                                             </div>
                                             <div>
-                                                <label class="mb-1 block text-[11px] text-[#8daee7]">Descricao</label>
-                                                <input v-model="item.description" :disabled="!props.permissions.canEdit" class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60" />
+                                                <label
+                                                    class="mb-1 block text-[11px] text-[#8daee7]"
+                                                    >Descricao</label
+                                                >
+                                                <input
+                                                    :data-testid="`builder-metric-description-${item.id}`"
+                                                    v-model="item.description"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="w-full rounded border border-[#385f98] bg-[#081a3a] px-2 py-1.5 text-sm text-white outline-none disabled:opacity-60"
+                                                />
                                             </div>
                                         </div>
                                         <div class="mt-2 flex justify-end">
-                                            <button @click="removeBlockOption(selectedBlock, itemIndex)" :disabled="!props.permissions.canEdit || (selectedBlock.option_items?.length ?? 0) <= 1" class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40">
+                                            <button
+                                                @click="
+                                                    removeBlockOption(
+                                                        selectedBlock,
+                                                        itemIndex,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    !props.permissions
+                                                        .canEdit ||
+                                                    (selectedBlock.option_items
+                                                        ?.length ?? 0) <= 1
+                                                "
+                                                class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40"
+                                            >
                                                 <Trash2 class="size-3" />
                                             </button>
                                         </div>
                                     </div>
                                 </div>
 
-                                <button @click="addBlockOption(selectedBlock)" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40">
+                                <button
+                                    @click="addBlockOption(selectedBlock)"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-sm text-[#cfe1ff] disabled:opacity-40"
+                                >
                                     + adicionar metrica
                                 </button>
                             </template>
 
-                            <template v-else-if="selectedBlock.type === 'arguments' || selectedBlock.type === 'before_after'">
-                                <p class="mt-2 text-[11px] uppercase tracking-wide text-[#87a8de]">{{ blockOptionsTitle(selectedBlock.type) }}</p>
+                            <template
+                                v-else-if="
+                                    selectedBlock.type === 'arguments' ||
+                                    selectedBlock.type === 'before_after'
+                                "
+                            >
+                                <p
+                                    class="mt-2 text-[11px] tracking-wide text-[#87a8de] uppercase"
+                                >
+                                    {{ blockOptionsTitle(selectedBlock.type) }}
+                                </p>
                                 <div class="mt-2 space-y-1">
-                                    <div v-for="(option, optionIndex) in selectedBlock.options ?? []" :key="`${selectedBlock.id}-opt-${optionIndex}`" class="flex items-center gap-1">
-                                        <span v-if="selectedBlock.type === 'before_after'" class="min-w-20 text-[11px] text-[#8daee7]">
-                                            {{ optionIndex === 0 ? 'Antes' : optionIndex === 1 ? 'Depois' : `Comparativo ${optionIndex + 1}` }}
+                                    <div
+                                        v-for="(
+                                            option, optionIndex
+                                        ) in selectedBlock.options ?? []"
+                                        :key="`${selectedBlock.id}-opt-${optionIndex}`"
+                                        class="flex items-center gap-1"
+                                    >
+                                        <span
+                                            v-if="
+                                                selectedBlock.type ===
+                                                'before_after'
+                                            "
+                                            class="min-w-20 text-[11px] text-[#8daee7]"
+                                        >
+                                            {{
+                                                optionIndex === 0
+                                                    ? 'Antes'
+                                                    : optionIndex === 1
+                                                      ? 'Depois'
+                                                      : `Comparativo ${optionIndex + 1}`
+                                            }}
                                         </span>
-                                        <span v-else class="min-w-20 text-[11px] text-[#8daee7]">
+                                        <span
+                                            v-else
+                                            class="min-w-20 text-[11px] text-[#8daee7]"
+                                        >
                                             {{ `Argumento ${optionIndex + 1}` }}
                                         </span>
                                         <input
                                             :data-testid="`${selectedBlock.type}-option-${optionIndex}`"
-                                            v-model="selectedBlock.options![optionIndex]"
-                                            :disabled="!props.permissions.canEdit"
-                                            :placeholder="selectedBlock.type === 'before_after'
-                                                ? (optionIndex === 0 ? 'Situacao atual' : optionIndex === 1 ? 'Resultado esperado' : '')
-                                                : 'Descreva o argumento'"
+                                            v-model="
+                                                selectedBlock.options![
+                                                    optionIndex
+                                                ]
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            :placeholder="
+                                                selectedBlock.type ===
+                                                'before_after'
+                                                    ? optionIndex === 0
+                                                        ? 'Situacao atual'
+                                                        : optionIndex === 1
+                                                          ? 'Resultado esperado'
+                                                          : ''
+                                                    : 'Descreva o argumento'
+                                            "
                                             class="w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
                                         />
-                                        <button @click="removeBlockOption(selectedBlock, optionIndex)" :disabled="!props.permissions.canEdit || (selectedBlock.options?.length ?? 0) <= minimumOptions(selectedBlock.type)" class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40">
+                                        <button
+                                            @click="
+                                                removeBlockOption(
+                                                    selectedBlock,
+                                                    optionIndex,
+                                                )
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit ||
+                                                (selectedBlock.options
+                                                    ?.length ?? 0) <=
+                                                    minimumOptions(
+                                                        selectedBlock.type,
+                                                    )
+                                            "
+                                            class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40"
+                                        >
                                             <Trash2 class="size-3" />
                                         </button>
                                     </div>
                                 </div>
-                                <button :data-testid="`add-${selectedBlock.type}-option`" @click="addBlockOption(selectedBlock)" :disabled="!props.permissions.canEdit" class="mt-2 rounded border border-[#2f568f] px-2 py-1 text-xs text-[#cfe1ff] disabled:opacity-40">
+                                <button
+                                    :data-testid="`add-${selectedBlock.type}-option`"
+                                    @click="addBlockOption(selectedBlock)"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-2 rounded border border-[#2f568f] px-2 py-1 text-xs text-[#cfe1ff] disabled:opacity-40"
+                                >
                                     {{ addOptionLabel(selectedBlock.type) }}
                                 </button>
                             </template>
 
                             <div class="mt-3 border-t border-[#2f568f] pt-2">
-                                <button type="button" class="inline-flex items-center gap-1 text-xs font-medium text-[#9bb9ef]">
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-1 text-xs font-medium text-[#9bb9ef]"
+                                >
                                     <Plus class="size-3.5" /> AVANCADO
                                 </button>
                             </div>
                         </template>
 
-                        <template v-else-if="selectedBlock && componentPanelTab === 'appearance'">
+                        <template
+                            v-else-if="
+                                selectedBlock &&
+                                componentPanelTab === 'appearance'
+                            "
+                        >
                             <template v-if="selectedBlock.type === 'button'">
-                                <label class="text-xs text-[#8daee7]">Cor</label>
-                                <select v-model="selectedBlock.button_color_style" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="text-xs text-[#8daee7]"
+                                    >Cor</label
+                                >
+                                <select
+                                    v-model="selectedBlock.button_color_style"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="theme">Cor do tema</option>
                                     <option value="dark">Escuro</option>
                                     <option value="light">Claro</option>
                                 </select>
 
-                                <div class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2">
-                                    <label class="mb-1 flex items-center gap-2 text-xs text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.button_animated" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <div
+                                    class="mt-2 rounded border border-[#2f568f] bg-[#0b234d] p-2"
+                                >
+                                    <label
+                                        class="mb-1 flex items-center gap-2 text-xs text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.button_animated
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Com animacao</span>
                                     </label>
-                                    <label class="mb-1 flex items-center gap-2 text-xs text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.button_elevated" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                    <label
+                                        class="mb-1 flex items-center gap-2 text-xs text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.button_elevated
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Alto relevo</span>
                                     </label>
-                                    <label class="flex items-center gap-2 text-xs text-[#dbe8ff]">
-                                        <input v-model="selectedBlock.button_sticky_footer" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                    <label
+                                        class="flex items-center gap-2 text-xs text-[#dbe8ff]"
+                                    >
+                                        <input
+                                            v-model="
+                                                selectedBlock.button_sticky_footer
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            type="checkbox"
+                                            class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                        />
                                         <span>Fixar no rodape</span>
                                     </label>
                                 </div>
                             </template>
-                            <template v-else-if="isOptionsComponentType(selectedBlock.type)">
-                                <label class="text-xs text-[#8daee7]">Estilo</label>
-                                <select v-model="selectedBlock.options_style" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-else-if="
+                                    isOptionsComponentType(selectedBlock.type)
+                                "
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Estilo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_style"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="simple">Simples</option>
                                     <option value="highlight">Destacar</option>
                                     <option value="relief">Relevo</option>
                                     <option value="contrast">Contraste</option>
                                 </select>
 
-                                <label class="mt-2 flex items-center gap-2 text-xs text-[#dbe8ff]">
-                                    <input v-model="selectedBlock.options_transparent_image" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <label
+                                    class="mt-2 flex items-center gap-2 text-xs text-[#dbe8ff]"
+                                >
+                                    <input
+                                        v-model="
+                                            selectedBlock.options_transparent_image
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        type="checkbox"
+                                        class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                    />
                                     <span>Imagem com fundo transparente</span>
                                 </label>
 
                                 <div class="mt-2 grid grid-cols-2 gap-2">
                                     <div>
-                                        <label class="text-xs text-[#8daee7]">Layout</label>
-                                        <select v-model="selectedBlock.options_layout" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                            <option value="grid_2">Grade de 2 colunas</option>
-                                            <option value="grid_1">Lista</option>
+                                        <label class="text-xs text-[#8daee7]"
+                                            >Layout</label
+                                        >
+                                        <select
+                                            v-model="
+                                                selectedBlock.options_layout
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                        >
+                                            <option value="grid_2">
+                                                Grade de 2 colunas
+                                            </option>
+                                            <option value="grid_1">
+                                                Lista
+                                            </option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="text-xs text-[#8daee7]">Orientacao</label>
-                                        <select v-model="selectedBlock.options_orientation" :disabled="!props.permissions.canEdit || selectedBlock.options_layout === 'grid_2'" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                            <option value="vertical">Vertical</option>
-                                            <option value="horizontal">Horizontal</option>
+                                        <label class="text-xs text-[#8daee7]"
+                                            >Orientacao</label
+                                        >
+                                        <select
+                                            v-model="
+                                                selectedBlock.options_orientation
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit ||
+                                                selectedBlock.options_layout ===
+                                                    'grid_2'
+                                            "
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                        >
+                                            <option value="vertical">
+                                                Vertical
+                                            </option>
+                                            <option value="horizontal">
+                                                Horizontal
+                                            </option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Proporcao de imagens</label>
-                                <select v-model="selectedBlock.options_image_ratio" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Proporcao de imagens</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_image_ratio"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="1:1">1:1 (Quadrado)</option>
                                     <option value="4:3">4:3</option>
                                     <option value="16:9">16:9</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Disposicao</label>
-                                <select v-model="selectedBlock.options_disposition" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option value="image_text">Imagem | Texto</option>
-                                    <option value="text_image">Texto | Imagem</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Disposicao</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_disposition"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option value="image_text">
+                                        Imagem | Texto
+                                    </option>
+                                    <option value="text_image">
+                                        Texto | Imagem
+                                    </option>
                                     <option value="text">Apenas texto</option>
                                 </select>
 
                                 <div class="mt-2 grid grid-cols-2 gap-2">
                                     <div>
-                                        <label class="text-xs text-[#8daee7]">Detalhe</label>
-                                        <select v-model="selectedBlock.options_detail" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                        <label class="text-xs text-[#8daee7]"
+                                            >Detalhe</label
+                                        >
+                                        <select
+                                            v-model="
+                                                selectedBlock.options_detail
+                                            "
+                                            :disabled="
+                                                !props.permissions.canEdit
+                                            "
+                                            class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                        >
                                             <option value="none">Nenhum</option>
-                                            <option value="checkout">Checkout</option>
+                                            <option value="checkout">
+                                                Checkout
+                                            </option>
                                             <option value="arrow">Seta</option>
-                                            <option value="points">Pontos</option>
+                                            <option value="points">
+                                                Pontos
+                                            </option>
                                             <option value="value">Valor</option>
                                         </select>
                                     </div>
                                 </div>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Bordas</label>
-                                <select v-model="selectedBlock.options_border_size" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Bordas</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_border_size"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="small">Pequeno</option>
                                     <option value="medium">Medio</option>
                                     <option value="large">Grande</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Sombra</label>
-                                <select v-model="selectedBlock.options_shadow" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Sombra</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_shadow"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="none">Sem sombra</option>
                                     <option value="soft">Suave</option>
                                     <option value="strong">Forte</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Espacamento</label>
-                                <select v-model="selectedBlock.options_spacing" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Espacamento</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_spacing"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="simple">Simples</option>
-                                    <option value="comfortable">Confortavel</option>
+                                    <option value="comfortable">
+                                        Confortavel
+                                    </option>
                                     <option value="compact">Compacto</option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'content_text'" />
-                            <template v-else-if="selectedBlock.type === 'image'">
-                                <label class="text-xs text-[#8daee7]">Formato</label>
-                                <select v-model="selectedBlock.image_ratio" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-else-if="
+                                    selectedBlock.type === 'content_text'
+                                "
+                            />
+                            <template
+                                v-else-if="selectedBlock.type === 'image'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Formato</label
+                                >
+                                <select
+                                    v-model="selectedBlock.image_ratio"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="auto">Original</option>
                                     <option value="16:9">16:9</option>
                                     <option value="4:3">4:3</option>
                                     <option value="1:1">Quadrado</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Encaixe</label>
-                                <select v-model="selectedBlock.image_fit" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Encaixe</label
+                                >
+                                <select
+                                    v-model="selectedBlock.image_fit"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="cover">Preencher</option>
                                     <option value="contain">Conter</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Cantos</label>
-                                <select v-model="selectedBlock.image_radius" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Cantos</label
+                                >
+                                <select
+                                    v-model="selectedBlock.image_radius"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="none">Reto</option>
                                     <option value="small">Pequeno</option>
                                     <option value="medium">Medio</option>
@@ -7054,184 +11930,469 @@ onBeforeUnmount(() => {
                                     <option value="full">Circular</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Moldura</label>
-                                <select v-model="selectedBlock.image_frame" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Moldura</label
+                                >
+                                <select
+                                    v-model="selectedBlock.image_frame"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="none">Sem moldura</option>
                                     <option value="subtle">Suave</option>
                                     <option value="strong">Forte</option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'price'">
-                                <label class="text-xs text-[#8daee7]">Layout</label>
-                                <select v-model="selectedBlock.price_layout" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option value="horizontal">Horizontal</option>
+                            <template
+                                v-else-if="selectedBlock.type === 'price'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Layout</label
+                                >
+                                <select
+                                    v-model="selectedBlock.price_layout"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option value="horizontal">
+                                        Horizontal
+                                    </option>
                                     <option value="vertical">Vertical</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Estilo</label>
-                                <select v-model="selectedBlock.price_style" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Estilo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.price_style"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="theme">Tema</option>
                                     <option value="light">Claro</option>
                                     <option value="dark">Escuro</option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'carousel'">
-                                <label class="text-xs text-[#8daee7]">Tipo</label>
-                                <select v-model="selectedBlock.carousel_border_type" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-else-if="selectedBlock.type === 'carousel'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Tipo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.carousel_border_type"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="none">Sem borda</option>
                                     <option value="subtle">Borda suave</option>
                                     <option value="strong">Borda forte</option>
                                 </select>
                             </template>
                             <template v-else-if="selectedBlock.type === 'faq'">
-                                <label class="text-xs text-[#8daee7]">Detalhe</label>
-                                <select v-model="selectedBlock.faq_detail" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="text-xs text-[#8daee7]"
+                                    >Detalhe</label
+                                >
+                                <select
+                                    v-model="selectedBlock.faq_detail"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="arrow">Seta cima</option>
-                                    <option value="chevron">Seta direita</option>
-                                    <option value="plus_minus">Mais/Menos</option>
+                                    <option value="chevron">
+                                        Seta direita
+                                    </option>
+                                    <option value="plus_minus">
+                                        Mais/Menos
+                                    </option>
                                     <option value="none">Nenhum</option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'testimonials'">
-                                <label class="text-xs text-[#8daee7]">Bordas</label>
-                                <select v-model="selectedBlock.options_border_size" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-else-if="
+                                    selectedBlock.type === 'testimonials'
+                                "
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Bordas</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_border_size"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="small">Pequeno</option>
                                     <option value="medium">Medio</option>
                                     <option value="large">Grande</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Sombra</label>
-                                <select v-model="selectedBlock.options_shadow" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Sombra</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_shadow"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="none">Sem sombra</option>
                                     <option value="soft">Suave</option>
                                     <option value="strong">Forte</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Espacamento</label>
-                                <select v-model="selectedBlock.options_spacing" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Espacamento</label
+                                >
+                                <select
+                                    v-model="selectedBlock.options_spacing"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="simple">Simples</option>
-                                    <option value="comfortable">Confortavel</option>
+                                    <option value="comfortable">
+                                        Confortavel
+                                    </option>
                                     <option value="compact">Compacto</option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'video'">
-                                <label class="text-xs text-[#8daee7]">Disposicao</label>
-                                <select data-testid="builder-video-ratio-select" v-model="selectedBlock.video_ratio" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="ratio in videoRatioOptions" :key="ratio.value" :value="ratio.value">{{ ratio.label }}</option>
+                            <template
+                                v-else-if="selectedBlock.type === 'video'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Disposicao</label
+                                >
+                                <select
+                                    data-testid="builder-video-ratio-select"
+                                    v-model="selectedBlock.video_ratio"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="ratio in videoRatioOptions"
+                                        :key="ratio.value"
+                                        :value="ratio.value"
+                                    >
+                                        {{ ratio.label }}
+                                    </option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'audio'">
-                                <label class="text-xs text-[#8daee7]">Modelo</label>
-                                <select v-model="selectedBlock.audio_model" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="model in audioModelOptions" :key="model.value" :value="model.value">{{ model.label }}</option>
+                            <template
+                                v-else-if="selectedBlock.type === 'audio'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Modelo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.audio_model"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="model in audioModelOptions"
+                                        :key="model.value"
+                                        :value="model.value"
+                                    >
+                                        {{ model.label }}
+                                    </option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tema</label>
-                                <select v-model="selectedBlock.audio_theme" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="themeOption in audioThemeOptions" :key="themeOption.value" :value="themeOption.value">{{ themeOption.label }}</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tema</label
+                                >
+                                <select
+                                    v-model="selectedBlock.audio_theme"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="themeOption in audioThemeOptions"
+                                        :key="themeOption.value"
+                                        :value="themeOption.value"
+                                    >
+                                        {{ themeOption.label }}
+                                    </option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'attention'">
-                                <label class="text-xs text-[#8daee7]">Estilo</label>
-                                <select v-model="selectedBlock.attention_style" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="styleOption in attentionStyleOptions" :key="styleOption.value" :value="styleOption.value">{{ styleOption.label }}</option>
+                            <template
+                                v-else-if="selectedBlock.type === 'attention'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Estilo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.attention_style"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="styleOption in attentionStyleOptions"
+                                        :key="styleOption.value"
+                                        :value="styleOption.value"
+                                    >
+                                        {{ styleOption.label }}
+                                    </option>
                                 </select>
 
-                                <label class="mt-2 flex items-center gap-2 text-xs text-[#dbe8ff]">
-                                    <input v-model="selectedBlock.attention_emphasis" :disabled="!props.permissions.canEdit" type="checkbox" class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60" />
+                                <label
+                                    class="mt-2 flex items-center gap-2 text-xs text-[#dbe8ff]"
+                                >
+                                    <input
+                                        v-model="
+                                            selectedBlock.attention_emphasis
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        type="checkbox"
+                                        class="h-4 w-4 accent-[#4b89ff] disabled:opacity-60"
+                                    />
                                     <span>Destacar</span>
                                 </label>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Margem interna</label>
-                                <select v-model="selectedBlock.attention_padding" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="paddingOption in attentionPaddingOptions" :key="paddingOption.value" :value="paddingOption.value">{{ paddingOption.label }}</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Margem interna</label
+                                >
+                                <select
+                                    v-model="selectedBlock.attention_padding"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="paddingOption in attentionPaddingOptions"
+                                        :key="paddingOption.value"
+                                        :value="paddingOption.value"
+                                    >
+                                        {{ paddingOption.label }}
+                                    </option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'notification'">
-                                <label class="text-xs text-[#8daee7]">Posicao na tela</label>
-                                <select v-model="selectedBlock.notification_position" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-else-if="
+                                    selectedBlock.type === 'notification'
+                                "
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Posicao na tela</label
+                                >
+                                <select
+                                    v-model="
+                                        selectedBlock.notification_position
+                                    "
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="default">No fluxo</option>
-                                    <option value="top_left">Topo esquerdo</option>
-                                    <option value="top_center">Topo centro</option>
-                                    <option value="top_right">Topo direito</option>
-                                    <option value="bottom_left">Base esquerda</option>
-                                    <option value="bottom_center">Base centro</option>
-                                    <option value="bottom_right">Base direita</option>
+                                    <option value="top_left">
+                                        Topo esquerdo
+                                    </option>
+                                    <option value="top_center">
+                                        Topo centro
+                                    </option>
+                                    <option value="top_right">
+                                        Topo direito
+                                    </option>
+                                    <option value="bottom_left">
+                                        Base esquerda
+                                    </option>
+                                    <option value="bottom_center">
+                                        Base centro
+                                    </option>
+                                    <option value="bottom_right">
+                                        Base direita
+                                    </option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Tamanho</label>
-                                <select v-model="selectedBlock.notification_size" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Tamanho</label
+                                >
+                                <select
+                                    v-model="selectedBlock.notification_size"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="compact">Compacta</option>
                                     <option value="default">Padrao</option>
                                     <option value="large">Grande</option>
                                 </select>
 
-                                <label class="text-xs text-[#8daee7]">Tipo</label>
-                                <select v-model="selectedBlock.notification_variant" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="text-xs text-[#8daee7]"
+                                    >Tipo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.notification_variant"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="social">Prova social</option>
                                     <option value="offer">Oferta</option>
                                     <option value="message">Mensagem</option>
                                 </select>
 
-                                <label class="text-xs text-[#8daee7]">Estilo</label>
-                                <select v-model="selectedBlock.notification_style" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="styleOption in notificationStyleOptions" :key="styleOption.value" :value="styleOption.value">{{ styleOption.label }}</option>
+                                <label class="text-xs text-[#8daee7]"
+                                    >Estilo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.notification_style"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="styleOption in notificationStyleOptions"
+                                        :key="styleOption.value"
+                                        :value="styleOption.value"
+                                    >
+                                        {{ styleOption.label }}
+                                    </option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'timer'">
-                                <label class="text-xs text-[#8daee7]">Estilo</label>
-                                <select v-model="selectedBlock.timer_style" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="styleOption in timerStyleOptions" :key="styleOption.value" :value="styleOption.value">{{ styleOption.label }}</option>
+                            <template
+                                v-else-if="selectedBlock.type === 'timer'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Estilo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.timer_style"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="styleOption in timerStyleOptions"
+                                        :key="styleOption.value"
+                                        :value="styleOption.value"
+                                    >
+                                        {{ styleOption.label }}
+                                    </option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'level'">
-                                <label class="text-xs text-[#8daee7]">Tipo</label>
-                                <select v-model="selectedBlock.level_type" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-else-if="selectedBlock.type === 'level'"
+                            >
+                                <label class="text-xs text-[#8daee7]"
+                                    >Tipo</label
+                                >
+                                <select
+                                    v-model="selectedBlock.level_type"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="line">Linha</option>
                                 </select>
 
-                                <label class="mt-2 block text-xs text-[#8daee7]">Cor</label>
-                                <select v-model="selectedBlock.level_color" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                    <option v-for="colorOption in levelColorOptions" :key="colorOption.value" :value="colorOption.value">{{ colorOption.label }}</option>
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Cor</label
+                                >
+                                <select
+                                    v-model="selectedBlock.level_color"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
+                                    <option
+                                        v-for="colorOption in levelColorOptions"
+                                        :key="colorOption.value"
+                                        :value="colorOption.value"
+                                    >
+                                        {{ colorOption.label }}
+                                    </option>
                                 </select>
                             </template>
-                            <template v-else-if="selectedBlock.type === 'loading'" />
+                            <template
+                                v-else-if="selectedBlock.type === 'loading'"
+                            />
                             <template v-else>
-                                <label class="text-xs text-[#8daee7]">Label</label>
-                                <select v-model="selectedBlock.label_style" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                <label class="text-xs text-[#8daee7]"
+                                    >Label</label
+                                >
+                                <select
+                                    v-model="selectedBlock.label_style"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="default">Padrao</option>
                                     <option value="muted">Suave</option>
                                     <option value="hidden">Oculto</option>
                                 </select>
                             </template>
 
-                            <template v-if="selectedBlock.type !== 'content_text' && selectedBlock.type !== 'video' && selectedBlock.type !== 'audio' && selectedBlock.type !== 'attention' && selectedBlock.type !== 'notification' && selectedBlock.type !== 'timer' && selectedBlock.type !== 'loading' && selectedBlock.type !== 'level' && selectedBlock.type !== 'testimonials' && selectedBlock.type !== 'faq' && selectedBlock.type !== 'price' && selectedBlock.type !== 'carousel'">
-                                <label class="mt-2 block text-xs text-[#8daee7]">Alinhamento do texto</label>
-                                <select v-model="selectedBlock.text_align" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                            <template
+                                v-if="
+                                    selectedBlock.type !== 'content_text' &&
+                                    selectedBlock.type !== 'video' &&
+                                    selectedBlock.type !== 'audio' &&
+                                    selectedBlock.type !== 'attention' &&
+                                    selectedBlock.type !== 'notification' &&
+                                    selectedBlock.type !== 'timer' &&
+                                    selectedBlock.type !== 'loading' &&
+                                    selectedBlock.type !== 'level' &&
+                                    selectedBlock.type !== 'testimonials' &&
+                                    selectedBlock.type !== 'faq' &&
+                                    selectedBlock.type !== 'price' &&
+                                    selectedBlock.type !== 'carousel'
+                                "
+                            >
+                                <label class="mt-2 block text-xs text-[#8daee7]"
+                                    >Alinhamento do texto</label
+                                >
+                                <select
+                                    v-model="selectedBlock.text_align"
+                                    :disabled="!props.permissions.canEdit"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                >
                                     <option value="text-left">text-left</option>
-                                    <option value="text-center">text-center</option>
-                                    <option value="text-right">text-right</option>
+                                    <option value="text-center">
+                                        text-center
+                                    </option>
+                                    <option value="text-right">
+                                        text-right
+                                    </option>
                                 </select>
                             </template>
 
-                            <label class="mt-2 block text-xs text-[#8daee7]">Largura</label>
+                            <label class="mt-2 block text-xs text-[#8daee7]"
+                                >Largura</label
+                            >
                             <div class="mt-1 flex items-center gap-2">
-                                <input v-model.number="selectedBlock.width_percent" :disabled="!props.permissions.canEdit" type="range" min="25" max="100" class="w-full accent-[#4b89ff] disabled:opacity-60" />
-                                <span class="text-xs text-[#cfe1ff]">{{ Math.round(Number(selectedBlock.width_percent ?? 100)) }}%</span>
+                                <input
+                                    v-model.number="selectedBlock.width_percent"
+                                    :disabled="!props.permissions.canEdit"
+                                    type="range"
+                                    min="25"
+                                    max="100"
+                                    class="w-full accent-[#4b89ff] disabled:opacity-60"
+                                />
+                                <span class="text-xs text-[#cfe1ff]"
+                                    >{{
+                                        Math.round(
+                                            Number(
+                                                selectedBlock.width_percent ??
+                                                    100,
+                                            ),
+                                        )
+                                    }}%</span
+                                >
                             </div>
 
                             <div class="mt-2 grid grid-cols-2 gap-2">
                                 <div>
-                                    <label class="text-xs text-[#8daee7]">Alinhamento horizontal</label>
-                                    <select v-model="selectedBlock.align_horizontal" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                    <label class="text-xs text-[#8daee7]"
+                                        >Alinhamento horizontal</label
+                                    >
+                                    <select
+                                        v-model="selectedBlock.align_horizontal"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    >
                                         <option value="start">Comeco</option>
                                         <option value="center">Centro</option>
                                         <option value="end">Fim</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="text-xs text-[#8daee7]">Alinhamento vertical</label>
-                                    <select v-model="selectedBlock.align_vertical" :disabled="!props.permissions.canEdit" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
+                                    <label class="text-xs text-[#8daee7]"
+                                        >Alinhamento vertical</label
+                                    >
+                                    <select
+                                        v-model="selectedBlock.align_vertical"
+                                        :disabled="!props.permissions.canEdit"
+                                        class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    >
                                         <option value="start">Comeco</option>
                                         <option value="center">Centro</option>
                                         <option value="end">Fim</option>
@@ -7240,66 +12401,270 @@ onBeforeUnmount(() => {
                             </div>
                         </template>
 
-                        <template v-else-if="selectedBlock && componentPanelTab === 'display'">
-                            <template v-if="selectedBlock.type === 'email' || selectedBlock.type === 'button'">
+                        <template
+                            v-else-if="
+                                selectedBlock && componentPanelTab === 'display'
+                            "
+                        >
+                            <template
+                                v-if="
+                                    selectedBlock.type === 'email' ||
+                                    selectedBlock.type === 'button'
+                                "
+                            >
                                 <p class="text-xs text-[#9bb9ef]">
-                                    Exibicao: padrao para componente de {{ selectedBlock.type === 'button' ? 'botao' : 'e-mail' }}.
+                                    Exibicao: padrao para componente de
+                                    {{
+                                        selectedBlock.type === 'button'
+                                            ? 'botao'
+                                            : 'e-mail'
+                                    }}.
                                 </p>
                             </template>
                             <template v-else>
-                                <label class="text-xs text-[#8daee7]">Mostrar apos:</label>
-                                <input v-model.number="selectedBlock.show_after_seconds" :disabled="!props.permissions.canEdit" type="number" min="0" placeholder="Segundos" class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60" />
+                                <label class="text-xs text-[#8daee7]"
+                                    >Mostrar apos:</label
+                                >
+                                <input
+                                    v-model.number="
+                                        selectedBlock.show_after_seconds
+                                    "
+                                    :disabled="!props.permissions.canEdit"
+                                    type="number"
+                                    min="0"
+                                    placeholder="Segundos"
+                                    class="mt-1 w-full rounded border border-[#2f568f] bg-[#0b234d] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                />
 
-                                <div class="mt-3 border-t border-[#2f568f] pt-2">
-                                    <p class="text-xs text-[#8daee7]">Regras de exibicao</p>
-                                    <p class="mt-1 text-[11px] leading-5 text-[#89a9db]">
-                                        Monte grupos de regras. O bloco aparece quando os grupos atenderem a combinacao acima. Para varios valores, separe com <code>|</code>.
+                                <div
+                                    class="mt-3 border-t border-[#2f568f] pt-2"
+                                >
+                                    <p class="text-xs text-[#8daee7]">
+                                        Regras de exibicao
                                     </p>
-                                    <select v-model="selectedBlock.display_rule_mode" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                        <option value="all">Todos os grupos (AND)</option>
-                                        <option value="any">Qualquer grupo (OR)</option>
+                                    <p
+                                        class="mt-1 text-[11px] leading-5 text-[#89a9db]"
+                                    >
+                                        Monte grupos de regras. O bloco aparece
+                                        quando os grupos atenderem a combinacao
+                                        acima. Para varios valores, separe com
+                                        <code>|</code>.
+                                    </p>
+                                    <select
+                                        v-model="
+                                            selectedBlock.display_rule_mode
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        class="mt-2 w-full rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                    >
+                                        <option value="all">
+                                            Todos os grupos (AND)
+                                        </option>
+                                        <option value="any">
+                                            Qualquer grupo (OR)
+                                        </option>
                                     </select>
-                                    <button data-testid="display-rule-add-button" @click="addDisplayRuleGroup(selectedBlock)" :disabled="!props.permissions.canEdit" class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-3 py-2 text-sm text-white disabled:opacity-60">
+                                    <button
+                                        data-testid="display-rule-add-button"
+                                        @click="
+                                            addDisplayRuleGroup(selectedBlock)
+                                        "
+                                        :disabled="!props.permissions.canEdit"
+                                        class="mt-2 w-full rounded border border-[#2f568f] bg-[#0b234d] px-3 py-2 text-sm text-white disabled:opacity-60"
+                                    >
                                         + adicionar grupo
                                     </button>
 
-                                    <div v-if="(selectedBlock.display_rule_groups?.length ?? 0) > 0" class="mt-2 space-y-2">
-                                        <div v-for="(group, groupIndex) in selectedBlock.display_rule_groups ?? []" :key="group.id || `${selectedBlock.id}-group-${groupIndex}`" class="space-y-2 rounded border border-[#2f568f] bg-[#0b234d] p-2">
-                                            <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-1">
-                                                <select v-model="selectedBlock.display_rule_groups![groupIndex].mode" :disabled="!props.permissions.canEdit" class="rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                                    <option value="all">Todas as regras no grupo</option>
-                                                    <option value="any">Qualquer regra no grupo</option>
+                                    <div
+                                        v-if="
+                                            (selectedBlock.display_rule_groups
+                                                ?.length ?? 0) > 0
+                                        "
+                                        class="mt-2 space-y-2"
+                                    >
+                                        <div
+                                            v-for="(
+                                                group, groupIndex
+                                            ) in selectedBlock.display_rule_groups ??
+                                            []"
+                                            :key="
+                                                group.id ||
+                                                `${selectedBlock.id}-group-${groupIndex}`
+                                            "
+                                            class="space-y-2 rounded border border-[#2f568f] bg-[#0b234d] p-2"
+                                        >
+                                            <div
+                                                class="grid grid-cols-[minmax(0,1fr)_auto] gap-1"
+                                            >
+                                                <select
+                                                    v-model="
+                                                        selectedBlock
+                                                            .display_rule_groups![
+                                                            groupIndex
+                                                        ].mode
+                                                    "
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                                >
+                                                    <option value="all">
+                                                        Todas as regras no grupo
+                                                    </option>
+                                                    <option value="any">
+                                                        Qualquer regra no grupo
+                                                    </option>
                                                 </select>
-                                                <button @click="removeDisplayRuleGroup(selectedBlock, groupIndex)" :disabled="!props.permissions.canEdit" class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40">
+                                                <button
+                                                    @click="
+                                                        removeDisplayRuleGroup(
+                                                            selectedBlock,
+                                                            groupIndex,
+                                                        )
+                                                    "
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40"
+                                                >
                                                     <Trash2 class="size-3" />
                                                 </button>
                                             </div>
-                                            <button @click="addDisplayRule(selectedBlock, groupIndex)" :disabled="!props.permissions.canEdit" class="w-full rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white disabled:opacity-60">
+                                            <button
+                                                @click="
+                                                    addDisplayRule(
+                                                        selectedBlock,
+                                                        groupIndex,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    !props.permissions.canEdit
+                                                "
+                                                class="w-full rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white disabled:opacity-60"
+                                            >
                                                 + adicionar regra
                                             </button>
-                                            <div v-for="(rule, ruleIndex) in group.rules" :key="rule.id || `${group.id}-rule-${ruleIndex}`" class="space-y-2 rounded border border-[#234679] bg-[#081933] p-2">
-                                                <select v-model="selectedBlock.display_rule_groups![groupIndex].rules[ruleIndex].source_block_id" :disabled="!props.permissions.canEdit" :data-testid="`display-rule-source-${groupIndex}-${ruleIndex}`" class="w-full rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                                    <option value="">Selecione um componente</option>
-                                                    <option v-for="option in displayRuleBlockOptions(selectedBlock)" :key="option.value" :value="option.value">{{ option.label }}</option>
+                                            <div
+                                                v-for="(
+                                                    rule, ruleIndex
+                                                ) in group.rules"
+                                                :key="
+                                                    rule.id ||
+                                                    `${group.id}-rule-${ruleIndex}`
+                                                "
+                                                class="space-y-2 rounded border border-[#234679] bg-[#081933] p-2"
+                                            >
+                                                <select
+                                                    v-model="
+                                                        selectedBlock
+                                                            .display_rule_groups![
+                                                            groupIndex
+                                                        ].rules[ruleIndex]
+                                                            .source_block_id
+                                                    "
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
+                                                    :data-testid="`display-rule-source-${groupIndex}-${ruleIndex}`"
+                                                    class="w-full rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                                >
+                                                    <option value="">
+                                                        Selecione um componente
+                                                    </option>
+                                                    <option
+                                                        v-for="option in displayRuleBlockOptions(
+                                                            selectedBlock,
+                                                        )"
+                                                        :key="option.value"
+                                                        :value="option.value"
+                                                    >
+                                                        {{ option.label }}
+                                                    </option>
                                                 </select>
-                                                <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-1">
-                                                    <select v-model="selectedBlock.display_rule_groups![groupIndex].rules[ruleIndex].operator" :disabled="!props.permissions.canEdit" :data-testid="`display-rule-operator-${groupIndex}-${ruleIndex}`" class="rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60">
-                                                        <option value="filled">Preenchido</option>
-                                                        <option value="empty">Vazio</option>
-                                                        <option value="equals">Igual a</option>
-                                                        <option value="not_equals">Diferente de</option>
-                                                        <option value="contains_any">Contem qualquer valor</option>
-                                                        <option value="contains_all">Contem todos os valores</option>
+                                                <div
+                                                    class="grid grid-cols-[minmax(0,1fr)_auto] gap-1"
+                                                >
+                                                    <select
+                                                        v-model="
+                                                            selectedBlock
+                                                                .display_rule_groups![
+                                                                groupIndex
+                                                            ].rules[ruleIndex]
+                                                                .operator
+                                                        "
+                                                        :disabled="
+                                                            !props.permissions
+                                                                .canEdit
+                                                        "
+                                                        :data-testid="`display-rule-operator-${groupIndex}-${ruleIndex}`"
+                                                        class="rounded border border-[#2f568f] bg-[#081d40] px-2 py-1.5 text-xs text-white outline-none disabled:opacity-60"
+                                                    >
+                                                        <option value="filled">
+                                                            Preenchido
+                                                        </option>
+                                                        <option value="empty">
+                                                            Vazio
+                                                        </option>
+                                                        <option value="equals">
+                                                            Igual a
+                                                        </option>
+                                                        <option
+                                                            value="not_equals"
+                                                        >
+                                                            Diferente de
+                                                        </option>
+                                                        <option
+                                                            value="contains_any"
+                                                        >
+                                                            Contem qualquer
+                                                            valor
+                                                        </option>
+                                                        <option
+                                                            value="contains_all"
+                                                        >
+                                                            Contem todos os
+                                                            valores
+                                                        </option>
                                                     </select>
-                                                    <button @click="removeDisplayRule(selectedBlock, groupIndex, ruleIndex)" :disabled="!props.permissions.canEdit" class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40">
-                                                        <Trash2 class="size-3" />
+                                                    <button
+                                                        @click="
+                                                            removeDisplayRule(
+                                                                selectedBlock,
+                                                                groupIndex,
+                                                                ruleIndex,
+                                                            )
+                                                        "
+                                                        :disabled="
+                                                            !props.permissions
+                                                                .canEdit
+                                                        "
+                                                        class="rounded border border-rose-400/50 p-1 text-rose-200 disabled:opacity-40"
+                                                    >
+                                                        <Trash2
+                                                            class="size-3"
+                                                        />
                                                     </button>
                                                 </div>
                                                 <input
-                                                    v-if="displayRuleOperatorNeedsValue(rule.operator)"
-                                                    v-model="selectedBlock.display_rule_groups![groupIndex].rules[ruleIndex].value"
+                                                    v-if="
+                                                        displayRuleOperatorNeedsValue(
+                                                            rule.operator,
+                                                        )
+                                                    "
+                                                    v-model="
+                                                        selectedBlock
+                                                            .display_rule_groups![
+                                                            groupIndex
+                                                        ].rules[ruleIndex].value
+                                                    "
                                                     :data-testid="`display-rule-value-${groupIndex}-${ruleIndex}`"
-                                                    :disabled="!props.permissions.canEdit"
+                                                    :disabled="
+                                                        !props.permissions
+                                                            .canEdit
+                                                    "
                                                     placeholder="Valor esperado"
                                                     class="w-full rounded border border-[#2f568f] bg-[#081d40] px-2 py-1 text-xs text-white outline-none disabled:opacity-60"
                                                 />
@@ -7310,34 +12675,74 @@ onBeforeUnmount(() => {
                             </template>
                         </template>
                     </section>
-
                 </div>
 
                 <div v-else class="space-y-3">
                     <section class="px-1 pb-2">
-                        <p class="mb-2 text-xs text-[#8daee7]">Imagem de fundo</p>
-                        <div class="mb-2 grid grid-cols-2 gap-2 rounded-lg bg-[#0b234d] p-1">
-                            <button class="rounded-md py-1.5 text-xs" :class="appearanceBackgroundTab === 'image' ? 'bg-[#1f60d4] text-white' : 'text-[#a8c5f6]'" @click="appearanceBackgroundTab = 'image'">Imagem</button>
-                            <button class="rounded-md py-1.5 text-xs" :class="appearanceBackgroundTab === 'url' ? 'bg-[#1f60d4] text-white' : 'text-[#a8c5f6]'" @click="appearanceBackgroundTab = 'url'">URL</button>
+                        <p class="mb-2 text-xs text-[#8daee7]">
+                            Imagem de fundo
+                        </p>
+                        <div
+                            class="mb-2 grid grid-cols-2 gap-2 rounded-lg bg-[#0b234d] p-1"
+                        >
+                            <button
+                                class="rounded-md py-1.5 text-xs"
+                                :class="
+                                    appearanceBackgroundTab === 'image'
+                                        ? 'bg-[#1f60d4] text-white'
+                                        : 'text-[#a8c5f6]'
+                                "
+                                @click="appearanceBackgroundTab = 'image'"
+                            >
+                                Imagem
+                            </button>
+                            <button
+                                class="rounded-md py-1.5 text-xs"
+                                :class="
+                                    appearanceBackgroundTab === 'url'
+                                        ? 'bg-[#1f60d4] text-white'
+                                        : 'text-[#a8c5f6]'
+                                "
+                                @click="appearanceBackgroundTab = 'url'"
+                            >
+                                URL
+                            </button>
                         </div>
 
-                        <button v-if="appearanceBackgroundTab === 'image'" class="mb-2 w-full rounded-lg border border-[#2f568f] bg-[#0b234d] px-3 py-3 text-sm text-white">
+                        <button
+                            v-if="appearanceBackgroundTab === 'image'"
+                            class="mb-2 w-full rounded-lg border border-[#2f568f] bg-[#0b234d] px-3 py-3 text-sm text-white"
+                        >
                             Selecionar imagem
                         </button>
 
-                        <input v-else v-model="appearanceBackgroundUrl" placeholder="https://imagem..." class="mb-2 w-full rounded-lg border border-[#2f568f] bg-[#0b234d] px-3 py-2 text-sm text-white outline-none" />
+                        <input
+                            v-else
+                            v-model="appearanceBackgroundUrl"
+                            placeholder="https://imagem..."
+                            class="mb-2 w-full rounded-lg border border-[#2f568f] bg-[#0b234d] px-3 py-2 text-sm text-white outline-none"
+                        />
 
                         <div class="grid grid-cols-3 gap-2">
-                            <select v-model="appearanceSize" class="rounded-lg border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none">
+                            <select
+                                v-model="appearanceSize"
+                                class="rounded-lg border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none"
+                            >
                                 <option>Tela inteira</option>
                                 <option>Contido</option>
                             </select>
-                            <select v-model="appearancePosition" class="rounded-lg border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none">
+                            <select
+                                v-model="appearancePosition"
+                                class="rounded-lg border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none"
+                            >
                                 <option>Centro</option>
                                 <option>Topo</option>
                                 <option>Base</option>
                             </select>
-                            <select v-model="appearanceScale" class="rounded-lg border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none">
+                            <select
+                                v-model="appearanceScale"
+                                class="rounded-lg border border-[#2f568f] bg-[#0b234d] px-2 py-2 text-xs text-white outline-none"
+                            >
                                 <option>100%</option>
                                 <option>80%</option>
                                 <option>120%</option>
@@ -7377,4 +12782,3 @@ onBeforeUnmount(() => {
     background: linear-gradient(180deg, #4d87ff 0%, #1d5fd2 100%);
 }
 </style>
-
