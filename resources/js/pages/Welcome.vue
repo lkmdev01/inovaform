@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { dashboard, login, register } from '@/routes';
 import type { Auth } from '@/types';
@@ -214,10 +214,26 @@ withDefaults(
             </main>
 
             <footer
-                class="pb-6 text-center text-xs text-[#7d9fdb] lg:text-left"
+                class="flex flex-col gap-3 pb-6 text-center text-xs text-[#7d9fdb] lg:text-left"
             >
-                Inovaform - Plataforma SaaS para funis, formularios e automacao
-                comercial.
+                <p>
+                    Inovaform - Plataforma SaaS para funis, formularios e
+                    automacao comercial.
+                </p>
+                <div class="flex flex-wrap items-center justify-center gap-4 lg:justify-start">
+                    <Link
+                        href="/politica-de-privacidade"
+                        class="transition hover:text-white"
+                    >
+                        Politica de Privacidade
+                    </Link>
+                    <Link
+                        href="/termos-de-servico"
+                        class="transition hover:text-white"
+                    >
+                        Termos de Servico
+                    </Link>
+                </div>
             </footer>
         </div>
     </div>

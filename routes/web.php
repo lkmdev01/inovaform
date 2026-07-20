@@ -7,8 +7,13 @@ use App\Http\Controllers\FunnelController;
 use App\Http\Controllers\LeadController;
 use App\Http\Controllers\PublicFunnelController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 Route::get('/', [PublicFunnelController::class, 'home'])->name('home');
+Route::get('politica-de-privacidade', fn () => Inertia::render('PrivacyPolicy'))
+    ->name('privacy-policy');
+Route::get('termos-de-servico', fn () => Inertia::render('TermsOfService'))
+    ->name('terms-of-service');
 Route::get('media/{path}', [FunnelController::class, 'showMedia'])
     ->where('path', '.*')
     ->name('funnels.media.show');
