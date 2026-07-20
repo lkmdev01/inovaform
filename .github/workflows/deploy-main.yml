@@ -34,6 +34,9 @@ jobs:
       - name: Generate application key
         run: php artisan key:generate
 
+      - name: Generate Wayfinder routes
+        run: php artisan wayfinder:generate --with-form
+
       - name: Install Node dependencies
         run: npm ci
 
