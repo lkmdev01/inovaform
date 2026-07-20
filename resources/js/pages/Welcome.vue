@@ -46,13 +46,15 @@ withDefaults(
 
     <div
         class="relative min-h-screen overflow-hidden bg-[#030916] text-[#d6e5ff]"
-        style="font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif"
+        style="
+            font-family: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+        "
     >
         <div
             class="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,#1347d455_0%,transparent_40%),radial-gradient(circle_at_80%_10%,#1e3d8a66_0%,transparent_40%),radial-gradient(circle_at_50%_120%,#0a1f4e_0%,transparent_55%)]"
         />
         <div
-            class="pointer-events-none absolute inset-0 opacity-70 [background-image:radial-gradient(#8eb2ff_0.55px,transparent_0.55px)] [background-size:24px_24px]"
+            class="pointer-events-none absolute inset-0 [background-image:radial-gradient(#8eb2ff_0.55px,transparent_0.55px)] [background-size:24px_24px] opacity-70"
         />
 
         <div
@@ -70,7 +72,7 @@ withDefaults(
                     :href="dashboard()"
                     class="rounded-full border border-[#3f6ed4] bg-[#10224d] px-5 py-2 text-sm font-medium text-[#d6e5ff] transition hover:bg-[#19336f]"
                 >
-                    Dashboard
+                    Painel
                 </Link>
 
                 <template v-else>
@@ -97,7 +99,7 @@ withDefaults(
             >
                 <section class="space-y-6">
                     <p
-                        class="inline-flex rounded-full border border-[#2f60cb] bg-[#0c1f46] px-4 py-1.5 text-xs uppercase tracking-[0.2em] text-[#90b2ff]"
+                        class="inline-flex rounded-full border border-[#2f60cb] bg-[#0c1f46] px-4 py-1.5 text-xs tracking-[0.2em] text-[#90b2ff] uppercase"
                     >
                         SaaS para funis e formularios
                     </p>
@@ -137,7 +139,9 @@ withDefaults(
                             :key="step.title"
                             class="rounded-2xl border border-[#274b99] bg-[#0a1733]/90 p-4 shadow-[0_0_0_1px_rgba(81,129,243,0.2)]"
                         >
-                            <h2 class="mb-2 text-sm font-semibold text-[#e1ecff]">
+                            <h2
+                                class="mb-2 text-sm font-semibold text-[#e1ecff]"
+                            >
                                 {{ step.title }}
                             </h2>
                             <p class="text-sm leading-relaxed text-[#9cb9ef]">
@@ -157,7 +161,7 @@ withDefaults(
                         <span
                             class="rounded-full bg-[#123679] px-3 py-1 text-xs font-medium text-[#c1d8ff]"
                         >
-                            Live
+                            Ao vivo
                         </span>
                     </div>
                     <div class="space-y-4">
@@ -165,13 +169,15 @@ withDefaults(
                             class="rounded-xl border border-[#284a92] bg-[#0c1b3c] p-4"
                         >
                             <p
-                                class="text-xs uppercase tracking-[0.12em] text-[#84aaf5]"
+                                class="text-xs tracking-[0.12em] text-[#84aaf5] uppercase"
                             >
                                 Conversao media
                             </p>
-                            <p class="mt-2 text-3xl font-bold text-white">28.4%</p>
+                            <p class="mt-2 text-3xl font-bold text-white">
+                                28.4%
+                            </p>
                             <p class="mt-1 text-xs text-[#87b0ff]">
-                                +6.2% vs ultimo ciclo
+                                +6,2% em relação ao último ciclo
                             </p>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
@@ -179,7 +185,9 @@ withDefaults(
                                 class="rounded-xl border border-[#284a92] bg-[#0c1b3c] p-4"
                             >
                                 <p class="text-xs text-[#8cb1f7]">Leads hoje</p>
-                                <p class="mt-1 text-xl font-semibold text-white">
+                                <p
+                                    class="mt-1 text-xl font-semibold text-white"
+                                >
                                     1.284
                                 </p>
                             </div>
@@ -187,7 +195,9 @@ withDefaults(
                                 class="rounded-xl border border-[#284a92] bg-[#0c1b3c] p-4"
                             >
                                 <p class="text-xs text-[#8cb1f7]">CPL medio</p>
-                                <p class="mt-1 text-xl font-semibold text-white">
+                                <p
+                                    class="mt-1 text-xl font-semibold text-white"
+                                >
                                     R$ 7,32
                                 </p>
                             </div>
@@ -196,14 +206,16 @@ withDefaults(
                             class="h-28 rounded-xl border border-[#274d9f] bg-gradient-to-r from-[#163a8d] via-[#133576] to-[#0f2756] p-4"
                         >
                             <div
-                                class="h-full w-full rounded-md border border-[#6e9fff4f] bg-[linear-gradient(110deg,rgba(147,189,255,0.2)_10%,rgba(147,189,255,0.05)_45%,rgba(147,189,255,0.2)_90%)] animate-pulse"
+                                class="h-full w-full animate-pulse rounded-md border border-[#6e9fff4f] bg-[linear-gradient(110deg,rgba(147,189,255,0.2)_10%,rgba(147,189,255,0.05)_45%,rgba(147,189,255,0.2)_90%)]"
                             />
                         </div>
                     </div>
                 </section>
             </main>
 
-            <footer class="pb-6 text-center text-xs text-[#7d9fdb] lg:text-left">
+            <footer
+                class="pb-6 text-center text-xs text-[#7d9fdb] lg:text-left"
+            >
                 Inovaform - Plataforma SaaS para funis, formularios e automacao
                 comercial.
             </footer>

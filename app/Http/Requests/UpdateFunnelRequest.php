@@ -64,6 +64,7 @@ class UpdateFunnelRequest extends FormRequest
             'stages.*.meta.builder.blocks.*.type' => ['required_with:stages.*.meta.builder.blocks', 'string', 'max:40'],
             'stages.*.meta.builder.blocks.*.label' => ['nullable', 'string', 'max:120'],
             'stages.*.meta.builder.blocks.*.placeholder' => ['nullable', 'string', 'max:1500000'],
+            'stages.*.meta.builder.blocks.*.variable_name' => ['nullable', 'string', 'max:64', 'regex:/^[A-Za-z0-9_-]+$/'],
             'stages.*.meta.builder.blocks.*.required' => ['required_with:stages.*.meta.builder.blocks', 'boolean'],
             'stages.*.meta.builder.blocks.*.options' => ['nullable', 'array'],
             'stages.*.meta.builder.blocks.*.options.*' => ['nullable', 'string', 'max:120'],

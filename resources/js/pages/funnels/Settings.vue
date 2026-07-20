@@ -231,29 +231,39 @@ function formatDomainCheckedAt(value: string | null): string {
     <Head :title="`${props.funnel.name} - Configurações`" />
 
     <div class="flex min-h-screen flex-col bg-[#050d22] text-[#d8e7ff]">
-        <header class="border-b border-[#1e3157] bg-[#071430] px-4 py-3">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
+        <header
+            class="border-b border-[#1e3157] bg-[#071430] px-2 py-2 sm:px-4 sm:py-3"
+        >
+            <div
+                class="flex flex-wrap items-center justify-between gap-2 xl:gap-4"
+            >
+                <div class="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                     <Link
                         href="/dashboard"
                         class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2f4f8c] bg-[#081b3c] text-base font-bold text-white"
                     >
                         IN
                     </Link>
-                    <div>
-                        <p class="text-lg font-semibold text-white">
+                    <div class="min-w-0">
+                        <p
+                            class="truncate text-sm font-semibold text-white sm:text-lg"
+                        >
                             {{ props.funnel.name }}
                         </p>
-                        <p class="text-sm text-[#88a8df]">
+                        <p
+                            class="hidden truncate text-sm text-[#88a8df] sm:block"
+                        >
                             ... / {{ props.funnel.slug }}
                         </p>
                     </div>
                 </div>
 
-                <nav class="flex flex-wrap items-center gap-1 text-sm">
+                <nav
+                    class="order-3 flex w-full items-center gap-1 overflow-x-auto rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm xl:order-none xl:w-auto xl:overflow-visible"
+                >
                     <Link
                         :href="FunnelController.builder(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><BookOpen class="size-4" /> Construtor</span
@@ -261,7 +271,7 @@ function formatDomainCheckedAt(value: string | null): string {
                     </Link>
                     <Link
                         :href="FunnelController.flow(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><ListTree class="size-4" /> Fluxo</span
@@ -269,7 +279,7 @@ function formatDomainCheckedAt(value: string | null): string {
                     </Link>
                     <Link
                         :href="FunnelController.design(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><Palette class="size-4" /> Design</span
@@ -278,7 +288,7 @@ function formatDomainCheckedAt(value: string | null): string {
                     <Link
                         v-if="props.permissions.canManageLeads"
                         :href="FunnelController.leads(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><CircleUserRound class="size-4" /> Leads</span
@@ -286,7 +296,7 @@ function formatDomainCheckedAt(value: string | null): string {
                     </Link>
                 </nav>
 
-                <div class="flex items-center gap-1.5">
+                <div class="flex shrink-0 items-center gap-1.5">
                     <Link
                         :href="FunnelController.settings(props.funnel.id).url"
                         aria-current="page"
@@ -337,7 +347,7 @@ function formatDomainCheckedAt(value: string | null): string {
         </header>
 
         <main
-            class="mx-auto grid w-full max-w-7xl flex-1 gap-6 px-4 py-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8"
+            class="mx-auto grid w-full max-w-7xl flex-1 gap-4 px-3 py-4 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-6 lg:px-8 lg:py-6"
         >
             <aside
                 class="h-fit rounded-2xl border border-[#203b6b] bg-[#071633] p-3 lg:sticky lg:top-6"

@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, FormInput, LayoutGrid, Menu, Orbit, Search } from 'lucide-vue-next';
+import {
+    BookOpen,
+    Folder,
+    FormInput,
+    LayoutGrid,
+    Menu,
+    Orbit,
+    Search,
+} from 'lucide-vue-next';
 import { computed } from 'vue';
 import FunnelController from '@/actions/App/Http/Controllers/FunnelController';
 import AppLogo from '@/components/AppLogo.vue';
@@ -57,17 +65,17 @@ const activeItemStyles =
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Painel',
         href: dashboard(),
         icon: LayoutGrid,
     },
     {
-        title: 'Form Builder',
+        title: 'Construtor de formulários',
         href: formsBuilder(),
         icon: FormInput,
     },
     {
-        title: 'Funnels',
+        title: 'Funis',
         href: FunnelController.index(),
         icon: Orbit,
     },
@@ -75,12 +83,12 @@ const mainNavItems: NavItem[] = [
 
 const rightNavItems: NavItem[] = [
     {
-        title: 'Repository',
+        title: 'Repositório',
         href: 'https://github.com/laravel/vue-starter-kit',
         icon: Folder,
     },
     {
-        title: 'Documentation',
+        title: 'Documentação',
         href: 'https://laravel.com/docs/starter-kits#vue',
         icon: BookOpen,
     },

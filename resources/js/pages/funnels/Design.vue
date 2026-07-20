@@ -983,26 +983,37 @@ const previewLogoUrl = computed(() => {
 
     return value !== '' ? value : '';
 });
+const mobileDesignPanel = ref<'preview' | 'settings'>('preview');
 </script>
 
 <template>
     <Head :title="`${props.funnel.name} - Design`" />
 
-    <div class="h-screen overflow-hidden bg-[#050d22] text-[#d8e7ff]">
-        <header class="border-b border-[#1e3157] bg-[#071430] px-4 py-3">
-            <div class="flex items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
+    <div
+        class="flex h-dvh flex-col overflow-hidden bg-[#050d22] text-[#d8e7ff]"
+    >
+        <header
+            class="shrink-0 border-b border-[#1e3157] bg-[#071430] px-2 py-2 sm:px-4 sm:py-3"
+        >
+            <div
+                class="flex flex-wrap items-center justify-between gap-2 xl:gap-4"
+            >
+                <div class="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                     <Link
                         href="/dashboard"
                         class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2f4f8c] bg-[#081b3c] text-base font-bold text-white"
                     >
                         IN
                     </Link>
-                    <div>
-                        <p class="text-lg font-semibold text-white">
+                    <div class="min-w-0">
+                        <p
+                            class="truncate text-sm font-semibold text-white sm:text-lg"
+                        >
                             {{ props.funnel.name }}
                         </p>
-                        <p class="text-sm text-[#88a8df]">
+                        <p
+                            class="hidden truncate text-sm text-[#88a8df] sm:block"
+                        >
                             ... / {{ props.funnel.slug }}
                         </p>
                     </div>
@@ -1015,11 +1026,11 @@ const previewLogoUrl = computed(() => {
                 </div>
 
                 <nav
-                    class="flex items-center gap-1.5 rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm"
+                    class="order-3 flex w-full items-center gap-1.5 overflow-x-auto rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm xl:order-none xl:w-auto xl:overflow-visible"
                 >
                     <Link
                         :href="FunnelController.builder(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><BookOpen class="size-4" /> Construtor</span
@@ -1027,14 +1038,14 @@ const previewLogoUrl = computed(() => {
                     </Link>
                     <Link
                         :href="FunnelController.flow(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><ListTree class="size-4" /> Fluxo</span
                         >
                     </Link>
                     <button
-                        class="rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white"
+                        class="shrink-0 rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><Palette class="size-4" /> Design</span
@@ -1044,7 +1055,7 @@ const previewLogoUrl = computed(() => {
                         v-if="props.permissions.canManageLeads"
                         :href="FunnelController.leads(props.funnel.id).url"
                         data-testid="leads-nav-link"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><CircleUserRound class="size-4" /> Leads</span
@@ -1068,7 +1079,9 @@ const previewLogoUrl = computed(() => {
                     </button>
                 </nav>
 
-                <div class="flex items-center gap-1.5">
+                <div
+                    class="flex max-w-full shrink-0 items-center gap-1.5 overflow-x-auto xl:overflow-visible"
+                >
                     <span
                         data-testid="publication-status"
                         class="rounded-full border px-2.5 py-1 text-xs font-semibold"
@@ -1110,7 +1123,7 @@ const previewLogoUrl = computed(() => {
                         :disabled="
                             !props.permissions.canEdit || saveForm.processing
                         "
-                        class="rounded-md border border-[#3860a7] bg-[#0a2c61] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                        class="shrink-0 rounded-md border border-[#3860a7] bg-[#0a2c61] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 sm:px-4"
                         @click="saveDesign()"
                     >
                         Salvar
@@ -1120,7 +1133,7 @@ const previewLogoUrl = computed(() => {
                         :disabled="
                             !props.permissions.canEdit || saveForm.processing
                         "
-                        class="rounded-md bg-linear-to-r from-[#1d5fd2] to-[#3f8dff] px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                        class="shrink-0 rounded-md bg-linear-to-r from-[#1d5fd2] to-[#3f8dff] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50 sm:px-4"
                         @click="saveDesign('publish')"
                     >
                         Publicar
@@ -1175,11 +1188,44 @@ const previewLogoUrl = computed(() => {
             </div>
         </header>
 
+        <div
+            data-testid="design-mobile-panel-nav"
+            class="grid shrink-0 grid-cols-2 border-b border-[#1e3157] bg-[#071430] p-1 xl:hidden"
+        >
+            <button
+                type="button"
+                data-testid="design-mobile-panel-preview"
+                class="rounded-md px-3 py-2 text-xs font-medium"
+                :class="
+                    mobileDesignPanel === 'preview'
+                        ? 'bg-[#1e4e9e] text-white'
+                        : 'text-[#91afe3]'
+                "
+                @click="mobileDesignPanel = 'preview'"
+            >
+                Visualização
+            </button>
+            <button
+                type="button"
+                data-testid="design-mobile-panel-settings"
+                class="rounded-md px-3 py-2 text-xs font-medium"
+                :class="
+                    mobileDesignPanel === 'settings'
+                        ? 'bg-[#1e4e9e] text-white'
+                        : 'text-[#91afe3]'
+                "
+                @click="mobileDesignPanel = 'settings'"
+            >
+                Personalizar
+            </button>
+        </div>
+
         <main
-            class="grid h-[calc(100vh-69px)] min-h-0 grid-cols-[1fr_470px] overflow-hidden"
+            class="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[1fr_470px]"
         >
             <section
-                class="overflow-y-auto border-r border-[#1f3258] bg-linear-to-b from-[#06112a] via-[#071530] to-[#050d20]"
+                class="overflow-y-auto border-r border-[#1f3258] bg-linear-to-b from-[#06112a] via-[#071530] to-[#050d20] xl:block"
+                :class="mobileDesignPanel === 'preview' ? 'block' : 'hidden'"
             >
                 <div
                     data-testid="design-preview-theme"
@@ -1492,7 +1538,8 @@ const previewLogoUrl = computed(() => {
 
             <aside
                 data-testid="design-settings-panel"
-                class="h-full min-h-0 [scrollbar-gutter:stable] overflow-y-auto overscroll-contain bg-[#06122e]"
+                class="h-full min-h-0 [scrollbar-gutter:stable] overflow-y-auto overscroll-contain bg-[#06122e] xl:block"
+                :class="mobileDesignPanel === 'settings' ? 'block' : 'hidden'"
             >
                 <section :class="panelSectionClass">
                     <button

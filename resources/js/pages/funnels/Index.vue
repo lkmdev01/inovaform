@@ -38,7 +38,7 @@ const props = defineProps<{
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Funnels',
+        title: 'Funis',
         href: FunnelController.index(),
     },
 ];
@@ -136,8 +136,14 @@ function onStageDrop(event: DragEvent, targetIndex: number): void {
 function saveFunnel(): void {
     form.stages = stages.value.map((stage) => ({
         name: stage.name,
-        conversion_rate: stage.conversion_rate.length > 0 ? Number(stage.conversion_rate) : null,
-        expected_volume: stage.expected_volume.length > 0 ? Number(stage.expected_volume) : null,
+        conversion_rate:
+            stage.conversion_rate.length > 0
+                ? Number(stage.conversion_rate)
+                : null,
+        expected_volume:
+            stage.expected_volume.length > 0
+                ? Number(stage.expected_volume)
+                : null,
     }));
 
     form.submit(FunnelController.store(), {
@@ -174,10 +180,12 @@ const estimatedAverageConversion = computed(() => {
         return 0;
     }
 
-    return stages.value
-        .slice(1)
-        .map((stage) => Number(stage.conversion_rate || '0'))
-        .reduce((carry, value) => carry * (value / 100), 1) * 100;
+    return (
+        stages.value
+            .slice(1)
+            .map((stage) => Number(stage.conversion_rate || '0'))
+            .reduce((carry, value) => carry * (value / 100), 1) * 100
+    );
 });
 
 function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
@@ -185,10 +193,11 @@ function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
         return '0.00';
     }
 
-    const total = stagesList
-        .slice(1)
-        .map((stage) => Number(stage.conversion_rate ?? '0'))
-        .reduce((carry, value) => carry * (value / 100), 1) * 100;
+    const total =
+        stagesList
+            .slice(1)
+            .map((stage) => Number(stage.conversion_rate ?? '0'))
+            .reduce((carry, value) => carry * (value / 100), 1) * 100;
 
     return total.toFixed(2);
 }
@@ -199,10 +208,16 @@ function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="grid gap-4 p-4 lg:grid-cols-[1fr_360px]">
-            <section class="rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border">
+            <section
+                class="rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border"
+            >
                 <div class="mb-4 flex items-center justify-between">
                     <h2 class="text-sm font-semibold">Modelo de funil</h2>
-                    <button class="text-xs text-blue-500" type="button" @click="addStage">
+                    <button
+                        class="text-xs text-blue-500"
+                        type="button"
+                        @click="addStage"
+                    >
                         Adicionar etapa
                     </button>
                 </div>
@@ -218,7 +233,9 @@ function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
                         @drop="onStageDrop($event, index)"
                     >
                         <div class="mb-3 flex items-center justify-between">
-                            <p class="text-xs text-muted-foreground">Etapa {{ index + 1 }}</p>
+                            <p class="text-xs text-muted-foreground">
+                                Etapa {{ index + 1 }}
+                            </p>
                             <button
                                 class="rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
                                 type="button"
@@ -235,25 +252,43 @@ function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
                             </div>
                             <div class="space-y-2">
                                 <Label>Conv. %</Label>
-                                <Input v-model="stage.conversion_rate" type="number" min="0" max="100" step="0.01" />
+                                <Input
+                                    v-model="stage.conversion_rate"
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                />
                             </div>
                         </div>
 
                         <div class="mt-3 space-y-2">
                             <Label>Volume esperado</Label>
-                            <Input v-model="stage.expected_volume" type="number" min="0" />
+                            <Input
+                                v-model="stage.expected_volume"
+                                type="number"
+                                min="0"
+                            />
                         </div>
                     </div>
                 </div>
             </section>
 
-            <aside class="rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border">
+            <aside
+                class="rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border"
+            >
                 <h2 class="text-sm font-semibold">Salvar funil</h2>
                 <div class="mt-4 space-y-3">
                     <div class="space-y-2">
                         <Label for="funnel-name">Nome</Label>
-                        <Input id="funnel-name" v-model="form.name" placeholder="Funil webinar Q2" />
-                        <p v-if="form.errors.name" class="text-xs text-red-500">{{ form.errors.name }}</p>
+                        <Input
+                            id="funnel-name"
+                            v-model="form.name"
+                            placeholder="Funil webinar Q2"
+                        />
+                        <p v-if="form.errors.name" class="text-xs text-red-500">
+                            {{ form.errors.name }}
+                        </p>
                     </div>
                     <div class="space-y-2">
                         <Label for="funnel-description">Descricao</Label>
@@ -265,17 +300,33 @@ function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
                     </div>
                     <div class="space-y-2">
                         <Label for="target-leads">Meta de leads</Label>
-                        <Input id="target-leads" v-model="form.target_leads" type="number" min="1" />
+                        <Input
+                            id="target-leads"
+                            v-model="form.target_leads"
+                            type="number"
+                            min="1"
+                        />
                     </div>
-                    <label class="flex items-center gap-2 text-xs text-muted-foreground">
+                    <label
+                        class="flex items-center gap-2 text-xs text-muted-foreground"
+                    >
                         <input v-model="form.is_active" type="checkbox" />
                         Funil ativo
                     </label>
-                    <p class="rounded-md bg-blue-500/10 px-3 py-2 text-xs text-blue-500">
-                        Conversao total estimada: {{ estimatedAverageConversion.toFixed(2) }}%
+                    <p
+                        class="rounded-md bg-blue-500/10 px-3 py-2 text-xs text-blue-500"
+                    >
+                        Conversao total estimada:
+                        {{ estimatedAverageConversion.toFixed(2) }}%
                     </p>
-                    <p v-if="form.errors.stages" class="text-xs text-red-500">{{ form.errors.stages }}</p>
-                    <Button class="w-full" :disabled="form.processing" @click="saveFunnel">
+                    <p v-if="form.errors.stages" class="text-xs text-red-500">
+                        {{ form.errors.stages }}
+                    </p>
+                    <Button
+                        class="w-full"
+                        :disabled="form.processing"
+                        @click="saveFunnel"
+                    >
                         {{ form.processing ? 'Salvando...' : 'Salvar funil' }}
                     </Button>
                 </div>
@@ -283,7 +334,9 @@ function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
         </div>
 
         <div class="px-4 pb-6">
-            <div class="rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border">
+            <div
+                class="rounded-xl border border-sidebar-border/70 bg-card p-4 dark:border-sidebar-border"
+            >
                 <h2 class="text-sm font-semibold">Funis criados</h2>
                 <div class="mt-4 grid gap-3 md:grid-cols-2">
                     <article
@@ -295,24 +348,38 @@ function totalConversionFromStages(stagesList: FunnelStageItem[]): string {
                             <p class="font-medium">{{ funnel.name }}</p>
                             <span
                                 class="rounded-full px-2 py-1 text-xs"
-                                :class="funnel.is_active ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-500/10 text-zinc-500'"
+                                :class="
+                                    funnel.is_active
+                                        ? 'bg-emerald-500/10 text-emerald-500'
+                                        : 'bg-zinc-500/10 text-zinc-500'
+                                "
                             >
                                 {{ funnel.is_active ? 'Ativo' : 'Inativo' }}
                             </span>
                         </div>
-                        <p v-if="funnel.description" class="mt-1 text-xs text-muted-foreground">
+                        <p
+                            v-if="funnel.description"
+                            class="mt-1 text-xs text-muted-foreground"
+                        >
                             {{ funnel.description }}
                         </p>
                         <p class="mt-2 text-xs text-blue-500">
-                            Conversao total: {{ totalConversionFromStages(funnel.stages) }}%
+                            Conversao total:
+                            {{ totalConversionFromStages(funnel.stages) }}%
                         </p>
-                        <ul class="mt-3 space-y-1 text-xs text-muted-foreground">
+                        <ul
+                            class="mt-3 space-y-1 text-xs text-muted-foreground"
+                        >
                             <li v-for="stage in funnel.stages" :key="stage.id">
-                                {{ stage.stage_order }}. {{ stage.name }} - {{ stage.conversion_rate ?? '0' }}%
+                                {{ stage.stage_order }}. {{ stage.name }} -
+                                {{ stage.conversion_rate ?? '0' }}%
                             </li>
                         </ul>
                     </article>
-                    <p v-if="props.funnels.length === 0" class="text-sm text-muted-foreground">
+                    <p
+                        v-if="props.funnels.length === 0"
+                        class="text-sm text-muted-foreground"
+                    >
                         Nenhum funil salvo ainda.
                     </p>
                 </div>

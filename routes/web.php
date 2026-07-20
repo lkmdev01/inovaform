@@ -28,11 +28,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('forms/builder', [FormBuilderController::class, 'store'])->name('forms.store');
     Route::get('funnels', [FunnelController::class, 'index'])->name('funnels.index');
     Route::post('funnels', [FunnelController::class, 'store'])->name('funnels.store');
+    Route::post('funnels/ai', [FunnelController::class, 'storeWithAi'])
+        ->middleware('throttle:5,1')
+        ->name('funnels.ai.store');
+    Route::post('funnels/import/preview', [FunnelController::class, 'previewImport'])
+        ->middleware('throttle:10,1')
+        ->name('funnels.import.preview');
     Route::post('funnels/import', [FunnelController::class, 'import'])->name('funnels.import');
     Route::delete('funnels/{funnel}', [FunnelController::class, 'destroy'])->name('funnels.destroy');
     Route::post('funnels/{funnel}/duplicate', [FunnelController::class, 'duplicate'])->name('funnels.duplicate');
     Route::get('funnels/{funnel}/export', [FunnelController::class, 'export'])->name('funnels.export');
     Route::post('funnels/{funnel}/templates', [FunnelController::class, 'storeTemplate'])->name('funnels.templates.store');
+    Route::delete('funnels/templates/{funnelTemplate}', [FunnelController::class, 'destroyTemplate'])->name('funnels.templates.destroy');
     Route::patch('funnels/{funnel}', [FunnelController::class, 'update'])->name('funnels.update');
     Route::post('funnels/{funnel}/media', [FunnelController::class, 'uploadMedia'])->name('funnels.media.upload');
     Route::patch('funnels/{funnel}/design', [FunnelController::class, 'updateDesign'])->name('funnels.design.update');

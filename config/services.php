@@ -34,6 +34,16 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
+    'groq' => [
+        'api_key' => env('GROQ_API_KEY'),
+        'base_url' => env('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
+        'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
+        'connect_timeout' => (int) env('GROQ_CONNECT_TIMEOUT', 5),
+        'timeout' => (int) env('GROQ_TIMEOUT', 45),
+        'max_completion_tokens' => (int) env('GROQ_MAX_COMPLETION_TOKENS', 3500),
+        'retry_delays' => [300, 900],
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

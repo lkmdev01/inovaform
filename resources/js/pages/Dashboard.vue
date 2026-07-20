@@ -4,12 +4,18 @@ import {
     ChevronDown,
     Crown,
     EllipsisVertical,
+    FileArchive,
     HelpCircle,
+    Image,
     ListFilter,
+    LoaderCircle,
     Orbit,
     Plus,
     Search,
+    ShieldCheck,
     Sparkles,
+    LayoutTemplate,
+    Trash2,
     Upload,
     WandSparkles,
     X,
@@ -93,12 +99,29 @@ type FunnelTemplate = {
 };
 
 type FunnelSort = 'recent' | 'name' | 'leads';
+type CreationMode = 'template' | 'ai';
+
+type FunnelImportPreview = {
+    source: string;
+    name: string;
+    description: string;
+    stage_count: number;
+    block_count: number;
+    component_counts: Record<string, number>;
+    image_count: number;
+    remote_hosts: string[];
+    languages: Array<{ value: string; label: string }>;
+    default_language: string;
+    warnings: string[];
+    expires_in_minutes: number;
+};
 
 const props = defineProps<{
     funnels: FunnelItem[];
     sharedFunnels: FunnelItem[];
     templates: FunnelTemplate[];
     templateCategories: string[];
+    aiGenerationEnabled: boolean;
     stats: DashboardStats;
 }>();
 
@@ -114,7 +137,12 @@ const flashStatus = computed(() => page.props.flash?.status ?? '');
 const statusMessages: Record<string, string> = {
     'funnel-duplicated': 'Funil duplicado com sucesso.',
     'template-created': 'Template salvo na sua biblioteca.',
+    'template-deleted': 'Template excluído da sua biblioteca.',
     'funnel-imported': 'Funil importado com sucesso.',
+    'funnel-imported-media-queued':
+        'Funil importado. As imagens serão copiadas em segundo plano.',
+    'funnel-imported-media-partial':
+        'Funil importado. Algumas imagens externas não puderam ser copiadas e foram preservadas por URL.',
     'funnel-deleted': 'Funil excluido com sucesso.',
 };
 
@@ -123,8 +151,10 @@ const flashStatusMessage = computed(
 );
 
 const isCreateFunnelModalOpen = ref(false);
+const creationMode = ref<CreationMode>('template');
 const selectedTemplateId = ref('blank');
-const aiTopic = ref('');
+const templatePendingDeletion = ref<FunnelTemplate | null>(null);
+const isDeleteTemplateModalOpen = ref(false);
 const activeTab = ref<'mine' | 'shared'>('mine');
 const searchQuery = ref('');
 const sortBy = ref<FunnelSort>('recent');
@@ -138,8 +168,11 @@ const templateSearchQuery = ref('');
 const templateCategoryFilter = ref('');
 const templateScope = ref<'all' | 'system' | 'mine'>('all');
 const importFileInput = useTemplateRef<HTMLInputElement>('import-file-input');
+const isImportPreviewDialogOpen = ref(false);
+const isImportPreviewLoading = ref(false);
+const importPreviewError = ref('');
+const importPreview = ref<FunnelImportPreview | null>(null);
 
-const aiCharacterCount = computed(() => aiTopic.value.length);
 const canCreateFunnel = computed(
     () => props.stats.currentFunnels < props.stats.maxFunnels,
 );
@@ -266,6 +299,30 @@ const createFunnelForm = useForm({
     }>,
 });
 
+const aiFunnelForm = useForm({
+    name: '',
+    goal_type: 'qualification' as
+        | 'lead_capture'
+        | 'qualification'
+        | 'diagnosis'
+        | 'quote'
+        | 'application'
+        | 'quiz',
+    offer: '',
+    pain_point: '',
+    desired_action: 'receive_result' as
+        'contact' | 'whatsapp' | 'schedule' | 'purchase' | 'receive_result',
+    prompt: '',
+    audience: '',
+    tone: 'direto' as 'direto' | 'consultivo' | 'educativo' | 'premium',
+    target_leads: 500,
+});
+
+const deleteTemplateForm = useForm({});
+
+const aiCharacterCount = computed(() => aiFunnelForm.prompt.length);
+const isAiMode = computed(() => creationMode.value === 'ai');
+
 const shareFunnelForm = useForm({
     email: '',
     role: 'viewer' as 'viewer' | 'editor',
@@ -281,8 +338,10 @@ const saveTemplateForm = useForm({
 });
 
 const importFunnelForm = useForm({
-    file: null as File | null,
+    token: '',
+    language: 'original',
     name: '',
+    copy_media: false,
 });
 
 function openCreateFunnelModal(): void {
@@ -291,12 +350,60 @@ function openCreateFunnelModal(): void {
     }
 
     createFunnelForm.clearErrors();
+    aiFunnelForm.clearErrors();
+    creationMode.value = 'template';
     isCreateFunnelModalOpen.value = true;
 }
 
 function closeCreateFunnelModal(): void {
     createFunnelForm.clearErrors();
+    aiFunnelForm.clearErrors();
     isCreateFunnelModalOpen.value = false;
+}
+
+function setCreationMode(mode: CreationMode): void {
+    creationMode.value = mode;
+    createFunnelForm.clearErrors();
+    aiFunnelForm.clearErrors();
+}
+
+function openDeleteTemplateModal(template: FunnelTemplate): void {
+    if (template.is_system) {
+        return;
+    }
+
+    templatePendingDeletion.value = template;
+    deleteTemplateForm.clearErrors();
+    isDeleteTemplateModalOpen.value = true;
+}
+
+function closeDeleteTemplateModal(): void {
+    if (deleteTemplateForm.processing) {
+        return;
+    }
+
+    isDeleteTemplateModalOpen.value = false;
+    templatePendingDeletion.value = null;
+}
+
+function deleteTemplate(): void {
+    if (templatePendingDeletion.value === null) {
+        return;
+    }
+
+    const templateId = templatePendingDeletion.value.id;
+
+    deleteTemplateForm.submit(FunnelController.destroyTemplate(templateId), {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (selectedTemplateId.value === String(templateId)) {
+                selectTemplate('blank');
+            }
+
+            isDeleteTemplateModalOpen.value = false;
+            templatePendingDeletion.value = null;
+        },
+    });
 }
 
 function openShareModal(funnel: FunnelItem): void {
@@ -366,8 +473,47 @@ function submitCreateFunnel(): void {
         return;
     }
 
-    const activeTemplate = resolveTemplateById(selectedTemplateId.value);
     const trimmedName = createFunnelForm.name.trim();
+
+    if (isAiMode.value) {
+        if (aiFunnelForm.offer.trim().length < 3) {
+            aiFunnelForm.setError(
+                'offer',
+                'Informe o que você oferece neste funil.',
+            );
+
+            return;
+        }
+
+        if (!props.aiGenerationEnabled) {
+            aiFunnelForm.setError(
+                'offer',
+                'A geração por IA ainda não foi configurada pelo administrador.',
+            );
+
+            return;
+        }
+
+        aiFunnelForm.name = trimmedName;
+        aiFunnelForm.offer = aiFunnelForm.offer.trim();
+        aiFunnelForm.pain_point = aiFunnelForm.pain_point.trim();
+        aiFunnelForm.prompt = aiFunnelForm.prompt.trim();
+        aiFunnelForm.audience = aiFunnelForm.audience.trim();
+        aiFunnelForm.submit(FunnelController.storeWithAi(), {
+            preserveScroll: true,
+            onSuccess: () => {
+                createFunnelForm.reset();
+                aiFunnelForm.reset();
+                selectedTemplateId.value = 'blank';
+                creationMode.value = 'template';
+                closeCreateFunnelModal();
+            },
+        });
+
+        return;
+    }
+
+    const activeTemplate = resolveTemplateById(selectedTemplateId.value);
 
     createFunnelForm.name =
         activeTemplate !== null && trimmedName.length === 0
@@ -375,7 +521,7 @@ function submitCreateFunnel(): void {
             : trimmedName;
     createFunnelForm.template_id =
         activeTemplate !== null ? Number(selectedTemplateId.value) : null;
-    createFunnelForm.description = aiTopic.value.trim();
+    createFunnelForm.description = '';
     createFunnelForm.stages =
         activeTemplate === null ? buildStagesByTemplate() : [];
     createFunnelForm.target_leads =
@@ -401,7 +547,7 @@ function submitCreateFunnel(): void {
             createFunnelForm.target_leads = '500';
             createFunnelForm.is_active = true;
             selectedTemplateId.value = 'blank';
-            aiTopic.value = '';
+            aiFunnelForm.reset();
             closeCreateFunnelModal();
         },
         onFinish: () => {
@@ -450,10 +596,12 @@ function submitSaveTemplate(): void {
 }
 
 function triggerImportFunnel(): void {
+    importPreviewError.value = '';
+    importFunnelForm.clearErrors();
     importFileInput.value?.click();
 }
 
-function handleImportFunnelChange(event: Event): void {
+async function handleImportFunnelChange(event: Event): Promise<void> {
     const target = event.target as HTMLInputElement | null;
     const file = target?.files?.[0] ?? null;
 
@@ -461,17 +609,105 @@ function handleImportFunnelChange(event: Event): void {
         return;
     }
 
-    importFunnelForm.file = file;
+    isImportPreviewDialogOpen.value = true;
+    isImportPreviewLoading.value = true;
+    importPreview.value = null;
+    importPreviewError.value = '';
+    importFunnelForm.reset();
     importFunnelForm.name = '';
-    importFunnelForm.post('/funnels/import', {
+
+    const formData = new FormData();
+    formData.append('file', file);
+    const csrfToken = document
+        .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+        ?.getAttribute('content');
+
+    try {
+        const response = await fetch(FunnelController.previewImport().url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+            },
+            body: formData,
+        });
+        const payload = (await response.json()) as {
+            token?: string;
+            preview?: FunnelImportPreview;
+            message?: string;
+            errors?: Record<string, string[]>;
+        };
+
+        if (!response.ok || !payload.token || !payload.preview) {
+            importPreviewError.value =
+                payload.errors?.file?.[0] ??
+                payload.message ??
+                'Não foi possível analisar o arquivo enviado.';
+
+            return;
+        }
+
+        importPreview.value = payload.preview;
+        importFunnelForm.token = payload.token;
+        importFunnelForm.name = payload.preview.name;
+        importFunnelForm.language = payload.preview.default_language;
+        importFunnelForm.copy_media = false;
+    } catch {
+        importPreviewError.value =
+            'Não foi possível analisar o arquivo. Verifique sua conexão e tente novamente.';
+    } finally {
+        isImportPreviewLoading.value = false;
+
+        if (target) {
+            target.value = '';
+        }
+    }
+}
+
+function closeImportPreviewDialog(): void {
+    if (importFunnelForm.processing) {
+        return;
+    }
+
+    isImportPreviewDialogOpen.value = false;
+    importPreview.value = null;
+    importPreviewError.value = '';
+    importFunnelForm.reset();
+    importFunnelForm.clearErrors();
+}
+
+function confirmFunnelImport(): void {
+    if (!importPreview.value || importFunnelForm.token === '') {
+        return;
+    }
+
+    importFunnelForm.name = importFunnelForm.name.trim();
+    importFunnelForm.submit(FunnelController.import(), {
         preserveScroll: true,
-        forceFormData: true,
-        onFinish: () => {
-            if (target) {
-                target.value = '';
-            }
-        },
+        onSuccess: () => closeImportPreviewDialog(),
     });
+}
+
+function importComponentLabel(type: string): string {
+    const labels: Record<string, string> = {
+        attention: 'Alertas',
+        arguments: 'Argumentos',
+        button: 'Botões',
+        carousel: 'Carrosséis',
+        content_text: 'Textos',
+        email: 'E-mails',
+        image: 'Imagens',
+        level: 'Níveis',
+        loading: 'Carregamentos',
+        metrics: 'Métricas',
+        number: 'Números',
+        single_choice: 'Escolhas únicas',
+        spacer: 'Espaçamentos',
+        testimonials: 'Depoimentos',
+        text: 'Campos de texto',
+    };
+
+    return labels[type] ?? type.replaceAll('_', ' ');
 }
 
 function formatDate(dateText: string): string {
@@ -604,16 +840,16 @@ function submitShareFunnel(): void {
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head title="Painel" />
 
     <div
         class="min-h-screen bg-[radial-gradient(circle_at_10%_0%,#102a5f_0%,#07132d_35%,#030917_100%)] text-[#dbe9ff]"
     >
         <header class="border-b border-[#16315f] bg-[#07132de6] backdrop-blur">
             <div
-                class="mx-auto flex h-14 max-w-6xl items-center justify-between px-5"
+                class="mx-auto flex min-h-14 max-w-6xl items-center justify-between gap-3 px-3 py-2 sm:px-5"
             >
-                <div class="flex items-center gap-5">
+                <div class="flex min-w-0 items-center gap-3 sm:gap-5">
                     <div
                         class="flex h-9 w-9 items-center justify-center rounded-lg border border-[#2e63c8] bg-[#0a1f49] text-lg font-bold text-white"
                     >
@@ -621,15 +857,17 @@ function submitShareFunnel(): void {
                     </div>
                     <a
                         href="mailto:suporte@inovaform.com"
-                        class="flex items-center gap-2 text-sm text-[#9ab9f4]"
+                        class="hidden items-center gap-2 text-sm text-[#9ab9f4] sm:flex"
                     >
                         <HelpCircle class="size-4 text-[#7ea7f2]" />
                         Precisa de ajuda?
                     </a>
                 </div>
 
-                <div class="flex items-center gap-6">
-                    <div class="min-w-72 border-r border-[#18335e] pr-5">
+                <div class="flex min-w-0 items-center gap-3 lg:gap-6">
+                    <div
+                        class="hidden min-w-72 border-r border-[#18335e] pr-5 lg:block"
+                    >
                         <div
                             class="mb-1 flex items-center justify-between text-sm text-[#9db7e8]"
                         >
@@ -650,12 +888,12 @@ function submitShareFunnel(): void {
                         :href="profile.edit().url"
                         class="flex items-center gap-2.5 rounded-md px-2 py-1 text-[#89a7df] transition hover:bg-[#0b2349]"
                     >
-                        <div>
+                        <div class="hidden min-w-0 sm:block">
                             <p class="text-sm text-[#dbe9ff]">
                                 Ola
                                 <span class="font-bold">{{ userName }}</span>
                             </p>
-                            <p class="text-xs text-[#89a7df]">
+                            <p class="max-w-48 truncate text-xs text-[#89a7df]">
                                 {{ userEmail }}
                             </p>
                         </div>
@@ -667,7 +905,7 @@ function submitShareFunnel(): void {
 
         <main class="pb-16">
             <section
-                v-if="flashStatusMessage || importFunnelForm.errors.file"
+                v-if="flashStatusMessage || importFunnelForm.errors.token"
                 class="px-5 pt-4 md:px-8"
             >
                 <div
@@ -677,19 +915,21 @@ function submitShareFunnel(): void {
                     {{ flashStatusMessage }}
                 </div>
                 <div
-                    v-if="importFunnelForm.errors.file"
+                    v-if="importFunnelForm.errors.token"
                     class="mt-3 rounded-xl border border-rose-400/35 bg-rose-400/10 px-4 py-3 text-sm text-rose-100"
                 >
-                    {{ importFunnelForm.errors.file }}
+                    {{ importFunnelForm.errors.token }}
                 </div>
             </section>
 
             <section
                 class="border-b border-[#183764] bg-[#07132dd9] px-5 py-4 md:px-8"
             >
-                <div class="flex w-full items-center justify-between">
+                <div
+                    class="flex w-full flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center"
+                >
                     <div class="flex items-center gap-2.5">
-                        <h1 class="text-3xl font-bold text-white">Dashboard</h1>
+                        <h1 class="text-3xl font-bold text-white">Painel</h1>
                         <span
                             class="rounded-md border border-[#284a84] bg-[#0b2248] px-2.5 py-1 text-sm text-[#bfd6ff]"
                         >
@@ -699,30 +939,36 @@ function submitShareFunnel(): void {
                             funis
                         </span>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="grid grid-cols-2 items-center gap-2 sm:flex">
                         <input
                             ref="import-file-input"
                             type="file"
-                            accept="application/json,.json"
+                            accept="application/json,application/zip,.json,.zip"
                             class="hidden"
+                            data-testid="import-funnel-file"
                             @change="handleImportFunnelChange"
                         />
                         <button
                             @click="triggerImportFunnel"
-                            :disabled="importFunnelForm.processing"
-                            class="inline-flex items-center gap-2 rounded-lg border border-[#335b9c] bg-[#0b2148] px-4 py-2 text-sm font-medium text-[#d8e7ff] transition hover:bg-[#11305f] disabled:opacity-50"
+                            :disabled="
+                                importFunnelForm.processing ||
+                                isImportPreviewLoading
+                            "
+                            class="inline-flex items-center justify-center gap-2 rounded-lg border border-[#335b9c] bg-[#0b2148] px-3 py-2 text-sm font-medium text-[#d8e7ff] transition hover:bg-[#11305f] disabled:opacity-50 sm:px-4"
                         >
                             <Upload class="size-4" />
                             {{
-                                importFunnelForm.processing
-                                    ? 'Importando...'
-                                    : 'Importar funil'
+                                isImportPreviewLoading
+                                    ? 'Analisando...'
+                                    : importFunnelForm.processing
+                                      ? 'Importando...'
+                                      : 'Importar funil'
                             }}
                         </button>
                         <button
                             @click="openCreateFunnelModal"
                             :disabled="!canCreateFunnel"
-                            class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-[#2a67d9] to-[#3f88ff] px-5 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                            class="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2a67d9] to-[#3f88ff] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5"
                         >
                             <Plus class="size-4" />
                             {{
@@ -738,7 +984,9 @@ function submitShareFunnel(): void {
             <section
                 class="border-b border-[#183764] bg-[#07132dd9] px-5 py-4 md:px-8"
             >
-                <div class="flex w-full items-center justify-between gap-6">
+                <div
+                    class="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6"
+                >
                     <div class="flex items-center gap-2 text-lg text-[#c6ddff]">
                         <ListFilter class="size-4 text-[#8eb5f7]" />
                         <span class="font-medium">Mais recentes</span>
@@ -756,11 +1004,11 @@ function submitShareFunnel(): void {
                     </div>
 
                     <div
-                        class="flex rounded-full border border-[#2b4d87] bg-[#0a2147] p-1"
+                        class="grid w-full grid-cols-2 rounded-xl border border-[#2b4d87] bg-[#0a2147] p-1 sm:w-auto sm:rounded-full"
                     >
                         <button
                             @click="activeTab = 'mine'"
-                            class="rounded-full px-5 py-1.5 text-sm"
+                            class="rounded-lg px-3 py-1.5 text-sm sm:rounded-full sm:px-5"
                             :class="
                                 activeTab === 'mine'
                                     ? 'bg-[#15386f] font-medium text-[#d2e4ff]'
@@ -771,7 +1019,7 @@ function submitShareFunnel(): void {
                         </button>
                         <button
                             @click="activeTab = 'shared'"
-                            class="rounded-full px-5 py-1.5 text-sm"
+                            class="rounded-lg px-3 py-1.5 text-sm sm:rounded-full sm:px-5"
                             :class="
                                 activeTab === 'shared'
                                     ? 'bg-[#15386f] font-medium text-[#d2e4ff]'
@@ -782,10 +1030,12 @@ function submitShareFunnel(): void {
                         </button>
                     </div>
 
-                    <div class="flex items-center gap-2 text-[#9bb1da]">
+                    <div
+                        class="flex w-full items-center gap-2 text-[#9bb1da] lg:w-auto"
+                    >
                         <input
                             v-model="searchQuery"
-                            class="w-48 rounded-full bg-[#0c2349] px-3 py-1.5 text-sm italic outline-none placeholder:text-[#8ba5d6]"
+                            class="min-w-0 flex-1 rounded-full bg-[#0c2349] px-3 py-1.5 text-sm italic outline-none placeholder:text-[#8ba5d6] lg:w-48 lg:flex-none"
                             placeholder="Buscar funil..."
                         />
                         <Search class="size-4 text-[#cde0ff]" />
@@ -849,7 +1099,9 @@ function submitShareFunnel(): void {
                                         {{ getFunnelConversion(funnel) }}
                                     </span>
                                 </div>
-                                <div class="mt-3 flex items-center gap-2">
+                                <div
+                                    class="mt-3 flex flex-wrap items-center gap-2"
+                                >
                                     <Link
                                         :href="
                                             FunnelController.builder(funnel.id)
@@ -1080,10 +1332,16 @@ function submitShareFunnel(): void {
                             placeholder="Titulo do seu funil..."
                         />
                         <p
-                            v-if="createFunnelForm.errors.name"
+                            v-if="
+                                createFunnelForm.errors.name ||
+                                aiFunnelForm.errors.name
+                            "
                             class="-mt-1 text-xs text-[#cf3451]"
                         >
-                            {{ createFunnelForm.errors.name }}
+                            {{
+                                createFunnelForm.errors.name ||
+                                aiFunnelForm.errors.name
+                            }}
                         </p>
                         <p
                             v-if="createFunnelForm.errors.template_id"
@@ -1098,7 +1356,42 @@ function submitShareFunnel(): void {
                             {{ createFunnelForm.errors.stages }}
                         </p>
 
+                        <div
+                            class="grid grid-cols-2 gap-1 rounded-xl border border-[#d6dbe6] bg-[#eef1f6] p-1"
+                            data-testid="funnel-creation-modes"
+                        >
+                            <button
+                                type="button"
+                                data-testid="creation-mode-template"
+                                class="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition"
+                                :class="
+                                    creationMode === 'template'
+                                        ? 'bg-white text-[#10203d] shadow-sm'
+                                        : 'text-[#65718a] hover:text-[#253550]'
+                                "
+                                @click="setCreationMode('template')"
+                            >
+                                <LayoutTemplate class="size-4" />
+                                Usar template
+                            </button>
+                            <button
+                                type="button"
+                                data-testid="creation-mode-ai"
+                                class="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition"
+                                :class="
+                                    creationMode === 'ai'
+                                        ? 'bg-[#10203d] text-white shadow-sm'
+                                        : 'text-[#65718a] hover:text-[#253550]'
+                                "
+                                @click="setCreationMode('ai')"
+                            >
+                                <WandSparkles class="size-4" />
+                                Criar com IA
+                            </button>
+                        </div>
+
                         <section
+                            v-if="creationMode === 'template'"
                             class="rounded-xl border border-[#d6dbe6] bg-[#f5f6f8] p-2.5"
                         >
                             <div
@@ -1167,116 +1460,138 @@ function submitShareFunnel(): void {
                                         Em branco
                                     </p>
                                 </button>
-                                <button
+                                <div
                                     v-for="template in availableTemplates"
                                     :key="template.id"
-                                    :data-testid="`template-card-${template.id}`"
-                                    @click="selectTemplate(String(template.id))"
-                                    class="rounded-lg border bg-white p-1 text-left transition"
-                                    :class="
-                                        selectedTemplateId ===
-                                        String(template.id)
-                                            ? 'border-[#3f82ff] shadow-[0_0_0_1px_#3f82ff]'
-                                            : 'border-[#d4dbe8]'
-                                    "
+                                    class="group relative min-w-0"
                                 >
-                                    <div
-                                        class="relative mb-1 overflow-hidden rounded-md border border-[#e3e7ef] bg-[linear-gradient(180deg,#ffffff_0%,#f3f5fa_100%)] p-2"
+                                    <button
+                                        type="button"
+                                        :data-testid="`template-card-${template.id}`"
+                                        @click="
+                                            selectTemplate(String(template.id))
+                                        "
+                                        class="w-full rounded-lg border bg-white p-1 text-left transition"
+                                        :class="
+                                            selectedTemplateId ===
+                                            String(template.id)
+                                                ? 'border-[#3f82ff] shadow-[0_0_0_1px_#3f82ff]'
+                                                : 'border-[#d4dbe8]'
+                                        "
                                     >
-                                        <img
-                                            v-if="template.thumbnail_path"
-                                            :src="template.thumbnail_path"
-                                            alt="Thumbnail do template"
-                                            class="mb-2 h-24 w-full rounded-md object-cover"
-                                        />
                                         <div
-                                            v-if="
-                                                selectedTemplateId ===
-                                                String(template.id)
-                                            "
-                                            class="absolute top-1.5 left-1.5 h-5 w-5 rounded-full bg-[#2f6de2]"
-                                        />
-                                        <div
-                                            class="mb-2 flex items-center justify-between gap-2"
+                                            class="relative mb-1 overflow-hidden rounded-md border border-[#e3e7ef] bg-[linear-gradient(180deg,#ffffff_0%,#f3f5fa_100%)] p-2"
                                         >
-                                            <span
-                                                class="rounded-full px-2 py-0.5 text-[9px] tracking-[0.12em] text-white uppercase"
+                                            <img
+                                                v-if="template.thumbnail_path"
+                                                :src="template.thumbnail_path"
+                                                alt="Thumbnail do template"
+                                                class="mb-2 h-24 w-full rounded-md object-cover"
+                                            />
+                                            <div
+                                                v-if="
+                                                    selectedTemplateId ===
+                                                    String(template.id)
+                                                "
+                                                class="absolute top-1.5 left-1.5 h-5 w-5 rounded-full bg-[#2f6de2]"
+                                            />
+                                            <div
+                                                class="mb-2 flex items-center justify-between gap-2"
+                                            >
+                                                <span
+                                                    class="rounded-full px-2 py-0.5 text-[9px] tracking-[0.12em] text-white uppercase"
+                                                    :style="{
+                                                        backgroundColor:
+                                                            template.preview
+                                                                .accentColor,
+                                                    }"
+                                                >
+                                                    {{ template.preview.badge }}
+                                                </span>
+                                                <span
+                                                    class="text-[10px] text-[#5d6a81]"
+                                                >
+                                                    v{{ template.version }} ·
+                                                    {{ template.stage_count }}
+                                                    etapas
+                                                </span>
+                                            </div>
+                                            <div
+                                                class="mb-2 flex flex-wrap gap-1"
+                                            >
+                                                <span
+                                                    v-if="template.is_premium"
+                                                    class="inline-flex items-center gap-1 rounded-full bg-[#fff1d6] px-2 py-0.5 text-[9px] font-semibold tracking-[0.08em] text-[#9f6500] uppercase"
+                                                >
+                                                    <Crown class="size-3" />
+                                                    Premium
+                                                </span>
+                                                <span
+                                                    class="rounded-full bg-[#eef3fb] px-2 py-0.5 text-[9px] text-[#53627c]"
+                                                >
+                                                    {{
+                                                        template.is_system
+                                                            ? 'Sistema'
+                                                            : 'Meu template'
+                                                    }}
+                                                </span>
+                                                <span
+                                                    v-if="template.category"
+                                                    class="rounded-full bg-[#eef3fb] px-2 py-0.5 text-[9px] text-[#53627c]"
+                                                >
+                                                    {{ template.category }}
+                                                </span>
+                                            </div>
+                                            <div
+                                                class="mb-2 h-1 rounded"
                                                 :style="{
                                                     backgroundColor:
                                                         template.preview
                                                             .accentColor,
                                                 }"
-                                            >
-                                                {{ template.preview.badge }}
-                                            </span>
-                                            <span
-                                                class="text-[10px] text-[#5d6a81]"
-                                            >
-                                                v{{ template.version }} ·
-                                                {{
-                                                    template.stage_count
-                                                }}
-                                                etapas
-                                            </span>
-                                        </div>
-                                        <div class="mb-2 flex flex-wrap gap-1">
-                                            <span
-                                                v-if="template.is_premium"
-                                                class="inline-flex items-center gap-1 rounded-full bg-[#fff1d6] px-2 py-0.5 text-[9px] font-semibold tracking-[0.08em] text-[#9f6500] uppercase"
-                                            >
-                                                <Crown class="size-3" />
-                                                Premium
-                                            </span>
-                                            <span
-                                                class="rounded-full bg-[#eef3fb] px-2 py-0.5 text-[9px] text-[#53627c]"
+                                            />
+                                            <p
+                                                class="line-clamp-2 min-h-8 text-[11px] font-medium text-[#0f172a]"
                                             >
                                                 {{
-                                                    template.is_system
-                                                        ? 'Sistema'
-                                                        : 'Meu template'
+                                                    template.preview.headline ||
+                                                    template.description ||
+                                                    'Template pronto para acelerar a criacao do funil.'
                                                 }}
-                                            </span>
-                                            <span
-                                                v-if="template.category"
-                                                class="rounded-full bg-[#eef3fb] px-2 py-0.5 text-[9px] text-[#53627c]"
+                                            </p>
+                                            <div
+                                                class="mt-2 flex flex-wrap gap-1"
                                             >
-                                                {{ template.category }}
-                                            </span>
+                                                <span
+                                                    v-for="chip in template
+                                                        .preview.chips"
+                                                    :key="chip"
+                                                    class="rounded-full bg-[#eef3fb] px-2 py-0.5 text-[9px] text-[#53627c]"
+                                                >
+                                                    {{ chip }}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div
-                                            class="mb-2 h-1 rounded"
-                                            :style="{
-                                                backgroundColor:
-                                                    template.preview
-                                                        .accentColor,
-                                            }"
-                                        />
                                         <p
-                                            class="line-clamp-2 min-h-8 text-[11px] font-medium text-[#0f172a]"
+                                            class="text-center text-[11px] font-medium text-[#0f172a]"
                                         >
-                                            {{
-                                                template.preview.headline ||
-                                                template.description ||
-                                                'Template pronto para acelerar a criacao do funil.'
-                                            }}
+                                            {{ template.name }}
                                         </p>
-                                        <div class="mt-2 flex flex-wrap gap-1">
-                                            <span
-                                                v-for="chip in template.preview
-                                                    .chips"
-                                                :key="chip"
-                                                class="rounded-full bg-[#eef3fb] px-2 py-0.5 text-[9px] text-[#53627c]"
-                                            >
-                                                {{ chip }}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <p
-                                        class="text-center text-[11px] font-medium text-[#0f172a]"
+                                    </button>
+                                    <button
+                                        v-if="!template.is_system"
+                                        type="button"
+                                        :data-testid="`delete-template-${template.id}`"
+                                        :aria-label="`Excluir template ${template.name}`"
+                                        title="Excluir template"
+                                        class="absolute top-2 right-2 z-10 grid size-7 place-items-center rounded-full border border-rose-200 bg-white/95 text-rose-500 opacity-0 shadow-sm transition group-hover:opacity-100 hover:bg-rose-50 focus:opacity-100"
+                                        @click.stop="
+                                            openDeleteTemplateModal(template)
+                                        "
                                     >
-                                        {{ template.name }}
-                                    </p>
-                                </button>
+                                        <Trash2 class="size-3.5" />
+                                    </button>
+                                </div>
                             </div>
                             <p
                                 v-if="availableTemplates.length === 0"
@@ -1287,38 +1602,586 @@ function submitShareFunnel(): void {
                         </section>
 
                         <section
-                            class="rounded-xl border border-[#d6dbe6] bg-[#f5f6f8] p-2.5"
+                            v-else
+                            data-testid="ai-creation-panel"
+                            class="rounded-2xl border border-[#c9d7ef] bg-[linear-gradient(145deg,#f8faff_0%,#eef4ff_100%)] p-4"
                         >
-                            <div
-                                class="mb-1.5 flex items-center justify-between text-[11px] text-[#41506b]"
+                            <div class="mb-3 flex items-start gap-3">
+                                <div
+                                    class="grid size-9 shrink-0 place-items-center rounded-xl bg-[#10203d] text-white shadow-sm"
+                                >
+                                    <WandSparkles class="size-4" />
+                                </div>
+                                <div>
+                                    <p
+                                        class="text-sm font-semibold text-[#10203d]"
+                                    >
+                                        Descreva o resultado que deseja
+                                    </p>
+                                    <p
+                                        class="mt-0.5 text-[11px] leading-relaxed text-[#65718a]"
+                                    >
+                                        A IA define a jornada e a quantidade
+                                        ideal de etapas. Você revisa tudo no
+                                        construtor antes de publicar.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                <label
+                                    class="space-y-1 text-[10px] text-[#53627c]"
+                                >
+                                    <span>Objetivo principal</span>
+                                    <select
+                                        v-model="aiFunnelForm.goal_type"
+                                        data-testid="ai-funnel-goal-type"
+                                        class="w-full rounded-lg border border-[#cfd6e3] bg-white px-2.5 py-2 text-[11px] outline-none focus:border-[#5b8fff]"
+                                    >
+                                        <option value="lead_capture">
+                                            Captar contatos
+                                        </option>
+                                        <option value="qualification">
+                                            Qualificar oportunidades
+                                        </option>
+                                        <option value="diagnosis">
+                                            Entregar diagnóstico
+                                        </option>
+                                        <option value="quote">
+                                            Solicitar orçamento
+                                        </option>
+                                        <option value="application">
+                                            Receber aplicações
+                                        </option>
+                                        <option value="quiz">
+                                            Criar quiz interativo
+                                        </option>
+                                    </select>
+                                </label>
+                                <label
+                                    class="space-y-1 text-[10px] text-[#53627c]"
+                                >
+                                    <span>Ação esperada no final</span>
+                                    <select
+                                        v-model="aiFunnelForm.desired_action"
+                                        data-testid="ai-funnel-desired-action"
+                                        class="w-full rounded-lg border border-[#cfd6e3] bg-white px-2.5 py-2 text-[11px] outline-none focus:border-[#5b8fff]"
+                                    >
+                                        <option value="receive_result">
+                                            Receber um resultado
+                                        </option>
+                                        <option value="contact">
+                                            Pedir contato
+                                        </option>
+                                        <option value="whatsapp">
+                                            Conversar no WhatsApp
+                                        </option>
+                                        <option value="schedule">
+                                            Agendar uma conversa
+                                        </option>
+                                        <option value="purchase">
+                                            Avançar para compra
+                                        </option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label
+                                class="mt-2 block space-y-1 text-[10px] text-[#53627c]"
                             >
-                                <p class="inline-flex items-center gap-1.5">
-                                    <WandSparkles class="size-3.5" />
-                                    Utilizar auxilio de IA
-                                </p>
-                                <span>{{ aiCharacterCount }}/280</span>
+                                <span>O que você oferece?</span>
+                                <input
+                                    v-model="aiFunnelForm.offer"
+                                    data-testid="ai-funnel-offer"
+                                    maxlength="240"
+                                    class="w-full rounded-lg border border-[#cfd6e3] bg-white px-2.5 py-2 text-[11px] outline-none placeholder:text-[#8a95a9] focus:border-[#5b8fff]"
+                                    placeholder="Ex.: consultoria financeira para pequenas empresas"
+                                />
+                            </label>
+                            <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                                <label
+                                    class="space-y-1 text-[10px] text-[#53627c]"
+                                >
+                                    <span>Principal dor ou necessidade</span>
+                                    <input
+                                        v-model="aiFunnelForm.pain_point"
+                                        maxlength="300"
+                                        class="w-full rounded-lg border border-[#cfd6e3] bg-white px-2.5 py-2 text-[11px] outline-none placeholder:text-[#8a95a9] focus:border-[#5b8fff]"
+                                        placeholder="Ex.: falta de clareza sobre o fluxo de caixa"
+                                    />
+                                </label>
+                                <label
+                                    class="space-y-1 text-[10px] text-[#53627c]"
+                                >
+                                    <span>Público-alvo</span>
+                                    <input
+                                        v-model="aiFunnelForm.audience"
+                                        maxlength="240"
+                                        class="w-full rounded-lg border border-[#cfd6e3] bg-white px-2.5 py-2 text-[11px] outline-none placeholder:text-[#8a95a9] focus:border-[#5b8fff]"
+                                        placeholder="Ex.: donos de pequenas empresas"
+                                    />
+                                </label>
+                            </div>
+                            <div
+                                class="mt-2 mb-1 flex items-center justify-between text-[10px] text-[#53627c]"
+                            >
+                                <span
+                                    >Contexto adicional
+                                    <span class="text-[#8a95a9]"
+                                        >(opcional)</span
+                                    ></span
+                                >
+                                <span>{{ aiCharacterCount }}/1000</span>
                             </div>
                             <textarea
-                                v-model="aiTopic"
-                                maxlength="280"
-                                class="min-h-16 w-full resize-none rounded-lg border border-[#cfd6e3] bg-transparent px-2.5 py-2 text-[11px] outline-none placeholder:text-[#8a95a9] placeholder:italic focus:border-[#5b8fff]"
-                                placeholder="Descreva o tema do seu funil..."
+                                v-model="aiFunnelForm.prompt"
+                                data-testid="ai-funnel-prompt"
+                                maxlength="1000"
+                                class="min-h-20 w-full resize-none rounded-xl border border-[#bfcde5] bg-white px-3 py-2.5 text-xs leading-relaxed outline-none placeholder:text-[#8a95a9] focus:border-[#5b8fff] focus:ring-2 focus:ring-[#5b8fff]/10"
+                                placeholder="Diferenciais, restrições ou informações que a IA deve considerar."
                             />
+                            <p
+                                v-if="!aiGenerationEnabled"
+                                class="mt-1 text-[10px] text-[#8a5b16]"
+                            >
+                                Recurso aguardando a configuração da chave Groq.
+                            </p>
+
+                            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                                <label
+                                    class="space-y-1 text-[10px] text-[#53627c]"
+                                >
+                                    <span>Tom da comunicação</span>
+                                    <select
+                                        v-model="aiFunnelForm.tone"
+                                        class="w-full rounded-lg border border-[#cfd6e3] bg-white px-2.5 py-2 text-[11px] outline-none focus:border-[#5b8fff]"
+                                    >
+                                        <option value="direto">Direto</option>
+                                        <option value="consultivo">
+                                            Consultivo
+                                        </option>
+                                        <option value="educativo">
+                                            Educativo
+                                        </option>
+                                        <option value="premium">Premium</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div
+                                class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d6e2f5] bg-white/70 px-3 py-2.5"
+                            >
+                                <span
+                                    class="inline-flex items-center gap-1.5 text-[10px] font-medium text-[#38537f]"
+                                >
+                                    <Sparkles class="size-3.5 text-[#3d7ee8]" />
+                                    Etapas definidas automaticamente
+                                </span>
+                                <label
+                                    class="inline-flex items-center gap-2 text-[10px] text-[#53627c]"
+                                >
+                                    Meta de leads
+                                    <input
+                                        v-model.number="
+                                            aiFunnelForm.target_leads
+                                        "
+                                        type="number"
+                                        min="1"
+                                        max="1000000"
+                                        class="w-24 rounded-lg border border-[#cfd6e3] bg-white px-2 py-1.5 text-[11px] outline-none focus:border-[#5b8fff]"
+                                    />
+                                </label>
+                            </div>
+                            <p
+                                class="mt-2 text-[10px] leading-relaxed text-[#68758c]"
+                            >
+                                Será criado somente um funil em rascunho. Salvar
+                                como template será uma decisão separada no
+                                construtor.
+                            </p>
+                            <p
+                                v-if="
+                                    aiFunnelForm.errors.goal_type ||
+                                    aiFunnelForm.errors.offer ||
+                                    aiFunnelForm.errors.pain_point ||
+                                    aiFunnelForm.errors.desired_action ||
+                                    aiFunnelForm.errors.prompt ||
+                                    aiFunnelForm.errors.audience ||
+                                    aiFunnelForm.errors.tone ||
+                                    aiFunnelForm.errors.target_leads
+                                "
+                                class="mt-1 text-xs text-[#cf3451]"
+                            >
+                                {{
+                                    aiFunnelForm.errors.goal_type ||
+                                    aiFunnelForm.errors.offer ||
+                                    aiFunnelForm.errors.pain_point ||
+                                    aiFunnelForm.errors.desired_action ||
+                                    aiFunnelForm.errors.prompt ||
+                                    aiFunnelForm.errors.audience ||
+                                    aiFunnelForm.errors.tone ||
+                                    aiFunnelForm.errors.target_leads
+                                }}
+                            </p>
                         </section>
                     </div>
 
                     <button
                         data-testid="create-funnel-submit"
                         @click="submitCreateFunnel"
-                        :disabled="createFunnelForm.processing"
+                        :disabled="
+                            createFunnelForm.processing ||
+                            aiFunnelForm.processing
+                        "
                         class="mt-3 w-full rounded-lg bg-[#020b1f] py-2 text-xs font-medium text-white transition hover:bg-[#07163a] disabled:cursor-not-allowed disabled:opacity-70"
                     >
                         {{
-                            createFunnelForm.processing
-                                ? 'Criando funil...'
-                                : 'Continuar'
+                            aiFunnelForm.processing
+                                ? 'Planejando e escrevendo seu funil...'
+                                : createFunnelForm.processing
+                                  ? 'Criando funil...'
+                                  : isAiMode
+                                    ? 'Gerar funil com IA'
+                                    : 'Criar funil'
                         }}
                     </button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog
+            :open="isImportPreviewDialogOpen"
+            @update:open="
+                $event
+                    ? (isImportPreviewDialogOpen = true)
+                    : closeImportPreviewDialog()
+            "
+        >
+            <DialogContent
+                :show-close-button="false"
+                class="max-h-[90dvh] max-w-2xl overflow-y-auto border-[#d8dce4] bg-[#f7f8fa] p-0 text-[#0f172a]"
+                data-testid="import-funnel-preview-dialog"
+            >
+                <div class="p-4 sm:p-6">
+                    <div class="mb-4 flex items-start justify-between gap-3">
+                        <div>
+                            <DialogTitle
+                                class="text-lg font-semibold sm:text-xl"
+                            >
+                                Revisar importação
+                            </DialogTitle>
+                            <DialogDescription
+                                class="mt-1 text-xs leading-relaxed text-[#65718a] sm:text-sm"
+                            >
+                                Confira o conteúdo convertido antes de criar o
+                                funil. Nenhum script do pacote será executado.
+                            </DialogDescription>
+                        </div>
+                        <button
+                            type="button"
+                            class="rounded-lg p-1.5 text-[#526079] transition hover:bg-[#e9edf4]"
+                            :disabled="importFunnelForm.processing"
+                            aria-label="Fechar pré-visualização"
+                            @click="closeImportPreviewDialog"
+                        >
+                            <X class="size-4" />
+                        </button>
+                    </div>
+
+                    <div
+                        v-if="isImportPreviewLoading"
+                        class="flex min-h-56 flex-col items-center justify-center gap-3 rounded-2xl border border-[#d8e1ef] bg-white text-center"
+                        data-testid="import-funnel-preview-loading"
+                    >
+                        <LoaderCircle
+                            class="size-7 animate-spin text-[#2f6de2]"
+                        />
+                        <div>
+                            <p class="text-sm font-semibold text-[#22334f]">
+                                Analisando o pacote com segurança
+                            </p>
+                            <p class="mt-1 text-xs text-[#71809a]">
+                                Validando etapas, componentes e arquivos
+                                ignorados.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-else-if="importPreviewError"
+                        class="rounded-2xl border border-rose-300 bg-rose-50 p-4"
+                        data-testid="import-funnel-preview-error"
+                    >
+                        <p class="text-sm font-semibold text-rose-800">
+                            Não foi possível preparar a importação
+                        </p>
+                        <p class="mt-1 text-xs leading-relaxed text-rose-700">
+                            {{ importPreviewError }}
+                        </p>
+                        <button
+                            type="button"
+                            class="mt-4 rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-800 transition hover:bg-rose-100"
+                            @click="triggerImportFunnel"
+                        >
+                            Escolher outro arquivo
+                        </button>
+                    </div>
+
+                    <div v-else-if="importPreview" class="space-y-4">
+                        <section
+                            class="rounded-2xl border border-[#d8e1ef] bg-white p-4"
+                        >
+                            <div
+                                class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                            >
+                                <div class="min-w-0">
+                                    <span
+                                        class="inline-flex items-center gap-1.5 rounded-full bg-[#e8f0ff] px-2.5 py-1 text-[10px] font-semibold tracking-wide text-[#285eb8] uppercase"
+                                    >
+                                        <FileArchive class="size-3" />
+                                        {{ importPreview.source }}
+                                    </span>
+                                    <h3
+                                        class="mt-2 truncate text-base font-semibold text-[#17243b]"
+                                    >
+                                        {{ importPreview.name }}
+                                    </h3>
+                                    <p
+                                        v-if="importPreview.description"
+                                        class="mt-1 line-clamp-2 text-xs text-[#65718a]"
+                                    >
+                                        {{ importPreview.description }}
+                                    </p>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2 sm:min-w-64">
+                                    <div
+                                        class="rounded-xl bg-[#f3f6fb] px-2 py-2 text-center"
+                                    >
+                                        <strong
+                                            class="block text-base text-[#203657]"
+                                            >{{
+                                                importPreview.stage_count
+                                            }}</strong
+                                        >
+                                        <span class="text-[10px] text-[#71809a]"
+                                            >Etapas</span
+                                        >
+                                    </div>
+                                    <div
+                                        class="rounded-xl bg-[#f3f6fb] px-2 py-2 text-center"
+                                    >
+                                        <strong
+                                            class="block text-base text-[#203657]"
+                                            >{{
+                                                importPreview.block_count
+                                            }}</strong
+                                        >
+                                        <span class="text-[10px] text-[#71809a]"
+                                            >Blocos</span
+                                        >
+                                    </div>
+                                    <div
+                                        class="rounded-xl bg-[#f3f6fb] px-2 py-2 text-center"
+                                    >
+                                        <strong
+                                            class="block text-base text-[#203657]"
+                                            >{{
+                                                importPreview.image_count
+                                            }}</strong
+                                        >
+                                        <span class="text-[10px] text-[#71809a]"
+                                            >Imagens</span
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 flex flex-wrap gap-1.5">
+                                <span
+                                    v-for="(
+                                        count, type
+                                    ) in importPreview.component_counts"
+                                    :key="type"
+                                    class="rounded-full border border-[#d8e1ef] bg-[#f8fafc] px-2.5 py-1 text-[10px] text-[#526079]"
+                                >
+                                    {{ count }} {{ importComponentLabel(type) }}
+                                </span>
+                            </div>
+                        </section>
+
+                        <section class="grid gap-3 sm:grid-cols-2">
+                            <label class="space-y-1.5 text-xs text-[#526079]">
+                                <span class="font-medium text-[#34425b]"
+                                    >Nome do novo funil</span
+                                >
+                                <input
+                                    v-model="importFunnelForm.name"
+                                    maxlength="120"
+                                    data-testid="import-funnel-name"
+                                    class="w-full rounded-xl border border-[#cfd6e3] bg-white px-3 py-2.5 text-sm text-[#17243b] outline-none focus:border-[#5b8fff] focus:ring-2 focus:ring-[#5b8fff]/10"
+                                />
+                            </label>
+                            <label class="space-y-1.5 text-xs text-[#526079]">
+                                <span class="font-medium text-[#34425b]"
+                                    >Idioma do conteúdo</span
+                                >
+                                <select
+                                    v-model="importFunnelForm.language"
+                                    data-testid="import-funnel-language"
+                                    class="w-full rounded-xl border border-[#cfd6e3] bg-white px-3 py-2.5 text-sm text-[#17243b] outline-none focus:border-[#5b8fff] focus:ring-2 focus:ring-[#5b8fff]/10"
+                                >
+                                    <option
+                                        v-for="language in importPreview.languages"
+                                        :key="language.value"
+                                        :value="language.value"
+                                    >
+                                        {{ language.label }}
+                                    </option>
+                                </select>
+                            </label>
+                        </section>
+
+                        <label
+                            v-if="importPreview.image_count > 0"
+                            class="flex cursor-pointer items-start gap-3 rounded-2xl border border-[#cfe0fb] bg-[#edf4ff] p-3.5"
+                        >
+                            <input
+                                v-model="importFunnelForm.copy_media"
+                                type="checkbox"
+                                class="mt-0.5 size-4 accent-[#2f6de2]"
+                                data-testid="import-funnel-copy-media"
+                            />
+                            <span class="min-w-0">
+                                <span
+                                    class="flex items-center gap-1.5 text-xs font-semibold text-[#244f91]"
+                                >
+                                    <Image class="size-3.5" />
+                                    Copiar imagens para o InovaForm
+                                </span>
+                                <span
+                                    class="mt-1 block text-[11px] leading-relaxed text-[#526f9c]"
+                                >
+                                    Use apenas se você tem autorização para
+                                    reutilizar os arquivos. Sem essa opção, os
+                                    links externos serão preservados.
+                                </span>
+                            </span>
+                        </label>
+
+                        <section
+                            v-if="importPreview.warnings.length"
+                            class="rounded-2xl border border-amber-300 bg-amber-50 p-3.5"
+                        >
+                            <div
+                                class="flex items-center gap-2 text-xs font-semibold text-amber-900"
+                            >
+                                <ShieldCheck class="size-4" />
+                                Proteções aplicadas
+                            </div>
+                            <ul
+                                class="mt-2 space-y-1.5 pl-4 text-[11px] leading-relaxed text-amber-800"
+                            >
+                                <li
+                                    v-for="warning in importPreview.warnings"
+                                    :key="warning"
+                                    class="list-disc"
+                                >
+                                    {{ warning }}
+                                </li>
+                            </ul>
+                        </section>
+
+                        <p
+                            v-if="
+                                importFunnelForm.errors.token ||
+                                importFunnelForm.errors.language ||
+                                importFunnelForm.errors.name
+                            "
+                            class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700"
+                        >
+                            {{
+                                importFunnelForm.errors.token ||
+                                importFunnelForm.errors.language ||
+                                importFunnelForm.errors.name
+                            }}
+                        </p>
+
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                class="rounded-xl border border-[#cfd6e3] bg-white px-4 py-2.5 text-xs font-semibold text-[#34425b] transition hover:bg-[#eef1f6] disabled:opacity-60"
+                                :disabled="importFunnelForm.processing"
+                                @click="closeImportPreviewDialog"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                data-testid="confirm-funnel-import"
+                                class="rounded-xl bg-[#12254a] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#183566] disabled:cursor-not-allowed disabled:opacity-60"
+                                :disabled="
+                                    importFunnelForm.processing ||
+                                    importFunnelForm.name.trim() === ''
+                                "
+                                @click="confirmFunnelImport"
+                            >
+                                {{
+                                    importFunnelForm.processing
+                                        ? 'Criando funil...'
+                                        : 'Importar como rascunho'
+                                }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        <Dialog
+            :open="isDeleteTemplateModalOpen"
+            @update:open="
+                $event
+                    ? (isDeleteTemplateModalOpen = true)
+                    : closeDeleteTemplateModal()
+            "
+        >
+            <DialogContent
+                :show-close-button="false"
+                class="max-w-sm border-[#d8dce4] bg-[#f7f8fa] p-0 text-[#0f172a]"
+                data-testid="delete-template-dialog"
+            >
+                <div class="p-5">
+                    <DialogTitle class="text-lg font-semibold">
+                        Excluir template?
+                    </DialogTitle>
+                    <DialogDescription class="mt-2 text-sm text-[#65718a]">
+                        O template
+                        <strong class="font-semibold text-[#253550]">{{
+                            templatePendingDeletion?.name
+                        }}</strong>
+                        será removido da sua biblioteca. O funil usado para
+                        criá-lo não será apagado.
+                    </DialogDescription>
+                    <div class="mt-5 grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg border border-[#cfd6e3] bg-white px-3 py-2 text-xs font-medium text-[#34425b] transition hover:bg-[#eef1f6] disabled:opacity-60"
+                            :disabled="deleteTemplateForm.processing"
+                            @click="closeDeleteTemplateModal"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="confirm-delete-template"
+                            class="rounded-lg bg-[#b4233e] px-3 py-2 text-xs font-medium text-white transition hover:bg-[#961d34] disabled:opacity-60"
+                            :disabled="deleteTemplateForm.processing"
+                            @click="deleteTemplate"
+                        >
+                            {{
+                                deleteTemplateForm.processing
+                                    ? 'Excluindo...'
+                                    : 'Excluir template'
+                            }}
+                        </button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

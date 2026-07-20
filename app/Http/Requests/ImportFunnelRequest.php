@@ -17,8 +17,11 @@ class ImportFunnelRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file' => ['required', 'file', 'max:2048', 'mimetypes:application/json,text/plain'],
+            'file' => ['required_without:token', 'nullable', 'file', 'max:2048', 'mimetypes:application/json,text/plain'],
+            'token' => ['required_without:file', 'nullable', 'string', 'size:64'],
+            'language' => ['nullable', 'string', 'max:40'],
             'name' => ['nullable', 'string', 'max:120'],
+            'copy_media' => ['nullable', 'boolean'],
         ];
     }
 
@@ -28,8 +31,9 @@ class ImportFunnelRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'file.required' => 'Envie um arquivo JSON para importar o funil.',
+            'file.required_without' => 'Envie um arquivo JSON ou faça a pré-visualização do pacote novamente.',
             'file.mimetypes' => 'O arquivo de importacao deve estar em formato JSON.',
+            'token.required_without' => 'A pré-visualização da importação é obrigatória para pacotes ZIP.',
         ];
     }
 }

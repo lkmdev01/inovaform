@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 1 seconds
+Output:
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, reactive } from 'vue';
@@ -98,17 +101,17 @@ function formatDate(value: string | null): string {
 <template>
     <Head :title="`Lead #${props.lead.id}`" />
 
-    <div class="min-h-screen bg-[#040d22] p-5 text-[#d8e7ff]">
+    <div class="min-h-screen bg-[#040d22] p-3 text-[#d8e7ff] sm:p-5">
         <div class="mx-auto max-w-6xl space-y-5">
-            <div class="flex items-center justify-between gap-3">
-                <div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
                     <p class="text-sm text-[#88a8df]">Lead detalhado</p>
-                    <h1 class="text-3xl font-semibold text-white">{{ props.lead.lead_name || 'Sem nome' }}</h1>
+                    <h1 class="break-words text-2xl font-semibold text-white sm:text-3xl">{{ props.lead.lead_name || 'Sem nome' }}</h1>
                     <p class="mt-1 text-sm text-[#9dbcf0]">
                         {{ props.lead.funnel.name || 'Sem funil' }}<span v-if="props.lead.funnel.slug"> / {{ props.lead.funnel.slug }}</span>
                     </p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="grid grid-cols-2 items-center gap-2 sm:flex">
                     <Link
                         v-if="props.lead.funnel.id"
                         :href="`/funnels/${props.lead.funnel.id}/leads`"

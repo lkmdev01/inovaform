@@ -91,6 +91,7 @@ class DashboardController extends Controller
                 ->map(static fn ($category): string => (string) $category)
                 ->unique()
                 ->values(),
+            'aiGenerationEnabled' => filled(config('services.groq.api_key')),
             'stats' => [
                 'currentFunnels' => $funnels->count(),
                 'maxFunnels' => $maxFunnels,

@@ -358,6 +358,41 @@ test('funnel owner can save a funnel as a versioned user template', function () 
     expect($templates[1]->schema['preview']['headline'])->toBe('Titulo do template Descricao do template');
 });
 
+test('template owner can delete a personal template without deleting its source funnel', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create();
+    $template = FunnelTemplate::factory()->ownedBy($user)->create([
+        'source_funnel_id' => $funnel->id,
+    ]);
+
+    $this->actingAs($user)
+        ->from(route('dashboard'))
+        ->delete(route('funnels.templates.destroy', $template))
+        ->assertRedirect(route('dashboard'))
+        ->assertSessionHas('status', 'template-deleted');
+
+    $this->assertDatabaseMissing('funnel_templates', ['id' => $template->id]);
+    $this->assertDatabaseHas('funnels', ['id' => $funnel->id]);
+});
+
+test('users cannot delete system templates or templates owned by another user', function () {
+    $user = User::factory()->create();
+    $otherUser = User::factory()->create();
+    $systemTemplate = FunnelTemplate::factory()->create();
+    $otherTemplate = FunnelTemplate::factory()->ownedBy($otherUser)->create();
+
+    $this->actingAs($user)
+        ->delete(route('funnels.templates.destroy', $systemTemplate))
+        ->assertForbidden();
+
+    $this->actingAs($user)
+        ->delete(route('funnels.templates.destroy', $otherTemplate))
+        ->assertForbidden();
+
+    $this->assertDatabaseHas('funnel_templates', ['id' => $systemTemplate->id]);
+    $this->assertDatabaseHas('funnel_templates', ['id' => $otherTemplate->id]);
+});
+
 test('funnel editor can upload media files', function () {
     config()->set('inovaform.media.disk', 'public');
 
@@ -912,6 +947,7 @@ test('funnel owner can save stage builder blocks', function () {
                                     'type' => 'text',
                                     'label' => 'Seu nome',
                                     'placeholder' => 'Digite seu nome',
+                                    'variable_name' => 'nome',
                                     'required' => true,
                                 ],
                                 [
@@ -1033,6 +1069,7 @@ test('funnel owner can save stage builder blocks', function () {
     expect($updatedStage->meta['builder']['title'])->toBe('Titulo da etapa');
     expect($updatedStage->meta['builder']['button_text'])->toBe('Proxima etapa');
     expect($updatedStage->meta['builder']['blocks'])->toHaveCount(9);
+    expect($updatedStage->meta['builder']['blocks'][0]['variable_name'])->toBe('nome');
     expect($updatedStage->meta['builder']['blocks'][1]['type'])->toBe('phone');
     expect($updatedStage->meta['builder']['blocks'][1]['phone_mask'])->toBe('us');
     expect($updatedStage->meta['builder']['blocks'][2]['type'])->toBe('button');

@@ -5,6 +5,7 @@ use App\Models\FunnelSubmission;
 use App\Models\FunnelTemplate;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
@@ -115,6 +116,187 @@ test('dashboard can create a funnel from a selected template', function () {
         ->assertNoJavaScriptErrors();
 });
 
+test('dashboard reveals ai generation options and configuration feedback', function () {
+    config()->set('services.groq.api_key', null);
+    $user = User::factory()->create();
+
+    loginForDashboard($user)
+        ->click('Criar Funil')
+        ->click('[data-testid="creation-mode-ai"]')
+        ->assertVisible('[data-testid="ai-funnel-goal-type"]')
+        ->assertVisible('[data-testid="ai-funnel-desired-action"]')
+        ->type(
+            '[data-testid="ai-funnel-offer"]',
+            'Consultoria financeira para pequenas empresas',
+        )
+        ->type(
+            '[data-testid="ai-funnel-prompt"]',
+            'Crie um quiz para qualificar empresas interessadas em consultoria financeira.',
+        )
+        ->assertSee('Etapas definidas automaticamente')
+        ->assertSee('Meta de leads')
+        ->assertSee('Gerar funil com IA')
+        ->click('[data-testid="create-funnel-submit"]')
+        ->assertSee('A geração por IA ainda não foi configurada pelo administrador.')
+        ->assertNoJavaScriptErrors();
+});
+
+test('dashboard previews an imported funnel before creating it', function () {
+    $user = User::factory()->create();
+    $blueprint = [
+        'name' => 'Funil para prévia',
+        'description' => 'Importação revisada no navegador',
+        'design_settings' => [],
+        'stages' => [
+            [
+                'name' => 'Primeira etapa importada',
+                'meta' => [
+                    'builder' => [
+                        'blocks' => [
+                            [
+                                'id' => 'browser-import-name',
+                                'type' => 'text',
+                                'label' => 'Nome',
+                                'required' => true,
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            [
+                'name' => 'Segunda etapa importada',
+                'meta' => ['builder' => ['blocks' => []]],
+            ],
+        ],
+    ];
+    $payload = json_encode(['schema_version' => 1, 'funnel' => $blueprint], JSON_THROW_ON_ERROR);
+    $token = str_repeat('a', 64);
+    Cache::put('funnel-import-preview:'.hash('sha256', $token), [
+        'user_id' => $user->id,
+        'variants' => [
+            'original' => [
+                'label' => 'Conteúdo original',
+                'blueprint' => $blueprint,
+            ],
+        ],
+    ], now()->addMinutes(15));
+    $previewPayload = json_encode([
+        'token' => $token,
+        'preview' => [
+            'source' => 'Arquivo InovaForm',
+            'name' => 'Funil para prévia',
+            'description' => 'Importação revisada no navegador',
+            'stage_count' => 2,
+            'block_count' => 1,
+            'component_counts' => ['text' => 1],
+            'image_count' => 0,
+            'remote_hosts' => [],
+            'languages' => [['value' => 'original', 'label' => 'Conteúdo original']],
+            'default_language' => 'original',
+            'warnings' => [],
+            'expires_in_minutes' => 15,
+        ],
+    ], JSON_THROW_ON_ERROR);
+    $temporaryPath = tempnam(sys_get_temp_dir(), 'inovaform-browser-import-').'.json';
+    file_put_contents($temporaryPath, $payload);
+
+    try {
+        $page = loginForDashboard($user);
+        $page->script('() => {
+            const originalFetch = window.fetch.bind(window);
+            const previewPayload = '.$previewPayload.';
+            window.fetch = (input, options) => {
+                const url = typeof input === "string" ? input : input.url;
+                if (url.endsWith("/funnels/import/preview")) {
+                    return Promise.resolve(new Response(JSON.stringify(previewPayload), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    }));
+                }
+                return originalFetch(input, options);
+            };
+            return true;
+        }');
+
+        $page
+            ->attach('[data-testid="import-funnel-file"]', $temporaryPath)
+            ->wait(1)
+            ->assertVisible('[data-testid="import-funnel-preview-dialog"]')
+            ->assertSee('Funil para prévia')
+            ->assertSee('2')
+            ->assertSee('Etapas')
+            ->click('[data-testid="confirm-funnel-import"]')
+            ->wait(1)
+            ->assertSee('Primeira etapa importada')
+            ->assertNoJavaScriptErrors();
+    } finally {
+        @unlink($temporaryPath);
+    }
+
+    expect(Funnel::query()->whereBelongsTo($user)->where('name', 'Funil para prévia')->exists())->toBeTrue();
+});
+
+test('dashboard and creation modal remain usable on a mobile viewport', function () {
+    $user = User::factory()->create();
+
+    $page = loginForDashboard($user)
+        ->resize(390, 844)
+        ->assertSee('Painel')
+        ->click('Criar Funil')
+        ->assertVisible('[data-testid="funnel-creation-modes"]')
+        ->assertVisible('[data-testid="create-funnel-submit"]')
+        ->assertNoJavaScriptErrors();
+
+    $metrics = $page->script(<<<'JS'
+        () => {
+            const dialog = document.querySelector('[role="dialog"]');
+
+            if (!(dialog instanceof HTMLElement)) {
+                return null;
+            }
+
+            const rect = dialog.getBoundingClientRect();
+
+            return {
+                viewportWidth: document.documentElement.clientWidth,
+                bodyWidth: document.body.scrollWidth,
+                dialogLeft: rect.left,
+                dialogRight: rect.right,
+                dialogHeight: rect.height,
+                viewportHeight: window.innerHeight,
+            };
+        }
+        JS);
+
+    expect($metrics)->not->toBeNull()
+        ->and($metrics['bodyWidth'])->toBeLessThanOrEqual($metrics['viewportWidth'])
+        ->and($metrics['dialogLeft'])->toBeGreaterThanOrEqual(0)
+        ->and($metrics['dialogRight'])->toBeLessThanOrEqual($metrics['viewportWidth'])
+        ->and($metrics['dialogHeight'])->toBeLessThanOrEqual($metrics['viewportHeight']);
+});
+
+test('dashboard can delete a personal template without deleting its source funnel', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create();
+    $template = FunnelTemplate::factory()->ownedBy($user)->create([
+        'name' => 'Template descartável',
+        'source_funnel_id' => $funnel->id,
+    ]);
+
+    loginForDashboard($user)
+        ->click('Criar Funil')
+        ->click("[data-testid=\"delete-template-{$template->id}\"]")
+        ->assertVisible('[data-testid="delete-template-dialog"]')
+        ->assertSee('O funil usado para criá-lo não será apagado.')
+        ->click('[data-testid="confirm-delete-template"]')
+        ->wait(1)
+        ->assertDontSee('Template descartável')
+        ->assertNoJavaScriptErrors();
+
+    expect(FunnelTemplate::query()->find($template->id))->toBeNull()
+        ->and(Funnel::query()->find($funnel->id))->not->toBeNull();
+});
+
 test('design settings panel scrolls independently within the viewport', function () {
     $user = User::factory()->create();
     $funnel = Funnel::factory()->for($user)->create();
@@ -123,8 +305,8 @@ test('design settings panel scrolls independently within the viewport', function
         ->navigate("/funnels/{$funnel->id}/design")
         ->resize(1280, 640)
         ->assertVisible('[data-testid="design-settings-panel"]')
-        ->click('PUBLICACAO')
-        ->assertSee('Descricao da pagina indisponivel')
+        ->click('CORES')
+        ->assertSee('Escolha uma identidade pronta')
         ->assertNoJavaScriptErrors();
 
     $metrics = $page->script(<<<'JS'
@@ -152,6 +334,56 @@ test('design settings panel scrolls independently within the viewport', function
         ->and($metrics['overflowY'])->toBeIn(['auto', 'scroll'])
         ->and($metrics['scrollHeight'])->toBeGreaterThan($metrics['clientHeight'])
         ->and($metrics['finalScrollTop'])->toBeGreaterThan($metrics['initialScrollTop']);
+});
+
+test('design switches between preview and settings on mobile without changing desktop columns', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create();
+
+    $page = loginForDashboard($user)
+        ->navigate("/funnels/{$funnel->id}/design")
+        ->resize(390, 844)
+        ->assertVisible('[data-testid="design-mobile-panel-nav"]')
+        ->assertVisible('[data-testid="design-preview-theme"]')
+        ->click('[data-testid="design-mobile-panel-settings"]')
+        ->assertVisible('[data-testid="design-settings-panel"]')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('() => document.body.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
+
+    $page->resize(1440, 900)
+        ->assertVisible('[data-testid="design-preview-theme"]')
+        ->assertVisible('[data-testid="design-settings-panel"]')
+        ->assertNoJavaScriptErrors();
+});
+
+test('flow leads and funnel settings stay inside the mobile viewport', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create();
+    $funnel->stages()->create([
+        'name' => 'Etapa móvel',
+        'stage_order' => 1,
+    ]);
+
+    $page = loginForDashboard($user)
+        ->navigate("/funnels/{$funnel->id}/leads")
+        ->resize(390, 844)
+        ->assertSee('Respostas')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('() => document.body.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
+
+    $page->navigate("/funnels/{$funnel->id}/settings")
+        ->assertVisible('[data-testid="save-funnel-settings"]')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('() => document.body.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
+
+    $page->navigate("/funnels/{$funnel->id}/flow")
+        ->assertSee('Auto-organizar')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('() => document.body.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
 });
 
 test('leads page provides working tabs sharing and lead update feedback', function () {
@@ -309,42 +541,43 @@ test('publication settings use local timezone and expose publish lifecycle', fun
     ]);
 
     $page = loginForDashboard($user)
-        ->navigate("/funnels/{$funnel->id}/design")
+        ->navigate("/funnels/{$funnel->id}/settings")
         ->resize(1440, 900)
-        ->assertSee('Rascunho')
-        ->click('PUBLICACAO')
-        ->assertSee('Não configurado')
-        ->assertSee('Ao salvar, será convertido para UTC.');
-
-    $page->click('[data-testid="custom-domain-help-trigger"]')
-        ->assertVisible('[data-testid="custom-domain-help-dialog"]')
-        ->assertSee('Como conectar seu domínio')
-        ->assertSee('CNAME')
-        ->assertSee('Não inclua https://')
-        ->click('[data-testid="custom-domain-help-close"]')
-        ->assertDontSee('Como conectar seu domínio');
+        ->assertVisible('[data-testid="settings-publication-panel"]')
+        ->assertSee('Disponibilidade do funil');
 
     $expectedExpiration = $page->script("() => new Date('2030-01-02T10:30').toISOString()");
 
-    $page->type('[data-testid="publication-expires-at"]', '2030-01-02T10:30')
-        ->click('Salvar')
+    $page->type('[data-testid="settings-expires-at"]', '2030-01-02T10:30')
+        ->click('[data-testid="save-funnel-settings"]')
         ->wait(1)
-        ->assertSee('Design salvo')
+        ->assertSee('Configurações salvas')
         ->assertNoJavaScriptErrors();
 
     expect(data_get($funnel->fresh()->design_settings, 'expiresAt'))->toBe($expectedExpiration);
 
-    $page->click('Publicar')
+    $page->click('[data-testid="settings-is-active"]')
+        ->click('[data-testid="save-funnel-settings"]')
         ->wait(1)
-        ->assertSee('Publicado')
         ->assertSee('Funil publicado')
-        ->click('Despublicar')
-        ->assertSee('Confirmar despublicação')
-        ->click('Confirmar despublicação')
+        ->assertNoJavaScriptErrors();
+
+    expect($funnel->fresh()->is_active)->toBeTrue();
+
+    $page->click('[data-testid="settings-is-active"]')
+        ->click('[data-testid="save-funnel-settings"]')
         ->wait(1)
-        ->assertSee('Rascunho')
         ->assertSee('Funil despublicado')
         ->assertNoJavaScriptErrors();
 
     expect($funnel->fresh()->is_active)->toBeFalse();
+
+    $page->click('[data-testid="settings-tab-domain"]')
+        ->assertVisible('[data-testid="settings-domain-panel"]')
+        ->assertSee('Não configurado')
+        ->click('Como configurar')
+        ->assertSee('Como configurar seu domínio')
+        ->assertSee('CNAME')
+        ->assertSee('sem https://')
+        ->assertNoJavaScriptErrors();
 });

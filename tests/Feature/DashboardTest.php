@@ -1,11 +1,11 @@
 <?php
 
-use App\Models\User;
 use App\Models\Funnel;
-use App\Models\FunnelTemplate;
 use App\Models\FunnelStage;
 use App\Models\FunnelSubmission;
 use App\Models\FunnelSubmissionAnswer;
+use App\Models\FunnelTemplate;
+use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
 test('guests are redirected to the login page', function () {
@@ -14,6 +14,7 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users can visit the dashboard', function () {
+    config()->set('services.groq.api_key', 'configured-test-key');
     $user = User::factory()->create();
     $owner = User::factory()->create();
     $systemTemplate = FunnelTemplate::factory()->create([
@@ -69,6 +70,7 @@ test('authenticated users can visit the dashboard', function () {
             ->where('templates.1.name', 'Template do Time')
             ->where('templates.1.is_system', false)
             ->has('templateCategories', 2)
+            ->where('aiGenerationEnabled', true)
             ->has('stats')
             ->where('stats.currentFunnels', 1)
         );

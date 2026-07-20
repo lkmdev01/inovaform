@@ -23,7 +23,7 @@ const fetchJson = async <T>(url: string): Promise<T> => {
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to fetch: ${response.status}`);
+        throw new Error(`Falha ao carregar os dados: ${response.status}`);
     }
 
     return response.json();
@@ -47,7 +47,7 @@ export const useTwoFactorAuth = (): UseTwoFactorAuthReturn => {
 
             qrCodeSvg.value = svg;
         } catch {
-            errors.value.push('Failed to fetch QR code');
+            errors.value.push('Não foi possível carregar o código QR.');
             qrCodeSvg.value = null;
         }
     };
@@ -60,7 +60,9 @@ export const useTwoFactorAuth = (): UseTwoFactorAuthReturn => {
 
             manualSetupKey.value = key;
         } catch {
-            errors.value.push('Failed to fetch a setup key');
+            errors.value.push(
+                'Não foi possível carregar a chave de configuração.',
+            );
             manualSetupKey.value = null;
         }
     };
@@ -88,7 +90,9 @@ export const useTwoFactorAuth = (): UseTwoFactorAuthReturn => {
                 recoveryCodes.url(),
             );
         } catch {
-            errors.value.push('Failed to fetch recovery codes');
+            errors.value.push(
+                'Não foi possível carregar os códigos de recuperação.',
+            );
             recoveryCodesList.value = [];
         }
     };

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Funnel;
+use App\Models\FunnelTemplate;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -66,6 +67,93 @@ function clickPreviewCanvas(mixed $page): mixed
 
     return $page;
 }
+
+test('builder exposes a separate action to save the current funnel as a template', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create([
+        'name' => 'Funil criado com IA',
+    ]);
+    $funnel->stages()->createMany([
+        ['name' => 'Etapa 1', 'stage_order' => 1, 'meta' => createEmptyStagePayload()],
+        ['name' => 'Etapa 2', 'stage_order' => 2, 'meta' => createEmptyStagePayload()],
+    ]);
+
+    loginThroughBrowser($user)
+        ->navigate("/funnels/{$funnel->id}/builder")
+        ->click('[data-testid="builder-save-template-button"]')
+        ->assertVisible('[data-testid="builder-save-template-dialog"]')
+        ->type('[data-testid="builder-template-name"]', 'Modelo de qualificação')
+        ->click('[data-testid="builder-confirm-save-template"]')
+        ->wait(1)
+        ->assertSee('Template salvo na sua biblioteca.')
+        ->assertNoJavaScriptErrors();
+
+    expect(FunnelTemplate::query()->whereBelongsTo($user)->count())->toBe(1);
+});
+
+test('builder explains the strategy and quality audit of an ai generated funnel', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create([
+        'name' => 'Diagnóstico inteligente',
+        'design_settings' => [
+            'aiGeneration' => [
+                'objective_summary' => 'Qualificar empresas e entregar um diagnóstico inicial.',
+                'rationale' => 'A jornada começa pelo contexto e captura o contato antes do resultado.',
+                'stage_plan' => [
+                    ['name' => 'Contexto', 'purpose' => 'Entender o perfil da empresa.'],
+                    ['name' => 'Resultado', 'purpose' => 'Apresentar o próximo passo.'],
+                ],
+                'quality_score' => 100,
+                'quality_notes' => [],
+                'correction_applied' => true,
+            ],
+        ],
+    ]);
+    $funnel->stages()->createMany([
+        ['name' => 'Contexto', 'stage_order' => 1],
+        ['name' => 'Resultado', 'stage_order' => 2],
+    ]);
+
+    loginThroughBrowser($user)
+        ->navigate("/funnels/{$funnel->id}/builder")
+        ->click('[data-testid="builder-ai-strategy"] summary')
+        ->assertSee('Qualificar empresas e entregar um diagnóstico inicial.')
+        ->assertSee('100/100')
+        ->assertSee('revisão automática')
+        ->assertNoJavaScriptErrors();
+});
+
+test('builder exposes focused mobile panels and preserves the desktop workspace', function () {
+    $user = User::factory()->create();
+    $funnel = Funnel::factory()->for($user)->create([
+        'name' => 'Builder responsivo',
+    ]);
+    $funnel->stages()->create([
+        'name' => 'Etapa inicial',
+        'stage_order' => 1,
+        'meta' => createEmptyStagePayload(),
+    ]);
+
+    $page = loginThroughBrowser($user)
+        ->navigate("/funnels/{$funnel->id}/builder")
+        ->resize(390, 844)
+        ->assertVisible('[data-testid="builder-mobile-panel-nav"]')
+        ->assertVisible('[data-testid="builder-preview-card"]')
+        ->click('[data-testid="builder-mobile-panel-library"]')
+        ->assertVisible('[data-testid="palette-block-text"]')
+        ->click('[data-testid="palette-block-text"]')
+        ->assertVisible('[data-testid="builder-component-tab-component"]')
+        ->assertNoJavaScriptErrors();
+
+    expect($page->script('() => document.body.scrollWidth <= document.documentElement.clientWidth'))->toBeTrue();
+
+    $page->resize(1440, 900)
+        ->assertVisible('[data-testid="builder-stage-item-1"]')
+        ->assertVisible('[data-testid="palette-block-text"]')
+        ->assertVisible('[data-testid="builder-preview-card"]')
+        ->assertVisible('[data-testid="builder-component-tab-component"]')
+        ->assertNoJavaScriptErrors();
+});
 
 test('builder block selection toggles the side panel tabs', function () {
     $user = User::factory()->create();

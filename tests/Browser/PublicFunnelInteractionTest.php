@@ -39,6 +39,69 @@ function loginForPublicBrowser(User $user): mixed
         ->wait(1);
 }
 
+test('public funnel keeps content inside a mobile viewport', function () {
+    $owner = User::factory()->create();
+    $funnel = Funnel::factory()->for($owner)->create([
+        'name' => 'Funil público responsivo',
+        'slug' => 'funil-publico-responsivo',
+        'is_active' => true,
+    ]);
+    $funnel->stages()->create([
+        'name' => 'Diagnóstico',
+        'stage_order' => 1,
+        'meta' => [
+            'builder' => [
+                'title' => 'Descubra uma oportunidade importante para o seu negócio',
+                'subtitle' => 'Conteúdo adaptado para leitura confortável em telas menores.',
+                'button_text' => 'Continuar',
+                'blocks' => [
+                    [
+                        'id' => 'responsive-metrics',
+                        'type' => 'metrics',
+                        'label' => '',
+                        'required' => false,
+                        'option_items' => [
+                            ['id' => 'metric-1', 'label' => 'Conversão', 'value' => '+32%', 'description' => 'Resultado médio'],
+                            ['id' => 'metric-2', 'label' => 'Tempo', 'value' => '5 min', 'description' => 'Para responder'],
+                            ['id' => 'metric-3', 'label' => 'Etapas', 'value' => '3', 'description' => 'Jornada objetiva'],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $page = visit("/f/{$funnel->slug}")
+        ->resize(390, 844)
+        ->assertSee('Descubra uma oportunidade importante')
+        ->assertVisible('[data-testid="public-funnel-card"]')
+        ->assertNoJavaScriptErrors();
+
+    $metrics = $page->script(<<<'JS'
+        () => {
+            const card = document.querySelector('[data-testid="public-funnel-card"]');
+
+            if (!(card instanceof HTMLElement)) {
+                return null;
+            }
+
+            const rect = card.getBoundingClientRect();
+
+            return {
+                bodyWidth: document.body.scrollWidth,
+                viewportWidth: document.documentElement.clientWidth,
+                cardLeft: rect.left,
+                cardRight: rect.right,
+            };
+        }
+        JS);
+
+    expect($metrics)->not->toBeNull()
+        ->and($metrics['bodyWidth'])->toBeLessThanOrEqual($metrics['viewportWidth'])
+        ->and($metrics['cardLeft'])->toBeGreaterThanOrEqual(0)
+        ->and($metrics['cardRight'])->toBeLessThanOrEqual($metrics['viewportWidth']);
+});
+
 test('public funnel reveals delayed block after configured seconds', function () {
     $owner = User::factory()->create();
     $funnel = Funnel::factory()->for($owner)->create([
@@ -76,7 +139,7 @@ test('public funnel reveals delayed block after configured seconds', function ()
         ],
     ]);
 
-    visit("/f/{$funnel->slug}")
+    $page = visit("/f/{$funnel->slug}")
         ->assertSee('Conteudo inicial');
 
     expect($page->script("() => document.body.textContent.includes('Aparece com atraso')"))->toBeFalse();
@@ -1598,6 +1661,81 @@ test('public funnel applies semantic design tokens to core components', function
     expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-price-token-price\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
     expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-carousel-token-carousel\"]')).backgroundColor"))->toBe('rgb(16, 24, 32)');
     expect($page->script("() => getComputedStyle(document.querySelector('[data-testid=\"public-faq-token-faq-token-question\"] p')).color"))->toBe('rgb(170, 187, 204)');
+});
+
+test('public funnel resolves imported variables without exposing html markup', function () {
+    $owner = User::factory()->create();
+    $funnel = Funnel::factory()->for($owner)->create([
+        'name' => 'Funil com variaveis importadas',
+        'slug' => 'funil-variaveis-importadas',
+        'is_active' => true,
+    ]);
+
+    $funnel->stages()->createMany([
+        [
+            'name' => 'Dados',
+            'stage_order' => 1,
+            'meta' => [
+                'builder' => [
+                    'title' => 'Informe seu peso',
+                    'button_text' => 'Continuar',
+                    'blocks' => [[
+                        'id' => 'weight-field',
+                        'type' => 'number',
+                        'label' => 'Peso atual',
+                        'placeholder' => 'Digite seu peso',
+                        'variable_name' => 'peso_actual',
+                        'required' => true,
+                    ]],
+                ],
+            ],
+        ],
+        [
+            'name' => 'Resultado',
+            'stage_order' => 2,
+            'meta' => [
+                'builder' => [
+                    'title' => 'Seu resultado',
+                    'button_text' => 'Finalizar',
+                    'blocks' => [
+                        [
+                            'id' => 'weight-alert',
+                            'type' => 'attention',
+                            'label' => '',
+                            'placeholder' => '<p><strong>{{peso_actual}}kg</strong></p><p>Resultado&nbsp;personalizado</p>',
+                            'required' => false,
+                        ],
+                        [
+                            'id' => 'weight-copy',
+                            'type' => 'content_text',
+                            'label' => '',
+                            'placeholder' => '<p>Peso informado: <strong>{{peso_actual}}kg</strong></p>',
+                            'required' => false,
+                        ],
+                        [
+                            'id' => 'weight-loading',
+                            'type' => 'loading',
+                            'label' => 'Processando',
+                            'placeholder' => '<p>Preparando&nbsp;o resultado de {{peso_actual}}kg</p>',
+                            'required' => false,
+                            'loading_navigation_action' => 'none',
+                            'loading_show_progress' => false,
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    visit("/f/{$funnel->slug}")
+        ->fill('input[placeholder="Digite seu peso"]', '72')
+        ->click('Continuar')
+        ->assertSee('72kg')
+        ->assertSee('Resultado personalizado')
+        ->assertSee('Preparando o resultado de 72kg')
+        ->assertDontSee('{{peso_actual}}')
+        ->assertDontSee('<p>')
+        ->assertNoJavaScriptErrors();
 });
 
 test('public funnel converts youtube shorts links to embed urls', function () {

@@ -28,6 +28,7 @@ type StageBlock = {
     type: string;
     label: string;
     placeholder: string | null;
+    variable_name?: string | null;
     required: boolean;
     options: string[];
     option_items?: Array<{
@@ -995,8 +996,66 @@ function containsHtmlTag(value: string): boolean {
     return /<[^>]+>/.test(value);
 }
 
+function answerForVariable(variableName: string): string {
+    const normalizedName = variableName.toLowerCase();
+
+    for (const stage of props.funnel.stages) {
+        for (const block of stage.blocks ?? []) {
+            if (
+                safeTrim(block.variable_name).toLowerCase() !== normalizedName
+            ) {
+                continue;
+            }
+
+            const answer = getAnswer(stage.id, block.id);
+
+            return Array.isArray(answer) ? answer.join(', ') : (answer ?? '');
+        }
+    }
+
+    return '';
+}
+
+function replaceDynamicTokens(
+    value: string,
+    escapeAnswerValues = false,
+): string {
+    return value.replace(
+        /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g,
+        (_token, variableName: string) => {
+            const answer = answerForVariable(variableName);
+
+            return escapeAnswerValues ? escapeHtml(answer) : answer;
+        },
+    );
+}
+
+function plainBlockText(value: string | null | undefined): string {
+    return safeTrim(value)
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(?:p|div|h[1-6]|li)>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;|&#160;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#0?39;|&apos;/gi, "'")
+        .split(/\r?\n/)
+        .map((line) => line.replace(/[\t ]+/g, ' ').trim())
+        .filter((line) => line.length > 0)
+        .join('\n');
+}
+
+function dynamicBlockText(value: string | null | undefined): string {
+    return replaceDynamicTokens(plainBlockText(value));
+}
+
 function contentTextMarkup(block: StageBlock): string {
-    const storedMarkup = normalizeRichTextHtml(block.placeholder);
+    const storedMarkup = replaceDynamicTokens(
+        normalizeRichTextHtml(block.placeholder),
+        true,
+    );
     if (storedMarkup.length > 0 && containsHtmlTag(storedMarkup)) {
         return storedMarkup;
     }
@@ -4127,14 +4186,14 @@ onBeforeUnmount(() => {
                         v-else-if="
                             block.type === 'attention' || block.type === 'alert'
                         "
-                        class="rounded-[20px] border text-center text-base leading-normal md:text-lg"
+                        class="rounded-[20px] border text-center text-base leading-normal break-words whitespace-pre-line md:text-lg"
                         :class="[
                             attentionToneClass(block),
                             attentionPaddingClass(block),
                             attentionHighlightClass(block),
                         ]"
                     >
-                        {{ block.placeholder }}
+                        {{ dynamicBlockText(block.placeholder) }}
                     </div>
 
                     <div
@@ -4321,10 +4380,10 @@ onBeforeUnmount(() => {
                         </div>
                         <p
                             v-if="block.placeholder?.trim().length"
-                            class="mt-2 text-center text-[1.15rem] leading-snug"
+                            class="mt-2 text-center text-[1.15rem] leading-snug break-words whitespace-pre-line"
                             :style="{ color: designTokens.colors.text }"
                         >
-                            {{ block.placeholder }}
+                            {{ dynamicBlockText(block.placeholder) }}
                         </p>
                     </div>
 

@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'import' => [
+        'media_queue_connection' => env('INOVAFORM_IMPORT_MEDIA_QUEUE_CONNECTION', 'deferred'),
+    ],
     'media' => [
         'disk' => env('INOVAFORM_MEDIA_DISK', env('INOVAFORM_IMAGE_DISK', 'public')),
         'cleanup_retention_days' => (int) env('INOVAFORM_MEDIA_CLEANUP_RETENTION_DAYS', 14),

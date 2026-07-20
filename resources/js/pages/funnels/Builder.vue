@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FormDataConvertible } from '@inertiajs/core';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     ArrowLeft,
     ArrowUp,
@@ -11,6 +11,7 @@ import {
     Eye,
     FormInput,
     ListTree,
+    LoaderCircle,
     MoreVertical,
     Palette,
     Plus,
@@ -25,6 +26,12 @@ import {
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import FunnelController from '@/actions/App/Http/Controllers/FunnelController';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { sanitizeStoredAssetUrl } from '@/lib/media';
 import { show as showPublicFunnel } from '@/routes/funnels/public';
 
@@ -113,6 +120,7 @@ type StageBlock = {
     type: StageBlockType;
     label: string;
     placeholder?: string;
+    variable_name?: string | null;
     required: boolean;
     options?: string[];
     option_items?: OptionItem[];
@@ -255,6 +263,24 @@ type Funnel = {
     target_leads: number | null;
     is_active: boolean;
     design_settings?: {
+        aiGeneration?: {
+            objective_summary?: string;
+            rationale?: string;
+            stage_plan?: Array<{
+                name?: string;
+                purpose?: string;
+            }>;
+            quality_score?: number;
+            quality_notes?: string[];
+            correction_applied?: boolean;
+        };
+        importMedia?: {
+            status?:
+                'queued' | 'processing' | 'completed' | 'partial' | 'failed';
+            total?: number;
+            imported?: number;
+            failed?: number;
+        };
         completion_page?: {
             enabled?: boolean;
             title?: string;
@@ -396,7 +422,7 @@ const blockCatalog: Array<{
     { type: 'phone', label: 'Telefone', category: 'form' },
     { type: 'button', label: 'Botao', category: 'form' },
     { type: 'number', label: 'Numero', category: 'form' },
-    { type: 'textarea', label: 'Textarea', category: 'form' },
+    { type: 'textarea', label: 'Texto longo', category: 'form' },
     { type: 'date', label: 'Data', category: 'form' },
     { type: 'height', label: 'Altura', category: 'form' },
     { type: 'address', label: 'Endereco', category: 'form' },
@@ -412,8 +438,8 @@ const blockCatalog: Array<{
     { type: 'audio', label: 'Audio', category: 'media' },
     { type: 'attention', label: 'Alerta', category: 'media' },
     { type: 'notification', label: 'Notificacao', category: 'media' },
-    { type: 'timer', label: 'Timer', category: 'media' },
-    { type: 'loading', label: 'Loading', category: 'media' },
+    { type: 'timer', label: 'Temporizador', category: 'media' },
+    { type: 'loading', label: 'Carregamento', category: 'media' },
     { type: 'level', label: 'Nivel', category: 'media' },
     { type: 'arguments', label: 'Argumentos', category: 'argument' },
     { type: 'testimonials', label: 'Depoimentos', category: 'argument' },
@@ -1072,6 +1098,7 @@ const localStages = ref<StageDraft[]>(
                     type: normalizeLegacyBlockType(block.type),
                     label: block.label,
                     placeholder: block.placeholder,
+                    variable_name: block.variable_name,
                     required: block.required ?? false,
                     options: block.options,
                     option_items: isOptionsComponentType(block.type)
@@ -1582,6 +1609,7 @@ let autosaveStatusTimer: ReturnType<typeof setTimeout> | null = null;
 let actionToastTimer: ReturnType<typeof setTimeout> | null = null;
 let reorderHighlightTimer: ReturnType<typeof setTimeout> | null = null;
 let notificationPreviewTimer: number | null = null;
+let importMediaStatusTimer: number | null = null;
 
 const currentStage = computed(() => {
     return (
@@ -1973,12 +2001,32 @@ function containsHtmlTag(value: string): boolean {
     return /<[^>]+>/.test(value);
 }
 
+const importedVariablePreviewValues: Record<string, string> = {
+    nome: 'Visitante',
+    name: 'Visitante',
+    altura: '170',
+    peso_actual: '70',
+    peso_ideal: '65',
+    edad: '30',
+};
+
+function previewDynamicText(value: string | null | undefined): string {
+    return safeTrim(value).replace(
+        /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g,
+        (_token, variableName: string) =>
+            importedVariablePreviewValues[variableName.toLowerCase()] ??
+            'Exemplo',
+    );
+}
+
 function contentTextMarkup(block: StageBlock): string {
     if (block.type !== 'content_text') {
         return '';
     }
 
-    const storedMarkup = normalizeRichTextHtml(block.placeholder);
+    const storedMarkup = previewDynamicText(
+        normalizeRichTextHtml(block.placeholder),
+    );
     if (storedMarkup.length > 0 && containsHtmlTag(storedMarkup)) {
         return storedMarkup;
     }
@@ -2576,6 +2624,7 @@ function onOptionItemDragEnd(): void {
 function selectBlock(blockId: string): void {
     selectedBlockId.value = blockId;
     componentPanelTab.value = 'component';
+    mobileBuilderPanel.value = 'settings';
 }
 
 function clearSelectedBlock(): void {
@@ -2618,7 +2667,67 @@ const saveForm = useForm({
     stages: [] as object[],
 });
 
+const templateForm = useForm({
+    name: props.funnel.name,
+    description: props.funnel.description ?? '',
+    category: '',
+    thumbnail_path: '',
+    is_active: true,
+    is_premium: false,
+});
+const isSaveTemplateModalOpen = ref(false);
+const mobileBuilderPanel = ref<'stages' | 'library' | 'preview' | 'settings'>(
+    'preview',
+);
+const mobileBuilderPanels = [
+    { id: 'stages', label: 'Etapas' },
+    { id: 'library', label: 'Blocos' },
+    { id: 'preview', label: 'Preview' },
+    { id: 'settings', label: 'Editar' },
+] as const;
+
 const flashStatus = computed(() => page.props.flash?.status ?? '');
+const flashMessage = computed(
+    () =>
+        ({
+            'ai-funnel-created':
+                'Funil criado com IA. Revise o conteúdo e salve suas alterações antes de publicar.',
+            'template-created': 'Template salvo na sua biblioteca.',
+            'funnel-imported': 'Funil importado com sucesso.',
+            'funnel-imported-media-queued':
+                'Funil importado. As imagens serão copiadas em segundo plano.',
+        })[flashStatus.value] ?? flashStatus.value,
+);
+const aiGeneration = computed(
+    () => props.funnel.design_settings?.aiGeneration ?? null,
+);
+const importMediaStatus = computed(
+    () => props.funnel.design_settings?.importMedia ?? null,
+);
+const isImportMediaActive = computed(() =>
+    ['queued', 'processing'].includes(importMediaStatus.value?.status ?? ''),
+);
+const importMediaNotice = computed(() => {
+    const total = importMediaStatus.value?.total ?? 0;
+
+    return importMediaStatus.value?.status === 'processing'
+        ? `Copiando ${total} ${total === 1 ? 'imagem' : 'imagens'} para o InovaForm. Você pode continuar editando o funil.`
+        : `${total} ${total === 1 ? 'imagem aguarda' : 'imagens aguardam'} processamento. A página continuará disponível.`;
+});
+
+function scheduleImportMediaStatusRefresh(): void {
+    if (!isImportMediaActive.value || importMediaStatusTimer !== null) {
+        return;
+    }
+
+    importMediaStatusTimer = window.setTimeout(() => {
+        importMediaStatusTimer = null;
+        router.reload({
+            only: ['funnel'],
+            onFinish: () => scheduleImportMediaStatusRefresh(),
+        });
+    }, 2500);
+}
 
 function cloneBlock(block: StageBlock): StageBlock {
     return {
@@ -2626,6 +2735,7 @@ function cloneBlock(block: StageBlock): StageBlock {
         type: block.type,
         label: block.label,
         placeholder: block.placeholder,
+        variable_name: block.variable_name,
         required: block.required,
         options: block.options ? [...block.options] : undefined,
         option_items: block.option_items
@@ -4934,6 +5044,7 @@ function addBlock(type: StageBlockType): void {
     const block = createBlock(type);
     currentStage.value.blocks.push(block);
     selectedBlockId.value = block.id;
+    mobileBuilderPanel.value = 'settings';
 }
 
 function onPaletteDragStart(type: StageBlockType): void {
@@ -4960,6 +5071,7 @@ function onBlocksPanelDrop(): void {
     const block = createBlock(draggedPaletteType.value);
     currentStage.value.blocks.push(block);
     selectedBlockId.value = block.id;
+    mobileBuilderPanel.value = 'settings';
     draggedPaletteType.value = null;
 }
 
@@ -5585,6 +5697,8 @@ function buildStagesPayload(): Array<{
                                 block.type === 'image'
                                     ? sanitizeStoredAssetUrl(block.placeholder)
                                     : safeTrim(block.placeholder) || null,
+                            variable_name:
+                                safeTrim(block.variable_name) || null,
                             required: block.required,
                             options:
                                 block.options
@@ -6183,6 +6297,47 @@ const hasUnsavedChanges = computed(
         persistedSnapshot.value !== lastSavedSnapshot.value,
 );
 
+function openSaveTemplateModal(): void {
+    if (!props.permissions.canEdit || hasUnsavedChanges.value) {
+        return;
+    }
+
+    templateForm.reset();
+    templateForm.name = funnelNameDraft.value.trim();
+    templateForm.description = props.funnel.description ?? '';
+    templateForm.category = '';
+    templateForm.thumbnail_path = '';
+    templateForm.is_active = true;
+    templateForm.is_premium = false;
+    templateForm.clearErrors();
+    isSaveTemplateModalOpen.value = true;
+}
+
+function closeSaveTemplateModal(): void {
+    if (templateForm.processing) {
+        return;
+    }
+
+    isSaveTemplateModalOpen.value = false;
+}
+
+function submitTemplate(): void {
+    templateForm.name = templateForm.name.trim();
+    templateForm.description = templateForm.description.trim();
+    templateForm.category = templateForm.category.trim();
+
+    templateForm.submit(FunnelController.storeTemplate(props.funnel.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            isSaveTemplateModalOpen.value = false;
+            showActionToast('Template salvo na sua biblioteca.', 'success');
+        },
+        onError: (errors) => {
+            showActionToast(resolveFirstFormError(errors), 'error');
+        },
+    });
+}
+
 function clearAutosaveStatusLater(): void {
     if (autosaveStatusTimer) {
         clearTimeout(autosaveStatusTimer);
@@ -6588,6 +6743,38 @@ watch(persistedSnapshot, () => {
     scheduleAutosave();
 });
 
+watch(
+    () => importMediaStatus.value?.status,
+    (status, previousStatus) => {
+        if (status === 'queued' || status === 'processing') {
+            scheduleImportMediaStatusRefresh();
+
+            return;
+        }
+
+        if (previousStatus !== 'queued' && previousStatus !== 'processing') {
+            return;
+        }
+
+        if (status === 'completed') {
+            showActionToast(
+                `${importMediaStatus.value?.imported ?? 0} imagens copiadas para o InovaForm.`,
+                'success',
+            );
+        } else if (status === 'partial') {
+            showActionToast(
+                'Algumas imagens não puderam ser copiadas; os links externos foram preservados.',
+                'info',
+            );
+        } else if (status === 'failed') {
+            showActionToast(
+                'Não foi possível copiar as imagens agora. Os links externos foram preservados.',
+                'error',
+            );
+        }
+    },
+);
+
 onMounted(() => {
     if (typeof window !== 'undefined') {
         const storedStageKey = window.sessionStorage.getItem(
@@ -6607,6 +6794,7 @@ onMounted(() => {
 
     pushHistorySnapshot(true);
     lastSavedSnapshot.value = persistedSnapshot.value;
+    scheduleImportMediaStatusRefresh();
     window.addEventListener('keydown', onGlobalKeydown);
     window.addEventListener('beforeunload', onBeforeWindowUnload);
 });
@@ -6632,6 +6820,10 @@ onBeforeUnmount(() => {
         clearInterval(notificationPreviewTimer);
     }
 
+    if (importMediaStatusTimer) {
+        clearTimeout(importMediaStatusTimer);
+    }
+
     Object.values(audioElements.value).forEach((element) => {
         element?.pause();
     });
@@ -6645,24 +6837,30 @@ onBeforeUnmount(() => {
     <Head :title="`${props.funnel.name} - Builder`" />
 
     <div
-        class="flex h-screen flex-col overflow-hidden bg-[#050d22] text-[#d8e7ff]"
+        class="flex h-dvh flex-col overflow-hidden bg-[#050d22] text-[#d8e7ff]"
     >
         <header
-            class="shrink-0 border-b border-[#1e3157] bg-[#071430] px-4 py-3"
+            class="shrink-0 border-b border-[#1e3157] bg-[#071430] px-2 py-2 sm:px-4 sm:py-3"
         >
-            <div class="flex items-center justify-between gap-4">
-                <div class="flex items-center gap-3">
+            <div
+                class="flex flex-wrap items-center justify-between gap-2 xl:gap-4"
+            >
+                <div class="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                     <Link
                         href="/dashboard"
                         class="flex h-10 w-10 items-center justify-center rounded-lg border border-[#2f4f8c] bg-[#081b3c] text-base font-bold text-white"
                     >
                         IN
                     </Link>
-                    <div>
-                        <p class="text-lg font-semibold text-white">
+                    <div class="min-w-0">
+                        <p
+                            class="truncate text-sm font-semibold text-white sm:text-lg"
+                        >
                             {{ funnelNameDraft }}
                         </p>
-                        <p class="text-sm text-[#88a8df]">
+                        <p
+                            class="hidden truncate text-sm text-[#88a8df] sm:block"
+                        >
                             ... / {{ funnelNameDraft.toLowerCase() }}
                         </p>
                     </div>
@@ -6675,10 +6873,10 @@ onBeforeUnmount(() => {
                 </div>
 
                 <nav
-                    class="flex items-center gap-1.5 rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm"
+                    class="order-3 flex w-full items-center gap-1.5 overflow-x-auto rounded-lg border border-[#253f70] bg-[#081a39] p-1.5 text-sm xl:order-none xl:w-auto xl:overflow-visible"
                 >
                     <button
-                        class="rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white"
+                        class="shrink-0 rounded-md bg-[#1e4e9e] px-3.5 py-1.5 font-medium text-white"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><BookOpen class="size-4" /> Construtor</span
@@ -6686,7 +6884,7 @@ onBeforeUnmount(() => {
                     </button>
                     <Link
                         :href="FunnelController.flow(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><ListTree class="size-4" /> Fluxo</span
@@ -6694,7 +6892,7 @@ onBeforeUnmount(() => {
                     </Link>
                     <Link
                         :href="FunnelController.design(props.funnel.id).url"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><Palette class="size-4" /> Design</span
@@ -6704,7 +6902,7 @@ onBeforeUnmount(() => {
                         v-if="props.permissions.canManageLeads"
                         :href="FunnelController.leads(props.funnel.id).url"
                         data-testid="leads-nav-link"
-                        class="rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
+                        class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><CircleUserRound class="size-4" /> Leads</span
@@ -6728,7 +6926,9 @@ onBeforeUnmount(() => {
                     </button>
                 </nav>
 
-                <div class="flex items-center gap-1.5">
+                <div
+                    class="flex max-w-full shrink-0 items-center gap-1.5 overflow-x-auto xl:overflow-visible"
+                >
                     <button
                         @click="undoHistory"
                         :disabled="!props.permissions.canEdit || !canUndo"
@@ -6771,12 +6971,32 @@ onBeforeUnmount(() => {
                         <Eye class="size-4" />
                     </a>
                     <button
+                        type="button"
+                        data-testid="builder-save-template-button"
+                        :disabled="
+                            !props.permissions.canEdit ||
+                            hasUnsavedChanges ||
+                            saveForm.processing
+                        "
+                        :title="
+                            hasUnsavedChanges
+                                ? 'Salve as alterações antes de criar um template'
+                                : 'Salvar este funil como template'
+                        "
+                        class="hidden shrink-0 rounded-md border border-[#3860a7] bg-[#0a2146] px-3 py-1.5 text-sm font-medium text-[#cfe0ff] transition hover:bg-[#10336d] disabled:cursor-not-allowed disabled:opacity-40 sm:block"
+                        @click="openSaveTemplateModal"
+                    >
+                        <span class="inline-flex items-center gap-1">
+                            <Sparkles class="size-4" /> Template
+                        </span>
+                    </button>
+                    <button
                         @click="saveBuilder(false)"
                         :disabled="
                             !props.permissions.canEdit || saveForm.processing
                         "
                         data-testid="builder-save-button"
-                        class="rounded-md border border-[#3860a7] bg-[#0a2c61] px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                        class="shrink-0 rounded-md border border-[#3860a7] bg-[#0a2c61] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50 sm:px-4"
                     >
                         <span class="inline-flex items-center gap-1"
                             ><Save class="size-4" /> Salvar</span
@@ -6788,7 +7008,7 @@ onBeforeUnmount(() => {
                             !props.permissions.canEdit || saveForm.processing
                         "
                         data-testid="builder-publish-button"
-                        class="rounded-md bg-gradient-to-r from-[#1d5fd2] to-[#3f8dff] px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                        class="shrink-0 rounded-md bg-gradient-to-r from-[#1d5fd2] to-[#3f8dff] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50 sm:px-4"
                     >
                         Publicar
                     </button>
@@ -6822,6 +7042,16 @@ onBeforeUnmount(() => {
         </header>
 
         <div
+            v-if="isImportMediaActive"
+            data-testid="builder-import-media-status"
+            role="status"
+            class="flex shrink-0 items-center gap-2 border-b border-[#2e588f] bg-[#0a2146] px-3 py-2 text-xs text-[#cde0ff] sm:px-4"
+        >
+            <LoaderCircle class="size-4 shrink-0 animate-spin text-[#67a2ff]" />
+            <span>{{ importMediaNotice }}</span>
+        </div>
+
+        <div
             v-if="actionToast.visible"
             class="fixed top-20 right-5 z-50 rounded-lg border px-3 py-2 text-xs shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
             :class="
@@ -6835,12 +7065,34 @@ onBeforeUnmount(() => {
             {{ actionToast.message }}
         </div>
 
+        <div
+            data-testid="builder-mobile-panel-nav"
+            class="grid shrink-0 grid-cols-4 border-b border-[#1e3157] bg-[#071430] p-1 xl:hidden"
+        >
+            <button
+                v-for="panel in mobileBuilderPanels"
+                :key="panel.id"
+                type="button"
+                class="rounded-md px-2 py-2 text-xs font-medium transition"
+                :class="
+                    mobileBuilderPanel === panel.id
+                        ? 'bg-[#1e4e9e] text-white'
+                        : 'text-[#91afe3]'
+                "
+                :data-testid="`builder-mobile-panel-${panel.id}`"
+                @click="mobileBuilderPanel = panel.id"
+            >
+                {{ panel.label }}
+            </button>
+        </div>
+
         <main
-            class="grid min-h-0 flex-1 grid-cols-[230px_210px_1fr_430px] overflow-hidden"
+            class="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[230px_210px_1fr_430px]"
             @click="clearSelectedBlock"
         >
             <aside
-                class="h-full overflow-y-auto border-r border-[#1c3158] bg-[#07142e]"
+                class="h-full overflow-y-auto border-r border-[#1c3158] bg-[#07142e] xl:block"
+                :class="mobileBuilderPanel === 'stages' ? 'block' : 'hidden'"
                 @click.stop
             >
                 <div
@@ -6927,7 +7179,8 @@ onBeforeUnmount(() => {
             </aside>
 
             <aside
-                class="flex min-h-0 flex-col border-r border-[#1c3158] bg-[#071a37] p-2.5"
+                class="min-h-0 flex-col border-r border-[#1c3158] bg-[#071a37] p-2.5 xl:flex"
+                :class="mobileBuilderPanel === 'library' ? 'flex' : 'hidden'"
                 @click.stop
             >
                 <h2 class="mb-3 text-lg font-medium text-[#e4efff]">
@@ -7022,7 +7275,8 @@ onBeforeUnmount(() => {
             </aside>
 
             <section
-                class="min-h-0 overflow-y-auto border-r border-[#1c3158] bg-[#061227] p-4"
+                class="min-h-0 overflow-y-auto border-r border-[#1c3158] bg-[#061227] p-3 sm:p-4 xl:block"
+                :class="mobileBuilderPanel === 'preview' ? 'block' : 'hidden'"
             >
                 <div
                     data-testid="builder-preview-card"
@@ -8464,14 +8718,14 @@ onBeforeUnmount(() => {
 
                                 <div
                                     v-else-if="block.type === 'attention'"
-                                    class="rounded-[20px] border text-center text-base leading-normal md:text-lg"
+                                    class="rounded-[20px] border text-center text-base leading-normal break-words whitespace-pre-line md:text-lg"
                                     :class="[
                                         attentionToneClass(block),
                                         attentionPaddingClass(block),
                                         attentionHighlightClass(block),
                                     ]"
                                 >
-                                    {{ block.placeholder }}
+                                    {{ previewDynamicText(block.placeholder) }}
                                 </div>
 
                                 <div
@@ -8716,9 +8970,13 @@ onBeforeUnmount(() => {
                                         v-if="
                                             safeTrim(block.placeholder).length
                                         "
-                                        class="mt-2 text-center text-[1.15rem] leading-snug text-[#576a84]"
+                                        class="mt-2 text-center text-[1.15rem] leading-snug break-words whitespace-pre-line text-[#576a84]"
                                     >
-                                        {{ block.placeholder }}
+                                        {{
+                                            previewDynamicText(
+                                                block.placeholder,
+                                            )
+                                        }}
                                     </p>
                                 </div>
 
@@ -8825,15 +9083,100 @@ onBeforeUnmount(() => {
             </section>
 
             <aside
-                class="min-h-0 overflow-y-auto bg-[#081633] px-3 py-2"
+                class="min-h-0 overflow-y-auto bg-[#081633] px-3 py-2 xl:block"
+                :class="mobileBuilderPanel === 'settings' ? 'block' : 'hidden'"
                 @click.stop
             >
                 <div
                     v-if="flashStatus"
                     class="mb-2 rounded-md border border-[#2e588f] bg-[#0a2146] px-2 py-1 text-[11px] text-[#9ebef5]"
                 >
-                    {{ flashStatus }}
+                    {{ flashMessage }}
                 </div>
+                <details
+                    v-if="aiGeneration"
+                    data-testid="builder-ai-strategy"
+                    :open="flashStatus === 'ai-funnel-created'"
+                    class="group mb-2 rounded-xl border border-[#2e588f] bg-[#0a2146] text-[#cde0ff]"
+                >
+                    <summary
+                        class="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5"
+                    >
+                        <span
+                            class="inline-flex items-center gap-2 text-xs font-semibold"
+                        >
+                            <Sparkles class="size-3.5 text-[#67a2ff]" />
+                            Estratégia criada pela IA
+                        </span>
+                        <span
+                            class="rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                            :class="
+                                (aiGeneration.quality_score ?? 0) >= 82
+                                    ? 'border-[#2b8f70] bg-[#0d3f39] text-[#8ce0c7]'
+                                    : 'border-[#9a7134] bg-[#463414] text-[#f3c97e]'
+                            "
+                        >
+                            {{ aiGeneration.quality_score ?? 0 }}/100
+                        </span>
+                    </summary>
+                    <div
+                        class="space-y-2 border-t border-[#234879] px-3 py-2.5"
+                    >
+                        <p
+                            v-if="aiGeneration.objective_summary"
+                            class="text-[11px] leading-relaxed font-medium text-[#d9e8ff]"
+                        >
+                            {{ aiGeneration.objective_summary }}
+                        </p>
+                        <p
+                            v-if="aiGeneration.rationale"
+                            class="text-[10px] leading-relaxed text-[#9ebef5]"
+                        >
+                            {{ aiGeneration.rationale }}
+                        </p>
+                        <ol
+                            v-if="aiGeneration.stage_plan?.length"
+                            class="space-y-1.5"
+                        >
+                            <li
+                                v-for="(
+                                    stage, index
+                                ) in aiGeneration.stage_plan"
+                                :key="`${stage.name}-${index}`"
+                                class="rounded-lg bg-[#0b274f] px-2.5 py-2"
+                            >
+                                <p
+                                    class="text-[10px] font-semibold text-[#d9e8ff]"
+                                >
+                                    {{ index + 1 }}. {{ stage.name }}
+                                </p>
+                                <p
+                                    class="mt-0.5 text-[10px] leading-relaxed text-[#8fb2eb]"
+                                >
+                                    {{ stage.purpose }}
+                                </p>
+                            </li>
+                        </ol>
+                        <p
+                            v-if="aiGeneration.correction_applied"
+                            class="text-[10px] text-[#8ce0c7]"
+                        >
+                            A auditoria encontrou ajustes e a IA fez uma revisão
+                            automática.
+                        </p>
+                        <ul
+                            v-if="aiGeneration.quality_notes?.length"
+                            class="list-disc space-y-1 pl-4 text-[10px] text-[#f3c97e]"
+                        >
+                            <li
+                                v-for="note in aiGeneration.quality_notes"
+                                :key="note"
+                            >
+                                {{ note }}
+                            </li>
+                        </ul>
+                    </div>
+                </details>
                 <div
                     data-testid="builder-panel-tabs"
                     class="mb-2"
@@ -8946,7 +9289,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <div class="mt-3 p-0.5">
-                            <p class="mb-2 text-xs text-[#8daee7]">Header</p>
+                            <p class="mb-2 text-xs text-[#8daee7]">Cabeçalho</p>
                             <label
                                 class="mb-1.5 flex items-center justify-between text-base text-[#dbe8ff]"
                             >
@@ -11333,7 +11676,7 @@ onBeforeUnmount(() => {
                                 <p
                                     class="mt-2 text-[11px] tracking-wide text-[#87a8de] uppercase"
                                 >
-                                    Items
+                                    Itens
                                 </p>
                                 <div class="mt-2 space-y-2">
                                     <div
@@ -12752,6 +13095,93 @@ onBeforeUnmount(() => {
                 </div>
             </aside>
         </main>
+
+        <Dialog
+            :open="isSaveTemplateModalOpen"
+            @update:open="
+                $event
+                    ? (isSaveTemplateModalOpen = true)
+                    : closeSaveTemplateModal()
+            "
+        >
+            <DialogContent
+                :show-close-button="false"
+                class="max-w-md border-[#315993] bg-[#071633] p-0 text-[#dceaff]"
+                data-testid="builder-save-template-dialog"
+            >
+                <div class="p-5">
+                    <DialogTitle class="text-lg font-semibold text-white">
+                        Salvar como template
+                    </DialogTitle>
+                    <DialogDescription
+                        class="mt-1 text-sm leading-relaxed text-[#91acd9]"
+                    >
+                        Crie um modelo reutilizável a partir da versão salva
+                        deste funil. O funil original continuará independente.
+                    </DialogDescription>
+
+                    <div class="mt-4 grid gap-3">
+                        <label class="grid gap-1 text-xs text-[#9bb8e8]">
+                            Nome do template
+                            <input
+                                v-model="templateForm.name"
+                                data-testid="builder-template-name"
+                                maxlength="120"
+                                class="rounded-xl border border-[#2d4f89] bg-[#0a1e45] px-3 py-2.5 text-sm text-white outline-none focus:border-[#4f8fff]"
+                            />
+                            <span
+                                v-if="templateForm.errors.name"
+                                class="text-rose-300"
+                                >{{ templateForm.errors.name }}</span
+                            >
+                        </label>
+                        <label class="grid gap-1 text-xs text-[#9bb8e8]">
+                            Descrição
+                            <textarea
+                                v-model="templateForm.description"
+                                maxlength="500"
+                                rows="3"
+                                class="resize-none rounded-xl border border-[#2d4f89] bg-[#0a1e45] px-3 py-2.5 text-sm text-white outline-none focus:border-[#4f8fff]"
+                                placeholder="Explique quando usar este template"
+                            />
+                        </label>
+                        <label class="grid gap-1 text-xs text-[#9bb8e8]">
+                            Categoria
+                            <input
+                                v-model="templateForm.category"
+                                maxlength="60"
+                                class="rounded-xl border border-[#2d4f89] bg-[#0a1e45] px-3 py-2.5 text-sm text-white outline-none focus:border-[#4f8fff]"
+                                placeholder="Ex.: qualificação"
+                            />
+                        </label>
+                    </div>
+
+                    <div class="mt-5 grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg border border-[#315993] px-3 py-2 text-xs font-medium text-[#bcd2fa] transition hover:bg-[#0a2148] disabled:opacity-60"
+                            :disabled="templateForm.processing"
+                            @click="closeSaveTemplateModal"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="builder-confirm-save-template"
+                            class="rounded-lg bg-linear-to-r from-[#1d5fd2] to-[#3f8dff] px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                            :disabled="templateForm.processing"
+                            @click="submitTemplate"
+                        >
+                            {{
+                                templateForm.processing
+                                    ? 'Salvando...'
+                                    : 'Salvar template'
+                            }}
+                        </button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
     </div>
 </template>
 

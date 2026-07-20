@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\GenerateAiFunnelRequest;
 use App\Http\Requests\ImportFunnelRequest;
+use App\Http\Requests\PreviewFunnelImportRequest;
 use App\Http\Requests\ShareFunnelRequest;
 use App\Http\Requests\StoreFunnelRequest;
 use App\Http\Requests\StoreFunnelTemplateRequest;
@@ -10,6 +12,7 @@ use App\Http\Requests\UpdateFunnelDesignRequest;
 use App\Http\Requests\UpdateFunnelRequest;
 use App\Http\Requests\UpdateFunnelSettingsRequest;
 use App\Http\Requests\UploadFunnelMediaRequest;
+use App\Jobs\RehostImportedFunnelMediaJob;
 use App\Models\Funnel;
 use App\Models\FunnelStage;
 use App\Models\FunnelSubmission;
@@ -17,6 +20,9 @@ use App\Models\FunnelTemplate;
 use App\Models\User;
 use App\Support\CustomDomainDiagnostics;
 use App\Support\FunnelDesignTokens;
+use App\Support\GroqFunnelGenerationException;
+use App\Support\GroqFunnelGenerator;
+use App\Support\InleadFunnelImporter;
 use App\Support\ManagedMedia;
 use App\Support\OperationalTelemetry;
 use Illuminate\Database\Eloquent\Collection;
@@ -38,6 +44,7 @@ class FunnelController extends Controller
     public function __construct(
         private ManagedMedia $managedMedia,
         private CustomDomainDiagnostics $customDomainDiagnostics,
+        private InleadFunnelImporter $inleadFunnelImporter,
     ) {}
 
     public function index(Request $request): Response
@@ -90,6 +97,37 @@ class FunnelController extends Controller
             ->with('status', 'funnel-created');
     }
 
+    public function storeWithAi(
+        GenerateAiFunnelRequest $request,
+        GroqFunnelGenerator $generator,
+    ): RedirectResponse {
+        try {
+            $blueprint = $generator->generate($request->validated());
+        } catch (GroqFunnelGenerationException $exception) {
+            report($exception);
+
+            throw ValidationException::withMessages([
+                'prompt' => $exception->userMessage,
+            ]);
+        }
+
+        $funnel = DB::transaction(function () use ($request, $blueprint): Funnel {
+            return $this->createFunnelFromBlueprint($request->user(), $blueprint, [
+                'is_active' => false,
+                'custom_domain' => null,
+            ]);
+        });
+
+        OperationalTelemetry::info('ai.funnel.persisted', [
+            'user_id' => $request->user()?->id,
+            'funnel_id' => $funnel->id,
+        ]);
+
+        return redirect()
+            ->route('funnels.builder', $funnel)
+            ->with('status', 'ai-funnel-created');
+    }
+
     public function duplicate(Request $request, Funnel $funnel): RedirectResponse
     {
         abort_unless($funnel->canEdit($request->user()), 403);
@@ -124,27 +162,44 @@ class FunnelController extends Controller
         ]);
     }
 
+    public function previewImport(PreviewFunnelImportRequest $request): JsonResponse
+    {
+        $file = $request->file('file');
+
+        return response()->json($this->inleadFunnelImporter->preview($file, $request->user()));
+    }
+
     public function import(ImportFunnelRequest $request): RedirectResponse
     {
         $validated = $request->validated();
-        $raw = $request->file('file')?->get();
+        $token = trim((string) ($validated['token'] ?? ''));
 
-        if (! is_string($raw) || trim($raw) === '') {
-            throw ValidationException::withMessages([
-                'file' => 'Nao foi possivel ler o arquivo JSON enviado.',
-            ]);
+        if ($token !== '') {
+            $blueprint = $this->inleadFunnelImporter->blueprint(
+                $token,
+                $request->user(),
+                trim((string) ($validated['language'] ?? 'original')),
+            );
+        } else {
+            $raw = $request->file('file')?->get();
+
+            if (! is_string($raw) || trim($raw) === '') {
+                throw ValidationException::withMessages([
+                    'file' => 'Nao foi possivel ler o arquivo JSON enviado.',
+                ]);
+            }
+
+            try {
+                /** @var mixed $decoded */
+                $decoded = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
+            } catch (\JsonException) {
+                throw ValidationException::withMessages([
+                    'file' => 'O arquivo JSON esta invalido.',
+                ]);
+            }
+
+            $blueprint = $this->normalizeImportedFunnelBlueprint($decoded);
         }
-
-        try {
-            /** @var mixed $decoded */
-            $decoded = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
-            throw ValidationException::withMessages([
-                'file' => 'O arquivo JSON esta invalido.',
-            ]);
-        }
-
-        $blueprint = $this->normalizeImportedFunnelBlueprint($decoded);
         $nameOverride = trim((string) ($validated['name'] ?? ''));
 
         $funnel = DB::transaction(function () use ($request, $blueprint, $nameOverride): Funnel {
@@ -155,9 +210,33 @@ class FunnelController extends Controller
             ]);
         });
 
+        $status = 'funnel-imported';
+
+        if ((bool) ($validated['copy_media'] ?? false)) {
+            $mediaCount = $this->inleadFunnelImporter->remoteMediaCount($funnel);
+
+            if ($mediaCount > 0) {
+                $this->inleadFunnelImporter->updateRemoteMediaStatus($funnel->id, [
+                    'status' => 'queued',
+                    'total' => $mediaCount,
+                    'imported' => 0,
+                    'failed' => 0,
+                    'queuedAt' => now()->toISOString(),
+                ]);
+
+                RehostImportedFunnelMediaJob::dispatch($funnel->id)
+                    ->onConnection((string) config('inovaform.import.media_queue_connection', 'deferred'));
+                $status = 'funnel-imported-media-queued';
+            }
+        }
+
+        if ($token !== '') {
+            $this->inleadFunnelImporter->forget($token);
+        }
+
         return redirect()
             ->route('funnels.builder', $funnel)
-            ->with('status', 'funnel-imported');
+            ->with('status', $status);
     }
 
     public function storeTemplate(StoreFunnelTemplateRequest $request, Funnel $funnel): RedirectResponse
@@ -194,6 +273,18 @@ class FunnelController extends Controller
         ]);
 
         return back()->with('status', 'template-created');
+    }
+
+    public function destroyTemplate(Request $request, FunnelTemplate $funnelTemplate): RedirectResponse
+    {
+        abort_unless(
+            ! $funnelTemplate->is_system && $funnelTemplate->user_id === $request->user()?->id,
+            403,
+        );
+
+        $funnelTemplate->delete();
+
+        return back()->with('status', 'template-deleted');
     }
 
     public function destroy(Request $request, Funnel $funnel): RedirectResponse
@@ -365,6 +456,10 @@ class FunnelController extends Controller
 
         if (array_key_exists('completion_page', $existingSettings)) {
             $designSettings['completion_page'] = $existingSettings['completion_page'];
+        }
+
+        if (array_key_exists('importMedia', $existingSettings)) {
+            $designSettings['importMedia'] = $existingSettings['importMedia'];
         }
 
         $funnel->update([
