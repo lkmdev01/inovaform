@@ -5,6 +5,6 @@ test('returns a public marketing homepage', function () {
 
     $response
         ->assertOk()
-        ->assertSee('InovaForm: crie funis, formulários e automações em um só lugar.')
+        ->assertSee('Transforme interesse em')
         ->assertSee('Política de Privacidade');
 });

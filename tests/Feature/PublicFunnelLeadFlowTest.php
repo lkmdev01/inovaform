@@ -86,7 +86,7 @@ test('app home renders the public InovaForm homepage on default host', function 
     $this->get(route('home'))
         ->assertOk()
         ->assertSee('InovaForm')
-        ->assertSee('Login com Google, com dados mínimos');
+        ->assertSee('Login com Google disponível com dados mínimos');
 });
 
 test('public active funnel can be viewed by slug', function () {
