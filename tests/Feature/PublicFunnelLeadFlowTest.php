@@ -82,10 +82,11 @@ function makePublicFunnel(User $owner): Funnel
     return $funnel->fresh();
 }
 
-test('app home still renders welcome page on default host', function () {
+test('app home renders the public InovaForm homepage on default host', function () {
     $this->get(route('home'))
         ->assertOk()
-        ->assertInertia(fn (Assert $page) => $page->component('Welcome'));
+        ->assertSee('InovaForm')
+        ->assertSee('Login com Google, com dados mínimos');
 });
 
 test('public active funnel can be viewed by slug', function () {

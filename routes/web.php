@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', [PublicFunnelController::class, 'home'])->name('home');
-Route::get('politica-de-privacidade', fn () => Inertia::render('PrivacyPolicy'))
+Route::view('politica-de-privacidade', 'marketing.privacy-policy')
     ->name('privacy-policy');
 Route::get('termos-de-servico', fn () => Inertia::render('TermsOfService'))
     ->name('terms-of-service');

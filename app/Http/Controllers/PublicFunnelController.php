@@ -12,13 +12,14 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\View\View;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Symfony\Component\HttpFoundation\Response as BaseResponse;
 
 class PublicFunnelController extends Controller
 {
-    public function home(Request $request): BaseResponse
+    public function home(Request $request): BaseResponse|View
     {
         $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
         $currentHost = strtolower($request->getHost());
@@ -27,9 +28,9 @@ class PublicFunnelController extends Controller
             return $this->showForDomain($request);
         }
 
-        return Inertia::render('Welcome', [
+        return view('marketing.home', [
             'canRegister' => Features::enabled(Features::registration()),
-        ])->toResponse($request);
+        ]);
     }
 
     public function show(Request $request, string $slug): BaseResponse
