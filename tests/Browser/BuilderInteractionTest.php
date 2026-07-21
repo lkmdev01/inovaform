@@ -2536,9 +2536,9 @@ test('funnel toolbar opens the public result and the new funnel settings page', 
         ->assertVisible('[data-testid="settings-domain-panel"]')
         ->click('[data-testid="settings-tab-connections"]')
         ->assertVisible('[data-testid="settings-connections-panel"]')
-        ->click('Design')
+        ->click('[data-testid="funnel-design-nav-link"]')
+        ->wait(1)
+        ->assertRoute('funnels.design', ['funnel' => $funnel])
         ->assertDontSee('PUBLICACAO')
         ->assertNoJavaScriptErrors();
-
-    expect($page->script('() => window.location.pathname'))->toBe(route('funnels.design', $funnel, absolute: false));
 });

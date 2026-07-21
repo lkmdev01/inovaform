@@ -279,6 +279,7 @@ function formatDomainCheckedAt(value: string | null): string {
                     </Link>
                     <Link
                         :href="FunnelController.design(props.funnel.id).url"
+                        data-testid="funnel-design-nav-link"
                         class="shrink-0 rounded-md px-3.5 py-1.5 text-[#9ebbf0] hover:bg-[#0f274f]"
                     >
                         <span class="inline-flex items-center gap-1"
