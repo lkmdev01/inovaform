@@ -115,6 +115,7 @@ class PublicFunnelController extends Controller
                                 'type' => (string) $block['type'],
                                 'label' => isset($block['label']) ? trim((string) $block['label']) : '',
                                 'placeholder' => isset($block['placeholder']) ? (string) $block['placeholder'] : null,
+                                'variable_name' => isset($block['variable_name']) ? trim((string) $block['variable_name']) : null,
                                 'required' => (bool) ($block['required'] ?? false),
                                 'options' => collect($block['options'] ?? [])
                                     ->map(static fn ($option): string => (string) $option)

@@ -31,7 +31,7 @@ withDefaults(
 </script>
 
 <template>
-    <Head title="Inovaform">
+    <Head title="InovaForm — Funis, formulários e automação">
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
             rel="preconnect"
@@ -64,7 +64,7 @@ withDefaults(
                 <div
                     class="rounded-full border border-[#2952ad] bg-[#0a1633]/80 px-4 py-2 text-sm font-semibold tracking-wide"
                 >
-                    INOVAFORM
+                    InovaForm
                 </div>
 
                 <Link
@@ -106,11 +106,14 @@ withDefaults(
                     <h1
                         class="max-w-2xl text-4xl leading-tight font-bold text-white lg:text-6xl"
                     >
-                        Inovaform: formularios e funis com velocidade orbital.
+                        InovaForm: crie funis, formulários e automações em um só
+                        lugar.
                     </h1>
                     <p class="max-w-2xl text-lg text-[#a9c2f7]">
-                        Crie jornadas de captura, qualificacao e venda em uma
-                        interface moderna, elegante e focada em conversao.
+                        O InovaForm ajuda empresas e criadores a criar, publicar
+                        e otimizar páginas, formulários e funis de vendas.
+                        Organize respostas, qualifique leads e acompanhe a
+                        conversão sem depender de ferramentas separadas.
                     </p>
 
                     <div class="flex flex-wrap items-center gap-3">
@@ -149,6 +152,30 @@ withDefaults(
                             </p>
                         </article>
                     </div>
+
+                    <section
+                        aria-labelledby="google-login-purpose"
+                        class="rounded-2xl border border-[#315aaf] bg-[#091a3a]/90 p-5"
+                    >
+                        <h2
+                            id="google-login-purpose"
+                            class="text-base font-semibold text-white"
+                        >
+                            Login com Google, com dados mínimos
+                        </h2>
+                        <p class="mt-2 text-sm leading-relaxed text-[#a9c2f7]">
+                            Se você escolher entrar com Google, o InovaForm usa
+                            apenas seu nome, e-mail e foto de perfil para criar
+                            ou acessar sua conta. Não lemos e-mails, arquivos,
+                            contatos ou calendário da sua conta Google.
+                        </p>
+                        <Link
+                            href="/politica-de-privacidade"
+                            class="mt-3 inline-flex text-sm font-medium text-[#9fc1ff] underline underline-offset-4 transition hover:text-white"
+                        >
+                            Ver Política de Privacidade
+                        </Link>
+                    </section>
                 </section>
 
                 <section
@@ -217,10 +244,12 @@ withDefaults(
                 class="flex flex-col gap-3 pb-6 text-center text-xs text-[#7d9fdb] lg:text-left"
             >
                 <p>
-                    Inovaform - Plataforma SaaS para funis, formularios e
+                    InovaForm - Plataforma SaaS para funis, formularios e
                     automacao comercial.
                 </p>
-                <div class="flex flex-wrap items-center justify-center gap-4 lg:justify-start">
+                <div
+                    class="flex flex-wrap items-center justify-center gap-4 lg:justify-start"
+                >
                     <Link
                         href="/politica-de-privacidade"
                         class="transition hover:text-white"
